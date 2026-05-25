@@ -96,6 +96,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
   const [filters, setFilters] = useState<AnimalFilters>(emptyFilters);
   const [formValues, setFormValues] = useState<AnimalFormValues>(emptyAnimalForm);
   const [editingAnimal, setEditingAnimal] = useState<Animal | null>(null);
+  const [isAnimalModalOpen, setIsAnimalModalOpen] = useState(false);
   const [eventAnimal, setEventAnimal] = useState<Animal | null>(null);
   const [eventFormValues, setEventFormValues] = useState<EventoFormValues>(emptyEventoForm);
   const [deactivateAnimalTarget, setDeactivateAnimalTarget] = useState<Animal | null>(null);
@@ -149,12 +150,22 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
   function resetForm() {
     setEditingAnimal(null);
     setFormValues(emptyAnimalForm);
+    setIsAnimalModalOpen(false);
+    setError('');
+    setSuccess('');
+  }
+
+  function openCreateAnimalModal() {
+    setEditingAnimal(null);
+    setFormValues(emptyAnimalForm);
+    setIsAnimalModalOpen(true);
     setError('');
     setSuccess('');
   }
 
   function startEditing(animal: Animal) {
     setEditingAnimal(animal);
+    setIsAnimalModalOpen(true);
     setFormValues({
       caravana: animal.caravana,
       nombre: animal.nombre ?? '',
@@ -340,9 +351,17 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
           <h2>Gestion del Rodeo</h2>
           <p>Alta, consulta y baja logica de animales.</p>
         </div>
-        <div className="settings-summary">
-          <strong>{animales.length}</strong>
-          <span>animales</span>
+        <div className="header-actions">
+          {isAdmin && (
+            <button type="button" className="primary-button compact-button" onClick={openCreateAnimalModal}>
+              <Plus size={18} />
+              Nuevo animal
+            </button>
+          )}
+          <div className="settings-summary">
+            <strong>{animales.length}</strong>
+            <span>animales</span>
+          </div>
         </div>
       </section>
 
@@ -377,22 +396,85 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
         </form>
       </section>
 
-      <div className="settings-grid">
-        {isAdmin && (
-          <section className="panel user-form-panel">
+      {error && !isAnimalModalOpen && !deactivateAnimalTarget && !eventAnimal && <div className="form-error">{error}</div>}
+      {success && <div className="form-success">{success}</div>}
+
+      <section className="panel users-list-panel herd-list-panel">
+          <div className="panel-header">
+            <div>
+              <h2>Animales</h2>
+              <p>{isAdmin ? 'Gestion completa del rodeo.' : 'Consulta del rodeo.'}</p>
+            </div>
+            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar animales">
+              <RefreshCcw size={18} />
+            </button>
+          </div>
+
+          {isLoading ? <p className="table-empty">Cargando animales...</p> : (
+            <div className="table-wrap">
+              <table className="users-table herd-table">
+                <thead>
+                  <tr>
+                    <th>Animal</th>
+                    <th>Lote</th>
+                    <th>Origen</th>
+                    <th>Categoria</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {animales.map((animal) => (
+                    <tr key={animal.id}>
+                      <td className="animal-identity-cell">
+                        <Link className="table-link animal-caravana-link" to={`/rodeos/${animal.id}`}>#{animal.caravana}</Link>
+                        <span>{animal.nombre || animal.raza || 'Sin nombre'}</span>
+                      </td>
+                      <td>{animal.lote.nombre}</td>
+                      <td>
+                        <strong>{animal.madre ? `#${animal.madre.caravana}` : '-'}</strong>
+                        <span>{animal.padreNombre || 'Sin padre'}</span>
+                      </td>
+                      <td>{animal.categoria}</td>
+                      <td>
+                        <span className={`status-pill ${animal.activo ? 'status-active' : 'status-inactive'}`}>
+                          {animal.estadoAnimal}
+                        </span>
+                        <span>{animal.estadoReproductivo}</span>
+                      </td>
+                      <td>
+                        <div className="table-actions">
+                          <button type="button" onClick={() => startRegisteringEvent(animal)} aria-label={`Registrar evento ${animal.caravana}`}><CalendarPlus size={16} /></button>
+                          {isAdmin && (
+                            <>
+                            <button type="button" onClick={() => startEditing(animal)} aria-label={`Editar ${animal.caravana}`}><Edit2 size={16} /></button>
+                            <button type="button" onClick={() => openDeactivateModal(animal)} disabled={!animal.activo} aria-label={`Dar de baja ${animal.caravana}`} title="Dar de baja"><Trash2 size={16} /></button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+      </section>
+
+      {isAnimalModalOpen && isAdmin && (
+        <div className="modal-backdrop">
+          <section className="modal-panel animal-form-modal">
             <div className="panel-header">
               <div>
                 <h2>{editingAnimal ? 'Editar animal' : 'Nuevo animal'}</h2>
                 <p>{editingAnimal ? 'La caravana no se puede modificar.' : 'La caravana debe ser unica.'}</p>
               </div>
-              {editingAnimal && (
-                <button type="button" className="icon-button" onClick={resetForm} aria-label="Cancelar edicion">
-                  <X size={18} />
-                </button>
-              )}
+              <button type="button" className="icon-button" onClick={resetForm} aria-label="Cerrar modal">
+                <X size={18} />
+              </button>
             </div>
 
-            <form className="user-form" onSubmit={handleSubmit}>
+            <form className="user-form animal-modal-form" onSubmit={handleSubmit}>
               <label>
                 <span>Caravana</span>
                 <input value={formValues.caravana} onChange={(event) => setFormValues({ ...formValues, caravana: event.target.value })} required disabled={Boolean(editingAnimal)} />
@@ -454,79 +536,22 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                 <span>Animal activo</span>
               </label>
 
-              {error && <div className="form-error">{error}</div>}
-              {success && <div className="form-success">{success}</div>}
+              {error && <div className="form-error animal-form-message">{error}</div>}
+              {success && <div className="form-success animal-form-message">{success}</div>}
 
-              <button type="submit" className="primary-button" disabled={isSaving}>
-                <Plus size={18} />
-                {isSaving ? 'Guardando...' : editingAnimal ? 'Guardar cambios' : 'Crear animal'}
-              </button>
+              <div className="modal-actions animal-form-actions">
+                <button type="button" className="secondary-button" onClick={resetForm} disabled={isSaving}>
+                  Cancelar
+                </button>
+                <button type="submit" className="primary-button" disabled={isSaving}>
+                  <Plus size={18} />
+                  {isSaving ? 'Guardando...' : editingAnimal ? 'Guardar cambios' : 'Crear animal'}
+                </button>
+              </div>
             </form>
           </section>
-        )}
-
-        <section className="panel users-list-panel">
-          <div className="panel-header">
-            <div>
-              <h2>Animales</h2>
-              <p>{isAdmin ? 'Gestion completa del rodeo.' : 'Consulta del rodeo.'}</p>
-            </div>
-            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar animales">
-              <RefreshCcw size={18} />
-            </button>
-          </div>
-
-          {isLoading ? <p className="table-empty">Cargando animales...</p> : (
-            <div className="table-wrap">
-              <table className="users-table">
-                <thead>
-                  <tr>
-                    <th>Animal</th>
-                    <th>Lote</th>
-                    <th>Origen</th>
-                    <th>Categoria</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {animales.map((animal) => (
-                    <tr key={animal.id}>
-                      <td>
-                        <Link className="table-link" to={`/rodeos/${animal.id}`}>#{animal.caravana}</Link>
-                        <span>{animal.nombre || animal.raza || 'Sin nombre'}</span>
-                      </td>
-                      <td>{animal.lote.nombre}</td>
-                      <td>
-                        <strong>{animal.madre ? `#${animal.madre.caravana}` : '-'}</strong>
-                        <span>{animal.padreNombre || 'Sin padre'}</span>
-                      </td>
-                      <td>{animal.categoria}</td>
-                      <td>
-                        <span className={`status-pill ${animal.activo ? 'status-active' : 'status-inactive'}`}>
-                          {animal.estadoAnimal}
-                        </span>
-                        <span>{animal.estadoReproductivo}</span>
-                      </td>
-                      <td>
-                        <div className="table-actions">
-                          <button type="button" onClick={() => startRegisteringEvent(animal)} aria-label={`Registrar evento ${animal.caravana}`}><CalendarPlus size={16} /></button>
-                          {isAdmin && (
-                            <>
-                            <button type="button" onClick={() => startEditing(animal)} aria-label={`Editar ${animal.caravana}`}><Edit2 size={16} /></button>
-                            <button type="button" onClick={() => openDeactivateModal(animal)} disabled={!animal.activo} aria-label={`Dar de baja ${animal.caravana}`} title="Dar de baja"><Trash2 size={16} /></button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      </div>
+        </div>
+      )}
 
       {deactivateAnimalTarget && (
         <div className="modal-backdrop">

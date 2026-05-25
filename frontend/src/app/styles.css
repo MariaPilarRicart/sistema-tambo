@@ -653,6 +653,7 @@ a {
 .settings-header {
   align-items: center;
   display: flex;
+  gap: 16px;
   justify-content: space-between;
 }
 
@@ -688,6 +689,17 @@ a {
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.header-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.compact-button {
+  min-height: 46px;
+  padding: 0 16px;
 }
 
 .settings-grid {
@@ -837,6 +849,22 @@ a {
   width: 100%;
 }
 
+.animal-form-modal {
+  max-height: calc(100vh - 48px);
+  max-width: 760px;
+  overflow: auto;
+}
+
+.animal-modal-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.animal-modal-form .checkbox-row,
+.animal-form-message,
+.animal-form-actions {
+  grid-column: 1 / -1;
+}
+
 .modal-actions {
   display: flex;
   gap: 12px;
@@ -895,6 +923,31 @@ a {
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.herd-list-panel {
+  min-width: 0;
+}
+
+.herd-table {
+  min-width: 920px;
+}
+
+.herd-table th,
+.herd-table td {
+  vertical-align: top;
+}
+
+.animal-identity-cell {
+  min-width: 160px;
+  white-space: nowrap;
+}
+
+.animal-caravana-link {
+  display: inline-block;
+  line-height: 1.2;
+  max-width: 220px;
+  overflow-wrap: anywhere;
 }
 
 .users-table {
@@ -957,7 +1010,8 @@ a {
   gap: 8px;
 }
 
-.table-actions button {
+.table-actions button,
+.task-action-button {
   align-items: center;
   background: #ffffff;
   border: 1px solid var(--slate-200);
@@ -969,7 +1023,8 @@ a {
   width: 34px;
 }
 
-.table-actions button:hover:not(:disabled) {
+.table-actions button:hover:not(:disabled),
+.task-action-button:hover {
   color: var(--emerald);
 }
 
@@ -1141,6 +1196,12 @@ a {
 }
 
 @media (max-width: 760px) {
+  .settings-header,
+  .header-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .sidebar {
     height: auto;
     position: static;
@@ -1162,6 +1223,10 @@ a {
   }
 
   .filters-form {
+    grid-template-columns: 1fr;
+  }
+
+  .animal-modal-form {
     grid-template-columns: 1fr;
   }
 

@@ -2,16 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { getAgendaPendiente } from '../services/agendaService';
+import { AgendaTaskActions } from '../components/ui/AgendaTaskActions';
 import type { AgendaTarea, TipoTarea } from '../types/agenda';
+import type { AuthUser } from '../types/auth';
 
 const taskOrder: TipoTarea[] = ['TACTO', 'SECADO', 'PARTO', 'ALTA_POST_PARTO', 'VACUNACION', 'CONTROL_CLINICO'];
 
 interface AgendaPageProps {
   authToken: string | null;
+  currentUser: AuthUser | null;
   onUnauthorized: () => void;
 }
 
-export function AgendaPage({ authToken, onUnauthorized }: AgendaPageProps) {
+export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPageProps) {
   const [agenda, setAgenda] = useState<AgendaTarea[]>([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -89,6 +92,7 @@ export function AgendaPage({ authToken, onUnauthorized }: AgendaPageProps) {
                     <th>Animal</th>
                     <th>Lote</th>
                     <th>Estado</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -98,6 +102,15 @@ export function AgendaPage({ authToken, onUnauthorized }: AgendaPageProps) {
                       <td><strong>#{task.animal.caravana}</strong><span>{task.animal.categoria}</span></td>
                       <td>{task.animal.lote.nombre}</td>
                       <td><span className="status-pill status-active">{task.estado}</span></td>
+                      <td>
+                        <AgendaTaskActions
+                          authToken={authToken}
+                          currentUser={currentUser}
+                          task={task}
+                          onChanged={() => void loadAgenda()}
+                          onUnauthorized={onUnauthorized}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

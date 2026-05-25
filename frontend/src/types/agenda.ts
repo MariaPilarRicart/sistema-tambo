@@ -36,3 +36,7 @@ export interface ListadosOperativos {
   partos: AgendaTarea[];
   altasPostParto: AgendaTarea[];
 }
+
+export interface CancelAgendaTaskValues {
+  observacion: string;
+}

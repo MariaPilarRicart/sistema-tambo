@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, CalendarClock, ClipboardList, RefreshCcw } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { getListadosOperativos } from '../services/agendaService';
+import { AgendaTaskActions } from '../components/ui/AgendaTaskActions';
 import type { AgendaTarea, ListadosOperativos } from '../types/agenda';
+import type { AuthUser } from '../types/auth';
 
 const emptyListados: ListadosOperativos = {
   vencidas: [],
@@ -27,6 +29,7 @@ const sections: Array<{ key: keyof ListadosOperativos; title: string; descriptio
 
 interface ListingsPageProps {
   authToken: string | null;
+  currentUser: AuthUser | null;
   onUnauthorized: () => void;
 }
 
@@ -34,7 +37,19 @@ function formatDate(value: string) {
   return new Date(value).toLocaleDateString();
 }
 
-function TaskTable({ tasks }: { tasks: AgendaTarea[] }) {
+function TaskTable({
+  authToken,
+  currentUser,
+  onChanged,
+  onUnauthorized,
+  tasks,
+}: {
+  authToken: string | null;
+  currentUser: AuthUser | null;
+  onChanged: () => void;
+  onUnauthorized: () => void;
+  tasks: AgendaTarea[];
+}) {
   if (tasks.length === 0) {
     return <p className="table-empty">Sin tareas para mostrar.</p>;
   }
@@ -50,6 +65,7 @@ function TaskTable({ tasks }: { tasks: AgendaTarea[] }) {
             <th>Lote</th>
             <th>Estado reproductivo</th>
             <th>Estado tarea</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -64,6 +80,15 @@ function TaskTable({ tasks }: { tasks: AgendaTarea[] }) {
               <td>{task.animal.lote.nombre}</td>
               <td>{task.animal.estadoReproductivo}</td>
               <td><span className="status-pill status-active">{task.estado}</span></td>
+              <td>
+                <AgendaTaskActions
+                  authToken={authToken}
+                  currentUser={currentUser}
+                  task={task}
+                  onChanged={onChanged}
+                  onUnauthorized={onUnauthorized}
+                />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -72,7 +97,7 @@ function TaskTable({ tasks }: { tasks: AgendaTarea[] }) {
   );
 }
 
-export function ListingsPage({ authToken, onUnauthorized }: ListingsPageProps) {
+export function ListingsPage({ authToken, currentUser, onUnauthorized }: ListingsPageProps) {
   const [listados, setListados] = useState<ListadosOperativos>(emptyListados);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -156,7 +181,13 @@ export function ListingsPage({ authToken, onUnauthorized }: ListingsPageProps) {
               </div>
               <span className="panel-chip">{listados[section.key].length}</span>
             </div>
-            <TaskTable tasks={listados[section.key]} />
+            <TaskTable
+              authToken={authToken}
+              currentUser={currentUser}
+              tasks={listados[section.key]}
+              onChanged={() => void loadListados()}
+              onUnauthorized={onUnauthorized}
+            />
           </section>
         ))}
       </div>

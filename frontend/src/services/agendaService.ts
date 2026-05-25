@@ -1,8 +1,12 @@
 import { apiRequest } from './apiClient';
-import type { AgendaTarea, ListadosOperativos } from '../types/agenda';
+import type { AgendaTarea, CancelAgendaTaskValues, ListadosOperativos } from '../types/agenda';
 
 interface AgendaResponse {
   agenda: AgendaTarea[];
+}
+
+interface AgendaTaskResponse {
+  tarea: AgendaTarea;
 }
 
 interface ListadosOperativosResponse {
@@ -17,4 +21,19 @@ export async function getAgendaPendiente(token: string) {
 export async function getListadosOperativos(token: string) {
   const response = await apiRequest<ListadosOperativosResponse>('/agenda/listados-operativos', { token });
   return response.listados;
+}
+
+export async function getAgendaTask(token: string, id: number) {
+  const response = await apiRequest<AgendaTaskResponse>(`/agenda/${id}`, { token });
+  return response.tarea;
+}
+
+export async function cancelAgendaTask(token: string, id: number, values: CancelAgendaTaskValues) {
+  const response = await apiRequest<AgendaTaskResponse>(`/agenda/${id}/cancelar`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify({ observacion: values.observacion.trim() || null }),
+  });
+
+  return response.tarea;
 }

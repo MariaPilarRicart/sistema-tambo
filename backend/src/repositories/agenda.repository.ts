@@ -64,6 +64,24 @@ export function findPendingAgenda() {
   });
 }
 
+export function findAgendaTaskById(id: number) {
+  return prisma.agendaTarea.findUnique({
+    where: { id },
+    include: agendaInclude,
+  });
+}
+
+export function cancelAgendaTask(id: number, observacion?: string | null) {
+  return prisma.agendaTarea.update({
+    where: { id },
+    data: {
+      estado: 'CANCELADA',
+      descripcion: observacion ?? undefined,
+    },
+    include: agendaInclude,
+  });
+}
+
 export function findOperativePendingAgenda() {
   return prisma.agendaTarea.findMany({
     where: { estado: 'PENDIENTE' },

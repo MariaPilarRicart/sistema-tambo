@@ -1,6 +1,12 @@
 import { EstadoTarea, TipoTarea } from '@prisma/client';
 import { AppError } from '../errors/AppError';
-import { findAgenda, findOperativePendingAgenda, findPendingAgenda } from '../repositories/agenda.repository';
+import {
+  cancelAgendaTask,
+  findAgenda,
+  findAgendaTaskById,
+  findOperativePendingAgenda,
+  findPendingAgenda,
+} from '../repositories/agenda.repository';
 
 function parseId(value: unknown, fieldName: string) {
   const parsed = Number(value);
@@ -50,6 +56,38 @@ export function listAgenda(query: Record<string, unknown>) {
 
 export function listPendingAgenda() {
   return findPendingAgenda();
+}
+
+export async function getAgendaTask(idParam: string) {
+  const id = parseId(idParam, 'Id de tarea');
+  const task = await findAgendaTaskById(id);
+
+  if (!task) {
+    throw new AppError('Tarea de agenda no encontrada.', 404);
+  }
+
+  return task;
+}
+
+function normalizeOptionalString(value: unknown, fieldName: string) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value !== 'string') throw new AppError(`${fieldName} invalida.`, 400);
+  return value.trim() || null;
+}
+
+export async function cancelExistingAgendaTask(idParam: string, input: Record<string, unknown>) {
+  const id = parseId(idParam, 'Id de tarea');
+  const task = await findAgendaTaskById(id);
+
+  if (!task) {
+    throw new AppError('Tarea de agenda no encontrada.', 404);
+  }
+
+  if (task.estado !== EstadoTarea.PENDIENTE) {
+    throw new AppError('Solo se pueden cancelar tareas pendientes.', 400);
+  }
+
+  return cancelAgendaTask(id, normalizeOptionalString(input.observacion, 'Observacion de cancelacion'));
 }
 
 function startOfToday() {

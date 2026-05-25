@@ -104,11 +104,11 @@ export function App() {
           />
           <Route
             path={paths.agenda}
-            element={<AgendaPage authToken={authToken} onUnauthorized={handleLogout} />}
+            element={<AgendaPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
           />
           <Route
             path={paths.listings}
-            element={<ListingsPage authToken={authToken} onUnauthorized={handleLogout} />}
+            element={<ListingsPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
           />
           <Route path={paths.feed} element={<FeedPage />} />
           <Route path={paths.vaccination} element={<VaccinationPage />} />
