@@ -1,4 +1,7 @@
 import type { Lote } from './lotes';
+import type { EstadoTarea, TipoTarea } from './agenda';
+import type { UserRole } from './auth';
+import type { TipoEvento } from './eventos';
 
 export type CategoriaAnimal = 'TERNERA' | 'VAQUILLONA' | 'VACA' | 'TORO';
 export type EstadoReproductivo = 'NO_APLICA' | 'VACIA' | 'INSEMINADA' | 'PRENADA' | 'SECA' | 'RECUPERACION';
@@ -55,4 +58,38 @@ export interface AnimalFilters {
 export interface AnimalDeactivateValues {
   estadoAnimal: MotivoBajaAnimal;
   observacionesBaja: string;
+}
+
+export interface AnimalFicha extends Animal {
+  hijos: Array<{
+    id: number;
+    caravana: string;
+    nombre: string | null;
+    categoria: CategoriaAnimal;
+    estadoAnimal: EstadoAnimal;
+    activo: boolean;
+  }>;
+  eventos: Array<{
+    id: number;
+    tipo: TipoEvento;
+    fecha: string;
+    observaciones: string | null;
+    datosJson: unknown;
+    usuario: {
+      id: number;
+      nombre: string;
+      username: string;
+      rol: UserRole;
+    } | null;
+  }>;
+  tareas: Array<{
+    id: number;
+    tipo: TipoTarea;
+    fechaProgramada: string;
+    fechaRealizacion: string | null;
+    estado: EstadoTarea;
+    descripcion: string | null;
+    eventoOrigenId: number | null;
+    eventoCierreId: number | null;
+  }>;
 }

@@ -4,6 +4,7 @@ import {
   createAnimal,
   deactivateAnimal,
   findActiveLoteById,
+  findAnimalFichaById,
   findAnimalByCaravana,
   findAnimalById,
   findAnimales,
@@ -137,6 +138,17 @@ export async function listAnimales(query: Record<string, unknown>) {
 export async function getAnimal(idParam: string) {
   const id = parseId(idParam, 'Id de animal');
   const animal = await findAnimalById(id);
+
+  if (!animal) {
+    throw new AppError('Animal no encontrado.', 404);
+  }
+
+  return animal;
+}
+
+export async function getAnimalFicha(idParam: string) {
+  const id = parseId(idParam, 'Id de animal');
+  const animal = await findAnimalFichaById(id);
 
   if (!animal) {
     throw new AppError('Animal no encontrado.', 404);

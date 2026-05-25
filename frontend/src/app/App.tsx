@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { MainLayout } from '../components/layout/MainLayout';
 import { DashboardPage } from '../pages/DashboardPage';
 import { AgendaPage } from '../pages/AgendaPage';
+import { AnimalFichaPage } from '../pages/AnimalFichaPage';
 import { EventsPage } from '../pages/EventsPage';
 import { FeedPage } from '../pages/FeedPage';
 import { HerdPage } from '../pages/HerdPage';
@@ -92,6 +93,10 @@ export function App() {
                 onUnauthorized={handleLogout}
               />
             }
+          />
+          <Route
+            path={paths.animalFicha}
+            element={<AnimalFichaPage authToken={authToken} onUnauthorized={handleLogout} />}
           />
           <Route
             path={paths.events}

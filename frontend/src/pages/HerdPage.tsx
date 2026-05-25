@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { CalendarPlus, Edit2, Plus, RefreshCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { createAnimal, deactivateAnimal, getAnimales, updateAnimal } from '../services/animalesService';
@@ -491,7 +492,10 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                 <tbody>
                   {animales.map((animal) => (
                     <tr key={animal.id}>
-                      <td><strong>#{animal.caravana}</strong><span>{animal.nombre || animal.raza || 'Sin nombre'}</span></td>
+                      <td>
+                        <Link className="table-link" to={`/rodeos/${animal.id}`}>#{animal.caravana}</Link>
+                        <span>{animal.nombre || animal.raza || 'Sin nombre'}</span>
+                      </td>
                       <td>{animal.lote.nombre}</td>
                       <td>
                         <strong>{animal.madre ? `#${animal.madre.caravana}` : '-'}</strong>

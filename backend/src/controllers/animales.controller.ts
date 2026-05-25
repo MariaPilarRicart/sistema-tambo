@@ -3,6 +3,7 @@ import {
   createNewAnimal,
   deactivateExistingAnimal,
   getAnimal,
+  getAnimalFicha,
   listAnimales,
   updateExistingAnimal,
 } from '../services/animales.service';
@@ -15,6 +16,12 @@ export async function listAnimalesController(request: Request, response: Respons
 
 export async function getAnimalController(request: Request, response: Response) {
   const animal = await getAnimal(String(request.params.id));
+
+  response.status(200).json({ animal });
+}
+
+export async function getAnimalFichaController(request: Request, response: Response) {
+  const animal = await getAnimalFicha(String(request.params.id));
 
   response.status(200).json({ animal });
 }

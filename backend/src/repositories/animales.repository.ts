@@ -50,6 +50,58 @@ export function findAnimalById(id: number) {
   });
 }
 
+export function findAnimalFichaById(id: number) {
+  return prisma.animal.findUnique({
+    where: { id },
+    include: {
+      ...animalInclude,
+      hijos: {
+        select: {
+          id: true,
+          caravana: true,
+          nombre: true,
+          categoria: true,
+          estadoAnimal: true,
+          activo: true,
+        },
+        orderBy: { caravana: 'asc' },
+      },
+      eventos: {
+        orderBy: { fecha: 'desc' },
+        include: {
+          usuario: {
+            select: {
+              id: true,
+              nombre: true,
+              username: true,
+              rol: true,
+            },
+          },
+        },
+      },
+      tareas: {
+        orderBy: { fechaProgramada: 'desc' },
+        include: {
+          eventoOrigen: {
+            select: {
+              id: true,
+              tipo: true,
+              fecha: true,
+            },
+          },
+          eventoCierre: {
+            select: {
+              id: true,
+              tipo: true,
+              fecha: true,
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 export function findAnimalByCaravana(caravana: string) {
   return prisma.animal.findUnique({
     where: { caravana },
