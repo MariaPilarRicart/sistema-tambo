@@ -1,0 +1,176 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RolUsuario {
+  ADMIN
+  EMPLEADO
+}
+
+enum CategoriaAnimal {
+  TERNERA
+  VAQUILLONA
+  VACA
+  TORO
+}
+
+enum EstadoReproductivo {
+  NO_APLICA
+  VACIA
+  INSEMINADA
+  PRENADA
+  SECA
+  RECUPERACION
+}
+
+enum EstadoAnimal {
+  ACTIVO
+  VENDIDO
+  MUERTO
+  ROBADO
+  TRASLADADO
+  OTRO
+}
+
+enum TipoEvento {
+  CELO
+  INSEMINACION
+  TACTO
+  SECADO
+  PARTO
+  ABORTO
+  CLINICO
+  VACUNACION
+  CAMBIO_LOTE
+  VENTA
+  MUERTE
+}
+
+enum TipoTarea {
+  TACTO
+  SECADO
+  PARTO
+  ALTA_POST_PARTO
+  VACUNACION
+  CONTROL_CLINICO
+}
+
+enum EstadoTarea {
+  PENDIENTE
+  REALIZADA
+  CANCELADA
+}
+
+model Usuario {
+  id           Int        @id @default(autoincrement())
+  nombre       String
+  username     String     @unique
+  email        String?    @unique
+  passwordHash String
+  rol          RolUsuario
+  activo       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  eventos Evento[]
+
+  @@map("usuarios")
+}
+
+model Lote {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique
+  descripcion String?
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  animales Animal[]
+
+  @@map("lotes")
+}
+
+model Animal {
+  id                 Int                @id @default(autoincrement())
+  caravana           String             @unique
+  nombre             String?
+  fechaNacimiento    DateTime
+  raza               String?
+  categoria          CategoriaAnimal
+  estadoReproductivo EstadoReproductivo @default(VACIA)
+  estadoAnimal       EstadoAnimal       @default(ACTIVO)
+  activo             Boolean            @default(true)
+  fechaBaja          DateTime?
+  observacionesBaja  String?
+  loteId             Int
+  madreId            Int?
+  padreNombre        String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  lote    Lote          @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  madre   Animal?       @relation("MadreHijos", fields: [madreId], references: [id], onDelete: Restrict)
+  hijos   Animal[]      @relation("MadreHijos")
+  eventos Evento[]
+  tareas  AgendaTarea[]
+
+  @@index([loteId])
+  @@index([madreId])
+  @@index([estadoAnimal])
+  @@index([estadoReproductivo])
+  @@map("animales")
+}
+
+model Evento {
+  id            Int        @id @default(autoincrement())
+  tipo          TipoEvento
+  fecha         DateTime   @default(now())
+  observaciones String?
+  animalId      Int
+  usuarioId     Int?
+  datosJson     Json?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  animal         Animal        @relation(fields: [animalId], references: [id], onDelete: Restrict)
+  usuario        Usuario?      @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  tareasCreadas  AgendaTarea[] @relation("EventoOrigenTarea")
+  tareasCerradas AgendaTarea[] @relation("EventoCierreTarea")
+
+  @@index([animalId])
+  @@index([usuarioId])
+  @@index([tipo])
+  @@index([fecha])
+  @@map("eventos")
+}
+
+model AgendaTarea {
+  id               Int         @id @default(autoincrement())
+  tipo             TipoTarea
+  fechaProgramada  DateTime
+  fechaRealizacion DateTime?
+  estado           EstadoTarea @default(PENDIENTE)
+  descripcion      String?
+  animalId         Int
+  eventoOrigenId   Int?
+  eventoCierreId   Int?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  animal       Animal  @relation(fields: [animalId], references: [id], onDelete: Restrict)
+  eventoOrigen Evento? @relation("EventoOrigenTarea", fields: [eventoOrigenId], references: [id], onDelete: SetNull)
+  eventoCierre Evento? @relation("EventoCierreTarea", fields: [eventoCierreId], references: [id], onDelete: SetNull)
+
+  @@index([animalId])
+  @@index([eventoOrigenId])
+  @@index([eventoCierreId])
+  @@index([estado])
+  @@index([tipo])
+  @@index([fechaProgramada])
+  @@map("agenda_tareas")
+}
