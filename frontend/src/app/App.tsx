@@ -106,7 +106,10 @@ export function App() {
             path={paths.agenda}
             element={<AgendaPage authToken={authToken} onUnauthorized={handleLogout} />}
           />
-          <Route path={paths.listings} element={<ListingsPage />} />
+          <Route
+            path={paths.listings}
+            element={<ListingsPage authToken={authToken} onUnauthorized={handleLogout} />}
+          />
           <Route path={paths.feed} element={<FeedPage />} />
           <Route path={paths.vaccination} element={<VaccinationPage />} />
           <Route

@@ -1,6 +1,6 @@
 import { EstadoTarea, TipoTarea } from '@prisma/client';
 import { AppError } from '../errors/AppError';
-import { findAgenda, findPendingAgenda } from '../repositories/agenda.repository';
+import { findAgenda, findOperativePendingAgenda, findPendingAgenda } from '../repositories/agenda.repository';
 
 function parseId(value: unknown, fieldName: string) {
   const parsed = Number(value);
@@ -50,4 +50,32 @@ export function listAgenda(query: Record<string, unknown>) {
 
 export function listPendingAgenda() {
   return findPendingAgenda();
+}
+
+function startOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function endOfToday() {
+  const date = new Date();
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
+export async function getListadosOperativos() {
+  const tareas = await findOperativePendingAgenda();
+  const todayStart = startOfToday();
+  const todayEnd = endOfToday();
+
+  return {
+    vencidas: tareas.filter((tarea) => tarea.fechaProgramada < todayStart),
+    hoy: tareas.filter((tarea) => tarea.fechaProgramada >= todayStart && tarea.fechaProgramada <= todayEnd),
+    proximas: tareas.filter((tarea) => tarea.fechaProgramada > todayEnd),
+    tactos: tareas.filter((tarea) => tarea.tipo === TipoTarea.TACTO),
+    secados: tareas.filter((tarea) => tarea.tipo === TipoTarea.SECADO),
+    partos: tareas.filter((tarea) => tarea.tipo === TipoTarea.PARTO),
+    altasPostParto: tareas.filter((tarea) => tarea.tipo === TipoTarea.ALTA_POST_PARTO),
+  };
 }

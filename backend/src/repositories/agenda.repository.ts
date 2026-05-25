@@ -63,3 +63,11 @@ export function findPendingAgenda() {
     include: agendaInclude,
   });
 }
+
+export function findOperativePendingAgenda() {
+  return prisma.agendaTarea.findMany({
+    where: { estado: 'PENDIENTE' },
+    orderBy: { fechaProgramada: 'asc' },
+    include: agendaInclude,
+  });
+}
