@@ -1163,6 +1163,132 @@ a {
   padding: 16px;
 }
 
+.vaccination-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.feed-grid {
+  align-items: start;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(320px, 1.1fr);
+}
+
+.feed-table-wrap {
+  margin-top: 18px;
+}
+
+.vaccination-mode-selector,
+.animal-selector,
+.vaccination-selection-panel,
+.vaccination-submit {
+  grid-column: 1 / -1;
+}
+
+.vaccination-mode-selector {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 6px;
+}
+
+.vaccination-mode-selector button {
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  color: var(--slate-500);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 10px;
+  text-transform: uppercase;
+}
+
+.vaccination-mode-selector .vaccination-mode-active {
+  background: #ecfdf5;
+  color: var(--emerald-dark);
+}
+
+.vaccination-selection-panel {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.selection-helper {
+  color: var(--slate-500);
+  font-size: 12px;
+  font-weight: 700;
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.animal-selector {
+  display: grid;
+  gap: 8px;
+}
+
+.animal-selector > div {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.field-help {
+  color: var(--slate-400);
+  font-size: 12px;
+  font-weight: 700;
+  margin: -2px 0 0;
+}
+
+.animal-selector-option {
+  background: #ffffff;
+  border: 1px solid var(--slate-100);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.selected-animals-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.selected-animals-summary button {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 999px;
+  color: var(--emerald-dark);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 6px 10px;
+}
+
+.selection-count {
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 900;
+  grid-column: 1 / -1;
+  padding: 12px;
+}
+
+.selection-count-ok {
+  background: #ecfdf5;
+  color: var(--emerald-dark);
+}
+
+.selection-count-empty {
+  background: #fff1f2;
+  color: var(--rose);
+}
+
 .user-form {
   display: grid;
   gap: 14px;
@@ -1558,7 +1684,9 @@ a {
   .dashboard-kpi-grid,
   .dashboard-distribution-grid,
   .dashboard-bottom-grid,
+  .feed-grid,
   .settings-grid,
+  .vaccination-form,
   .operative-summary-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1566,6 +1694,7 @@ a {
   .dashboard-grid,
   .dashboard-distribution-grid,
   .dashboard-bottom-grid,
+  .feed-grid,
   .settings-grid {
     grid-template-columns: 1fr;
   }
@@ -1609,6 +1738,15 @@ a {
   }
 
   .animal-modal-form {
+    grid-template-columns: 1fr;
+  }
+
+  .vaccination-form {
+    grid-template-columns: 1fr;
+  }
+
+  .vaccination-mode-selector,
+  .vaccination-selection-panel {
     grid-template-columns: 1fr;
   }
 

@@ -184,9 +184,27 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
     switch (tipo) {
       case TipoEvento.CELO:
       case TipoEvento.CLINICO:
-      case TipoEvento.VACUNACION:
       case TipoEvento.CAMBIO_LOTE:
         break;
+
+      case TipoEvento.VACUNACION: {
+        const pendingVaccination = await tx.agendaTarea.findFirst({
+          where: { animalId, tipo: 'VACUNACION', estado: 'PENDIENTE' },
+          orderBy: { fechaProgramada: 'asc' },
+        });
+
+        if (pendingVaccination) {
+          await tx.agendaTarea.update({
+            where: { id: pendingVaccination.id },
+            data: {
+              estado: 'REALIZADA',
+              fechaRealizacion: fecha,
+              eventoCierreId: evento.id,
+            },
+          });
+        }
+        break;
+      }
 
       case TipoEvento.INSEMINACION:
         await tx.animal.update({

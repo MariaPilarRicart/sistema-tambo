@@ -113,8 +113,14 @@ export function App() {
             path={paths.listings}
             element={<ListingsPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
           />
-          <Route path={paths.feed} element={<FeedPage />} />
-          <Route path={paths.vaccination} element={<VaccinationPage />} />
+          <Route
+            path={paths.feed}
+            element={<FeedPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
+          />
+          <Route
+            path={paths.vaccination}
+            element={<VaccinationPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
+          />
           <Route
             path={paths.settings}
             element={

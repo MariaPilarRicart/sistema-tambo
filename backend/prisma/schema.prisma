@@ -77,7 +77,8 @@ model Usuario {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  eventos Evento[]
+  eventos               Evento[]
+  registrosAlimentacion RegistroAlimentacion[]
 
   @@map("usuarios")
 }
@@ -90,9 +91,45 @@ model Lote {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  animales Animal[]
+  animales              Animal[]
+  registrosAlimentacion RegistroAlimentacion[]
 
   @@map("lotes")
+}
+
+model Racion {
+  id          Int      @id @default(autoincrement())
+  nombre      String   @unique
+  descripcion String?
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  registrosAlimentacion RegistroAlimentacion[]
+
+  @@map("raciones")
+}
+
+model RegistroAlimentacion {
+  id            Int      @id @default(autoincrement())
+  fecha         DateTime
+  loteId        Int
+  racionId      Int
+  cantidadKg    Float
+  observaciones String?
+  usuarioId     Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  lote    Lote     @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  racion  Racion   @relation(fields: [racionId], references: [id], onDelete: Restrict)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([fecha])
+  @@index([loteId])
+  @@index([racionId])
+  @@index([usuarioId])
+  @@map("registros_alimentacion")
 }
 
 model Animal {
