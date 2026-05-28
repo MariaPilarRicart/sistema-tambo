@@ -1,12 +1,19 @@
 import { RolUsuario } from '@prisma/client';
 import { Router } from 'express';
 import {
+  createInsumoAlimentacionController,
+  createMovimientoStockAlimentacionController,
   createRacionController,
   createRegistroAlimentacionController,
+  deleteInsumoAlimentacionController,
   deleteRacionController,
   getResumenAlimentacionController,
+  getResumenStockAlimentacionController,
+  listInsumosAlimentacionController,
+  listMovimientosStockAlimentacionController,
   listRacionesController,
   listRegistrosAlimentacionController,
+  updateInsumoAlimentacionController,
   updateRacionController,
 } from '../controllers/alimentacion.controller';
 import { asyncHandler } from '../middlewares/async-handler.middleware';
@@ -38,3 +45,35 @@ alimentacionRouter.delete(
 alimentacionRouter.get('/alimentacion/registros', authenticate, asyncHandler(listRegistrosAlimentacionController));
 alimentacionRouter.post('/alimentacion/registros', authenticate, asyncHandler(createRegistroAlimentacionController));
 alimentacionRouter.get('/alimentacion/resumen', authenticate, asyncHandler(getResumenAlimentacionController));
+
+alimentacionRouter.get('/alimentacion/insumos', authenticate, asyncHandler(listInsumosAlimentacionController));
+alimentacionRouter.post(
+  '/alimentacion/insumos',
+  authenticate,
+  authorizeRoles(RolUsuario.ADMIN),
+  asyncHandler(createInsumoAlimentacionController),
+);
+alimentacionRouter.put(
+  '/alimentacion/insumos/:id',
+  authenticate,
+  authorizeRoles(RolUsuario.ADMIN),
+  asyncHandler(updateInsumoAlimentacionController),
+);
+alimentacionRouter.delete(
+  '/alimentacion/insumos/:id',
+  authenticate,
+  authorizeRoles(RolUsuario.ADMIN),
+  asyncHandler(deleteInsumoAlimentacionController),
+);
+
+alimentacionRouter.get(
+  '/alimentacion/stock/movimientos',
+  authenticate,
+  asyncHandler(listMovimientosStockAlimentacionController),
+);
+alimentacionRouter.post(
+  '/alimentacion/stock/movimientos',
+  authenticate,
+  asyncHandler(createMovimientoStockAlimentacionController),
+);
+alimentacionRouter.get('/alimentacion/stock/resumen', authenticate, asyncHandler(getResumenStockAlimentacionController));

@@ -49,6 +49,7 @@ export interface EventoFilters {
 
 export interface EventoFormValues {
   tipo: TipoEvento;
+  fecha: string;
   observaciones: string;
   resultadoTacto: 'POSITIVO' | 'NEGATIVO';
 }

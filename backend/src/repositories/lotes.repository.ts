@@ -70,3 +70,10 @@ export function deactivateLote(id: number) {
     select: loteSelect,
   });
 }
+
+export function deleteLote(id: number) {
+  return prisma.lote.delete({
+    where: { id },
+    select: loteSelect,
+  });
+}

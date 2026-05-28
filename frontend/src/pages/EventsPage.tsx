@@ -99,8 +99,14 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
             <option value="">Todos los animales</option>
             {animales.map((animal) => <option key={animal.id} value={animal.id}>#{animal.caravana}</option>)}
           </select>
-          <input type="date" value={filters.fechaDesde} onChange={(event) => setFilters({ ...filters, fechaDesde: event.target.value })} />
-          <input type="date" value={filters.fechaHasta} onChange={(event) => setFilters({ ...filters, fechaHasta: event.target.value })} />
+          <label className="filter-field">
+            <span>Fecha inicio</span>
+            <input type="date" value={filters.fechaDesde} onChange={(event) => setFilters({ ...filters, fechaDesde: event.target.value })} />
+          </label>
+          <label className="filter-field">
+            <span>Fecha fin</span>
+            <input type="date" value={filters.fechaHasta} onChange={(event) => setFilters({ ...filters, fechaHasta: event.target.value })} />
+          </label>
           <button type="submit" className="secondary-button">Filtrar</button>
           <button type="button" className="secondary-button" onClick={clearFilters}>Limpiar</button>
         </form>

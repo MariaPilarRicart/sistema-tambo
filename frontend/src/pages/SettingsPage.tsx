@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Edit2, Plus, RefreshCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
-import { createLote, deactivateLote, getLotes, updateLote } from '../services/lotesService';
+import { createLote, deleteLote, getLotes, updateLote } from '../services/lotesService';
 import { createUser, deactivateUser, getUsers, updateUser } from '../services/usersService';
 import type { AuthUser, UserRole } from '../types/auth';
 import type { Lote, LoteFormValues } from '../types/lotes';
@@ -170,7 +170,7 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
         resetLoteForm();
         setSuccess('Lote actualizado correctamente.');
       } else {
-        await createLote(authToken, loteFormValues);
+        await createLote(authToken, { ...loteFormValues, activo: true });
         resetLoteForm();
         setSuccess('Lote creado correctamente.');
       }
@@ -197,15 +197,15 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     }
   }
 
-  async function handleDeactivateLote(lote: Lote) {
+  async function handleDeleteLote(lote: Lote) {
     if (!authToken) return onUnauthorized();
-    if (!window.confirm(`Dar de baja el lote ${lote.nombre}?`)) return;
+    if (!window.confirm(`Eliminar definitivamente el lote ${lote.nombre}?`)) return;
     setError('');
     setSuccess('');
 
     try {
-      await deactivateLote(authToken, lote.id);
-      setSuccess('Lote dado de baja correctamente.');
+      await deleteLote(authToken, lote.id);
+      setSuccess('Lote eliminado correctamente.');
       await loadLotes();
     } catch (deleteError) {
       handleRequestError(deleteError);
@@ -374,10 +374,12 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
                 <span>Descripcion</span>
                 <input value={loteFormValues.descripcion} onChange={(event) => setLoteFormValues({ ...loteFormValues, descripcion: event.target.value })} />
               </label>
-              <label className="checkbox-row">
-                <input type="checkbox" checked={loteFormValues.activo} onChange={(event) => setLoteFormValues({ ...loteFormValues, activo: event.target.checked })} />
-                <span>Lote activo</span>
-              </label>
+              {editingLote && (
+                <label className="checkbox-row">
+                  <input type="checkbox" checked={loteFormValues.activo} onChange={(event) => setLoteFormValues({ ...loteFormValues, activo: event.target.checked })} />
+                  <span>Lote activo</span>
+                </label>
+              )}
 
               {error && <div className="form-error">{error}</div>}
               {success && <div className="form-success">{success}</div>}
@@ -415,7 +417,7 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
                         <td>
                           <div className="table-actions">
                             <button type="button" onClick={() => startEditingLote(lote)} aria-label={`Editar ${lote.nombre}`}><Edit2 size={16} /></button>
-                            <button type="button" onClick={() => void handleDeactivateLote(lote)} disabled={!lote.activo} aria-label={`Dar de baja ${lote.nombre}`}><Trash2 size={16} /></button>
+                            <button type="button" onClick={() => void handleDeleteLote(lote)} aria-label={`Eliminar ${lote.nombre}`}><Trash2 size={16} /></button>
                           </div>
                         </td>
                       </tr>

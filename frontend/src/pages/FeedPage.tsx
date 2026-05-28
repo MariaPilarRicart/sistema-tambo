@@ -1,22 +1,34 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Edit2, Plus, RefreshCcw, Trash2, Wheat, X } from 'lucide-react';
+import { AlertTriangle, Boxes, Edit2, Package, Plus, RefreshCcw, Trash2, Wheat, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import {
   createRacion,
   createRegistroAlimentacion,
+  createInsumoAlimentacion,
+  createMovimientoStockAlimentacion,
+  deactivateInsumoAlimentacion,
   deactivateRacion,
+  getInsumosAlimentacion,
+  getMovimientosStockAlimentacion,
   getRaciones,
   getRegistrosAlimentacion,
   getResumenAlimentacion,
+  getResumenStockAlimentacion,
+  updateInsumoAlimentacion,
   updateRacion,
 } from '../services/alimentacionService';
 import { getLotes } from '../services/lotesService';
 import type {
   AlimentacionResumen,
+  InsumoAlimentacion,
+  InsumoAlimentacionFormValues,
+  MovimientoStockAlimentacion,
+  MovimientoStockAlimentacionFormValues,
   Racion,
   RacionFormValues,
   RegistroAlimentacion,
   RegistroAlimentacionFormValues,
+  StockAlimentacionResumen,
 } from '../types/alimentacion';
 import type { AuthUser } from '../types/auth';
 import type { Lote } from '../types/lotes';
@@ -35,6 +47,22 @@ const emptyRegistroForm: RegistroAlimentacionFormValues = {
   observaciones: '',
 };
 
+const emptyInsumoForm: InsumoAlimentacionFormValues = {
+  nombre: '',
+  descripcion: '',
+  unidadMedida: 'KG',
+  stockMinimo: '0',
+  activo: true,
+};
+
+const emptyMovimientoStockForm: MovimientoStockAlimentacionFormValues = {
+  fecha: new Date().toISOString().slice(0, 10),
+  insumoId: '',
+  tipoMovimiento: 'ENTRADA',
+  cantidad: '',
+  observaciones: '',
+};
+
 interface FeedPageProps {
   authToken: string | null;
   currentUser: AuthUser | null;
@@ -49,14 +77,25 @@ function formatKg(value: number) {
   return `${Number(value).toLocaleString()} kg`;
 }
 
+function formatStock(value: number, unidad: string) {
+  return `${Number(value).toLocaleString()} ${unidad}`;
+}
+
 export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPageProps) {
   const [raciones, setRaciones] = useState<Racion[]>([]);
   const [registros, setRegistros] = useState<RegistroAlimentacion[]>([]);
   const [resumen, setResumen] = useState<AlimentacionResumen | null>(null);
+  const [insumos, setInsumos] = useState<InsumoAlimentacion[]>([]);
+  const [movimientosStock, setMovimientosStock] = useState<MovimientoStockAlimentacion[]>([]);
+  const [resumenStock, setResumenStock] = useState<StockAlimentacionResumen | null>(null);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [racionForm, setRacionForm] = useState<RacionFormValues>(emptyRacionForm);
   const [registroForm, setRegistroForm] = useState<RegistroAlimentacionFormValues>(emptyRegistroForm);
+  const [insumoForm, setInsumoForm] = useState<InsumoAlimentacionFormValues>(emptyInsumoForm);
+  const [movimientoStockForm, setMovimientoStockForm] =
+    useState<MovimientoStockAlimentacionFormValues>(emptyMovimientoStockForm);
   const [editingRacion, setEditingRacion] = useState<Racion | null>(null);
+  const [editingInsumo, setEditingInsumo] = useState<InsumoAlimentacion | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -64,10 +103,15 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
 
   const isAdmin = currentUser?.role === 'ADMIN';
   const activeRaciones = useMemo(() => raciones.filter((racion) => racion.activa), [raciones]);
+  const activeInsumos = useMemo(() => insumos.filter((insumo) => insumo.activo), [insumos]);
   const activeLotes = useMemo(() => lotes.filter((lote) => lote.activo), [lotes]);
   const maxKgByLote = useMemo(
     () => Math.max(...(resumen?.alimentacionPorLote.map((item) => item.totalKg) ?? [1]), 1),
     [resumen],
+  );
+  const stockTotalRegistrado = useMemo(
+    () => activeInsumos.reduce((total, insumo) => total + insumo.stockActual, 0),
+    [activeInsumos],
   );
 
   function handleRequestError(requestError: unknown, fallback: string) {
@@ -85,16 +129,30 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
     setError('');
 
     try {
-      const [nextRaciones, nextRegistros, nextResumen, nextLotes] = await Promise.all([
+      const [
+        nextRaciones,
+        nextRegistros,
+        nextResumen,
+        nextLotes,
+        nextInsumos,
+        nextMovimientosStock,
+        nextResumenStock,
+      ] = await Promise.all([
         getRaciones(authToken),
         getRegistrosAlimentacion(authToken),
         getResumenAlimentacion(authToken),
         getLotes(authToken),
+        getInsumosAlimentacion(authToken),
+        getMovimientosStockAlimentacion(authToken),
+        getResumenStockAlimentacion(authToken),
       ]);
       setRaciones(nextRaciones);
       setRegistros(nextRegistros);
       setResumen(nextResumen);
       setLotes(nextLotes);
+      setInsumos(nextInsumos);
+      setMovimientosStock(nextMovimientosStock);
+      setResumenStock(nextResumenStock);
     } catch (loadError) {
       handleRequestError(loadError, 'No se pudo cargar alimentacion.');
     } finally {
@@ -118,6 +176,24 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
       nombre: racion.nombre,
       descripcion: racion.descripcion ?? '',
       activa: racion.activa,
+    });
+    setError('');
+    setSuccess('');
+  }
+
+  function resetInsumoForm() {
+    setEditingInsumo(null);
+    setInsumoForm(emptyInsumoForm);
+  }
+
+  function startEditingInsumo(insumo: InsumoAlimentacion) {
+    setEditingInsumo(insumo);
+    setInsumoForm({
+      nombre: insumo.nombre,
+      descripcion: insumo.descripcion ?? '',
+      unidadMedida: insumo.unidadMedida,
+      stockMinimo: String(insumo.stockMinimo),
+      activo: insumo.activo,
     });
     setError('');
     setSuccess('');
@@ -178,6 +254,66 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
       await loadData();
     } catch (saveError) {
       handleRequestError(saveError, 'No se pudo registrar la alimentacion.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleInsumoSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!authToken) return onUnauthorized();
+    setIsSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (editingInsumo) {
+        await updateInsumoAlimentacion(authToken, editingInsumo.id, insumoForm);
+        setSuccess('Insumo actualizado correctamente.');
+      } else {
+        await createInsumoAlimentacion(authToken, insumoForm);
+        setSuccess('Insumo creado correctamente.');
+      }
+      resetInsumoForm();
+      await loadData();
+    } catch (saveError) {
+      handleRequestError(saveError, 'No se pudo guardar el insumo.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDeactivateInsumo(insumo: InsumoAlimentacion) {
+    if (!authToken) return onUnauthorized();
+    setIsSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await deactivateInsumoAlimentacion(authToken, insumo.id);
+      setSuccess('Insumo dado de baja correctamente.');
+      await loadData();
+    } catch (deleteError) {
+      handleRequestError(deleteError, 'No se pudo dar de baja el insumo.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleMovimientoStockSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!authToken) return onUnauthorized();
+    setIsSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      await createMovimientoStockAlimentacion(authToken, movimientoStockForm);
+      setMovimientoStockForm(emptyMovimientoStockForm);
+      setSuccess('Movimiento de stock registrado correctamente.');
+      await loadData();
+    } catch (saveError) {
+      handleRequestError(saveError, 'No se pudo registrar el movimiento de stock.');
     } finally {
       setIsSaving(false);
     }
@@ -338,6 +474,280 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
           </form>
         </section>
       </div>
+
+      <section className="settings-header stock-header">
+        <div>
+          <h2>Stock de alimentos</h2>
+          <p>Insumos, movimientos y alertas de bajo stock.</p>
+        </div>
+      </section>
+
+      <div className="operative-summary-grid">
+        <article className="metric-card operative-card">
+          <div className="metric-icon metric-icon-emerald"><Package size={20} /></div>
+          <p className="metric-title">Insumos activos</p>
+          <strong className="metric-value">{resumenStock?.totalInsumosActivos ?? 0}</strong>
+        </article>
+        <article className="metric-card operative-card">
+          <div className="metric-icon metric-icon-amber"><AlertTriangle size={20} /></div>
+          <p className="metric-title">Bajo stock</p>
+          <strong className="metric-value">{resumenStock?.insumosBajoStock.length ?? 0}</strong>
+        </article>
+        <article className="metric-card operative-card">
+          <div className="metric-icon metric-icon-blue"><Boxes size={20} /></div>
+          <p className="metric-title">Movimientos de hoy</p>
+          <strong className="metric-value">{resumenStock?.movimientosHoy ?? 0}</strong>
+        </article>
+        <article className="metric-card operative-card">
+          <div className="metric-icon metric-icon-indigo"><Package size={20} /></div>
+          <p className="metric-title">Stock total registrado</p>
+          <strong className="metric-value">{Number(stockTotalRegistrado).toLocaleString()}</strong>
+        </article>
+      </div>
+
+      <div className="feed-grid">
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h2>Insumos</h2>
+              <p>{isAdmin ? 'Alta, edicion y baja logica.' : 'Consulta de insumos.'}</p>
+            </div>
+            {editingInsumo && (
+              <button type="button" className="icon-button" onClick={resetInsumoForm} aria-label="Cancelar edicion de insumo">
+                <X size={18} />
+              </button>
+            )}
+          </div>
+
+          {isAdmin && (
+            <form className="user-form" onSubmit={handleInsumoSubmit}>
+              <label>
+                <span>Nombre</span>
+                <input
+                  value={insumoForm.nombre}
+                  onChange={(event) => setInsumoForm({ ...insumoForm, nombre: event.target.value })}
+                  required
+                />
+              </label>
+              <label>
+                <span>Descripcion</span>
+                <input
+                  value={insumoForm.descripcion}
+                  onChange={(event) => setInsumoForm({ ...insumoForm, descripcion: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Unidad de medida</span>
+                <select
+                  value={insumoForm.unidadMedida}
+                  onChange={(event) => setInsumoForm({ ...insumoForm, unidadMedida: event.target.value })}
+                  required
+                >
+                  <option value="KG">KG</option>
+                  <option value="BOLSA">BOLSA</option>
+                  <option value="LITRO">LITRO</option>
+                  <option value="UNIDAD">UNIDAD</option>
+                </select>
+              </label>
+              <label>
+                <span>Stock minimo</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={insumoForm.stockMinimo}
+                  onChange={(event) => setInsumoForm({ ...insumoForm, stockMinimo: event.target.value })}
+                  required
+                />
+              </label>
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={insumoForm.activo}
+                  onChange={(event) => setInsumoForm({ ...insumoForm, activo: event.target.checked })}
+                />
+                <span>Insumo activo</span>
+              </label>
+              <button type="submit" className="primary-button" disabled={isSaving}>
+                <Plus size={18} />
+                {isSaving ? 'Guardando...' : editingInsumo ? 'Guardar insumo' : 'Crear insumo'}
+              </button>
+            </form>
+          )}
+        </section>
+
+        <section className="panel">
+          <div className="panel-header">
+            <div>
+              <h2>Registrar movimiento de stock</h2>
+              <p>Entradas, consumos y ajustes de inventario.</p>
+            </div>
+          </div>
+          <form className="user-form" onSubmit={handleMovimientoStockSubmit}>
+            <label>
+              <span>Fecha</span>
+              <input
+                type="date"
+                value={movimientoStockForm.fecha}
+                onChange={(event) => setMovimientoStockForm({ ...movimientoStockForm, fecha: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              <span>Insumo</span>
+              <select
+                value={movimientoStockForm.insumoId}
+                onChange={(event) => setMovimientoStockForm({ ...movimientoStockForm, insumoId: event.target.value })}
+                required
+              >
+                <option value="">Seleccionar insumo</option>
+                {activeInsumos.map((insumo) => (
+                  <option key={insumo.id} value={insumo.id}>
+                    {insumo.nombre} ({formatStock(insumo.stockActual, insumo.unidadMedida)})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Tipo de movimiento</span>
+              <select
+                value={movimientoStockForm.tipoMovimiento}
+                onChange={(event) =>
+                  setMovimientoStockForm({
+                    ...movimientoStockForm,
+                    tipoMovimiento: event.target.value as MovimientoStockAlimentacionFormValues['tipoMovimiento'],
+                  })
+                }
+                required
+              >
+                <option value="ENTRADA">Entrada</option>
+                <option value="CONSUMO">Consumo</option>
+                <option value="AJUSTE">Ajuste de stock final</option>
+              </select>
+            </label>
+            <label>
+              <span>{movimientoStockForm.tipoMovimiento === 'AJUSTE' ? 'Stock final' : 'Cantidad'}</span>
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={movimientoStockForm.cantidad}
+                onChange={(event) => setMovimientoStockForm({ ...movimientoStockForm, cantidad: event.target.value })}
+                required
+              />
+            </label>
+            <label>
+              <span>Observaciones</span>
+              <textarea
+                value={movimientoStockForm.observaciones}
+                onChange={(event) =>
+                  setMovimientoStockForm({ ...movimientoStockForm, observaciones: event.target.value })
+                }
+                rows={4}
+              />
+            </label>
+            <button type="submit" className="primary-button" disabled={isSaving || activeInsumos.length === 0}>
+              <Boxes size={18} />
+              {isSaving ? 'Registrando...' : 'Registrar movimiento'}
+            </button>
+          </form>
+        </section>
+      </div>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Stock actual</h2>
+            <p>{insumos.length} insumos cargados.</p>
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th>Insumo</th>
+                <th>Unidad</th>
+                <th>Stock actual</th>
+                <th>Stock minimo</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {insumos.map((insumo) => {
+                const bajoStock = insumo.activo && insumo.stockActual <= insumo.stockMinimo;
+                return (
+                  <tr key={insumo.id} className={bajoStock ? 'stock-low-row' : undefined}>
+                    <td><strong>{insumo.nombre}</strong><span>{insumo.descripcion || 'Sin descripcion'}</span></td>
+                    <td>{insumo.unidadMedida}</td>
+                    <td>{formatStock(insumo.stockActual, insumo.unidadMedida)}</td>
+                    <td>{formatStock(insumo.stockMinimo, insumo.unidadMedida)}</td>
+                    <td>
+                      <span className={`status-pill ${bajoStock ? 'status-warning' : insumo.activo ? 'status-active' : 'status-inactive'}`}>
+                        {!insumo.activo ? 'INACTIVO' : bajoStock ? 'BAJO STOCK' : 'NORMAL'}
+                      </span>
+                    </td>
+                    <td>
+                      {isAdmin && (
+                        <div className="table-actions">
+                          <button type="button" onClick={() => startEditingInsumo(insumo)} aria-label={`Editar ${insumo.nombre}`}>
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeactivateInsumo(insumo)}
+                            disabled={!insumo.activo}
+                            aria-label={`Dar de baja ${insumo.nombre}`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {insumos.length === 0 && <tr><td colSpan={6}>Sin insumos cargados.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Movimientos de stock</h2>
+            <p>{movimientosStock.length} movimientos registrados.</p>
+          </div>
+        </div>
+        <div className="table-wrap">
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Insumo</th>
+                <th>Tipo</th>
+                <th>Cantidad</th>
+                <th>Usuario</th>
+                <th>Observaciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {movimientosStock.map((movimiento) => (
+                <tr key={movimiento.id}>
+                  <td>{formatDate(movimiento.fecha)}</td>
+                  <td>{movimiento.insumo.nombre}</td>
+                  <td>{movimiento.tipoMovimiento}</td>
+                  <td>{formatStock(movimiento.cantidad, movimiento.insumo.unidadMedida)}</td>
+                  <td>{movimiento.usuario?.nombre ?? '-'}</td>
+                  <td>{movimiento.observaciones || '-'}</td>
+                </tr>
+              ))}
+              {movimientosStock.length === 0 && <tr><td colSpan={6}>Sin movimientos de stock.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section className="panel">
         <div className="panel-header">

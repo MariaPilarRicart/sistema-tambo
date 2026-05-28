@@ -18,6 +18,10 @@ function buildQuery(filters: EventoFilters) {
   return query ? `?${query}` : '';
 }
 
+function buildEventDate(fecha: string) {
+  return fecha ? `${fecha}T12:00:00` : undefined;
+}
+
 export async function getEventos(token: string, filters: EventoFilters) {
   const response = await apiRequest<EventosResponse>(`/eventos${buildQuery(filters)}`, { token });
   return response.eventos;
@@ -30,6 +34,7 @@ export async function createEvento(token: string, animalId: number, values: Even
     body: JSON.stringify({
       animalId,
       tipo: values.tipo,
+      fecha: buildEventDate(values.fecha),
       observaciones: values.observaciones.trim() || null,
       ...(values.tipo === 'TACTO'
         ? { datosJson: { resultado: values.resultadoTacto } }

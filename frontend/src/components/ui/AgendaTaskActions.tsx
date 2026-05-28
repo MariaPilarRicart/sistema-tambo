@@ -20,6 +20,7 @@ const suggestedEventByTask: Record<TipoTarea, TipoEvento> = {
 function buildEventForm(task: AgendaTarea): EventoFormValues {
   return {
     tipo: suggestedEventByTask[task.tipo],
+    fecha: new Date().toISOString().slice(0, 10),
     observaciones: task.descripcion ?? '',
     resultadoTacto: 'POSITIVO',
   };
@@ -42,6 +43,11 @@ interface AgendaTaskActionsProps {
   task: AgendaTarea;
   onChanged: () => void;
   onUnauthorized: () => void;
+  showEventAction?: boolean;
+  fichaLinkState?: {
+    from: string;
+    label: string;
+  };
 }
 
 export function AgendaTaskActions({
@@ -50,6 +56,8 @@ export function AgendaTaskActions({
   task,
   onChanged,
   onUnauthorized,
+  showEventAction = true,
+  fichaLinkState,
 }: AgendaTaskActionsProps) {
   const [eventFormValues, setEventFormValues] = useState<EventoFormValues>(() => buildEventForm(task));
   const [cancelObservation, setCancelObservation] = useState('');
@@ -123,10 +131,15 @@ export function AgendaTaskActions({
   return (
     <>
       <div className="table-actions">
-        <Link className="task-action-button" to={`/rodeos/${task.animal.id}`} aria-label={`Ver ficha ${task.animal.caravana}`}>
+        <Link
+          className="task-action-button"
+          to={`/rodeos/${task.animal.id}`}
+          state={fichaLinkState}
+          aria-label={`Ver ficha ${task.animal.caravana}`}
+        >
           <Eye size={16} />
         </Link>
-        {canAct && (
+        {canAct && showEventAction && (
           <button type="button" onClick={openEventModal} aria-label={`Registrar evento ${task.tipo}`}>
             <CalendarPlus size={16} />
           </button>

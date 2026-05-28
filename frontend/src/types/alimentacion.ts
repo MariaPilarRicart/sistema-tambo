@@ -61,3 +61,60 @@ export interface AlimentacionResumen {
   }>;
   ultimosRegistros: RegistroAlimentacion[];
 }
+
+export type TipoMovimientoStockAlimentacion = 'ENTRADA' | 'CONSUMO' | 'AJUSTE';
+
+export interface InsumoAlimentacion {
+  id: number;
+  nombre: string;
+  descripcion: string | null;
+  unidadMedida: string;
+  stockActual: number;
+  stockMinimo: number;
+  activo: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InsumoAlimentacionFormValues {
+  nombre: string;
+  descripcion: string;
+  unidadMedida: string;
+  stockMinimo: string;
+  activo: boolean;
+}
+
+export interface MovimientoStockAlimentacion {
+  id: number;
+  insumoId: number;
+  tipoMovimiento: TipoMovimientoStockAlimentacion;
+  fecha: string;
+  cantidad: number;
+  observaciones: string | null;
+  usuarioId: number | null;
+  createdAt: string;
+  updatedAt: string;
+  insumo: Pick<InsumoAlimentacion, 'id' | 'nombre' | 'unidadMedida' | 'stockActual' | 'stockMinimo' | 'activo'>;
+  usuario: {
+    id: number;
+    nombre: string;
+    username: string;
+    rol: UserRole;
+  } | null;
+}
+
+export interface MovimientoStockAlimentacionFormValues {
+  fecha: string;
+  insumoId: string;
+  tipoMovimiento: TipoMovimientoStockAlimentacion;
+  cantidad: string;
+  observaciones: string;
+}
+
+export interface StockAlimentacionResumen {
+  totalInsumosActivos: number;
+  insumosBajoStock: InsumoAlimentacion[];
+  movimientosHoy: number;
+  ultimosMovimientos: MovimientoStockAlimentacion[];
+  stockPorInsumo: Array<InsumoAlimentacion & { bajoStock: boolean }>;
+}

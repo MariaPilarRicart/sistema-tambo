@@ -1,28 +1,42 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, TipoMovimientoStockAlimentacion } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 import {
   aggregateTotalKg,
   countDistinctLotesAlimentados,
+  countInsumosActivos,
+  countMovimientosStock,
   countRacionesActivas,
   countRegistros,
+  createInsumoAlimentacion,
+  createMovimientoStockAlimentacion,
   createRacion,
   createRegistroAlimentacion,
+  deactivateInsumoAlimentacion,
   deactivateRacion,
+  findInsumoAlimentacionById,
+  findInsumoAlimentacionByNombre,
+  findInsumosAlimentacion,
+  findInsumosBajoStock,
   findActiveRacion,
   findLoteForFeeding,
   findLotesByIds,
+  findMovimientosStockAlimentacion,
   findRacionById,
   findRacionByNombre,
   findRaciones,
   findRacionesByIds,
   findRegistrosAlimentacion,
+  findStockPorInsumo,
+  findUltimosMovimientosStockAlimentacion,
   findUltimosRegistrosAlimentacion,
   groupAlimentacionByLote,
   groupAlimentacionByRacion,
+  updateInsumoAlimentacion,
   updateRacion,
 } from '../repositories/alimentacion.repository';
 
 const RACION_EXISTS_MESSAGE = 'Ya existe una racion con ese nombre.';
+const INSUMO_EXISTS_MESSAGE = 'Ya existe un insumo con ese nombre.';
 
 function parseId(value: unknown, fieldName: string) {
   const parsed = Number(value);
@@ -52,12 +66,30 @@ function normalizeOptionalString(value: unknown, fieldName: string) {
   return value.trim() || null;
 }
 
-function handlePrismaUniqueError(error: unknown): never {
+function handlePrismaUniqueError(error: unknown, message = RACION_EXISTS_MESSAGE): never {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-    throw new AppError(RACION_EXISTS_MESSAGE, 409);
+    throw new AppError(message, 409);
   }
 
   throw error;
+}
+
+function parseNonNegativeNumber(value: unknown, fieldName: string) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) throw new AppError(`${fieldName} debe ser mayor o igual a 0.`, 400);
+  return parsed;
+}
+
+function parseTipoMovimientoStock(value: unknown) {
+  if (
+    value !== TipoMovimientoStockAlimentacion.ENTRADA &&
+    value !== TipoMovimientoStockAlimentacion.CONSUMO &&
+    value !== TipoMovimientoStockAlimentacion.AJUSTE
+  ) {
+    throw new AppError('Tipo de movimiento de stock invalido.', 400);
+  }
+
+  return value;
 }
 
 function startOfToday() {
@@ -189,5 +221,121 @@ export async function getResumenAlimentacion() {
       totalKg: item._sum.cantidadKg ?? 0,
     })),
     ultimosRegistros,
+  };
+}
+
+export function listInsumosAlimentacion() {
+  return findInsumosAlimentacion();
+}
+
+export async function createNewInsumoAlimentacion(input: Record<string, unknown>) {
+  const nombre = typeof input.nombre === 'string' ? input.nombre.trim() : '';
+  if (!nombre) throw new AppError('Nombre del insumo es obligatorio.', 400);
+
+  const unidadMedida = typeof input.unidadMedida === 'string' ? input.unidadMedida.trim().toUpperCase() : '';
+  if (!unidadMedida) throw new AppError('Unidad de medida es obligatoria.', 400);
+
+  const existing = await findInsumoAlimentacionByNombre(nombre);
+  if (existing) throw new AppError(INSUMO_EXISTS_MESSAGE, 409);
+
+  try {
+    return await createInsumoAlimentacion({
+      nombre,
+      descripcion: normalizeOptionalString(input.descripcion, 'Descripcion'),
+      unidadMedida,
+      stockMinimo: input.stockMinimo === undefined ? 0 : parseNonNegativeNumber(input.stockMinimo, 'Stock minimo'),
+      activo: input.activo === undefined ? true : Boolean(input.activo),
+    });
+  } catch (error) {
+    handlePrismaUniqueError(error, INSUMO_EXISTS_MESSAGE);
+  }
+}
+
+export async function updateExistingInsumoAlimentacion(idParam: string, input: Record<string, unknown>) {
+  const id = parseId(idParam, 'Id de insumo');
+  const existing = await findInsumoAlimentacionById(id);
+  if (!existing) throw new AppError('Insumo no encontrado.', 404);
+
+  const data: Parameters<typeof updateInsumoAlimentacion>[1] = {};
+  if (input.nombre !== undefined) {
+    const nombre = typeof input.nombre === 'string' ? input.nombre.trim() : '';
+    if (!nombre) throw new AppError('Nombre del insumo no puede estar vacio.', 400);
+    data.nombre = nombre;
+  }
+  if (input.descripcion !== undefined) data.descripcion = normalizeOptionalString(input.descripcion, 'Descripcion');
+  if (input.unidadMedida !== undefined) {
+    const unidadMedida = typeof input.unidadMedida === 'string' ? input.unidadMedida.trim().toUpperCase() : '';
+    if (!unidadMedida) throw new AppError('Unidad de medida no puede estar vacia.', 400);
+    data.unidadMedida = unidadMedida;
+  }
+  if (input.stockMinimo !== undefined) data.stockMinimo = parseNonNegativeNumber(input.stockMinimo, 'Stock minimo');
+  if (input.activo !== undefined) data.activo = Boolean(input.activo);
+
+  try {
+    return await updateInsumoAlimentacion(id, data);
+  } catch (error) {
+    handlePrismaUniqueError(error, INSUMO_EXISTS_MESSAGE);
+  }
+}
+
+export async function deactivateExistingInsumoAlimentacion(idParam: string) {
+  const id = parseId(idParam, 'Id de insumo');
+  const existing = await findInsumoAlimentacionById(id);
+  if (!existing) throw new AppError('Insumo no encontrado.', 404);
+
+  return deactivateInsumoAlimentacion(id);
+}
+
+export function listMovimientosStockAlimentacion() {
+  return findMovimientosStockAlimentacion();
+}
+
+export async function createNewMovimientoStockAlimentacion(input: Record<string, unknown>, usuarioId?: number) {
+  const insumoId = parseId(input.insumoId, 'insumoId');
+  const tipoMovimiento = parseTipoMovimientoStock(input.tipoMovimiento);
+  const fecha = parseDate(input.fecha);
+  const cantidad = parseCantidadKg(input.cantidad);
+
+  const result = await createMovimientoStockAlimentacion({
+    insumoId,
+    tipoMovimiento,
+    fecha,
+    cantidad,
+    observaciones: normalizeOptionalString(input.observaciones, 'Observaciones'),
+    usuarioId: usuarioId ?? null,
+  });
+
+  if (!result) throw new AppError('Insumo no encontrado.', 404);
+  if ('error' in result && result.error === 'INACTIVE') {
+    throw new AppError('No se pueden registrar movimientos sobre insumos inactivos.', 400);
+  }
+  if ('error' in result && result.error === 'INSUFFICIENT_STOCK') {
+    throw new AppError('No hay stock suficiente para registrar el consumo.', 400);
+  }
+
+  return result;
+}
+
+export async function getResumenStockAlimentacion() {
+  const todayStart = startOfToday();
+  const todayEnd = endOfToday();
+  const [totalInsumosActivos, insumosBajoStock, movimientosHoy, ultimosMovimientos, stockPorInsumo] =
+    await Promise.all([
+      countInsumosActivos(),
+      findInsumosBajoStock(),
+      countMovimientosStock({ fecha: { gte: todayStart, lte: todayEnd } }),
+      findUltimosMovimientosStockAlimentacion(),
+      findStockPorInsumo(),
+    ]);
+
+  return {
+    totalInsumosActivos,
+    insumosBajoStock,
+    movimientosHoy,
+    ultimosMovimientos,
+    stockPorInsumo: stockPorInsumo.map((insumo) => ({
+      ...insumo,
+      bajoStock: insumo.stockActual <= insumo.stockMinimo,
+    })),
   };
 }

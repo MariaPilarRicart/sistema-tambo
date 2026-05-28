@@ -66,6 +66,12 @@ enum EstadoTarea {
   CANCELADA
 }
 
+enum TipoMovimientoStockAlimentacion {
+  ENTRADA
+  CONSUMO
+  AJUSTE
+}
+
 model Usuario {
   id           Int        @id @default(autoincrement())
   nombre       String
@@ -79,6 +85,7 @@ model Usuario {
 
   eventos               Evento[]
   registrosAlimentacion RegistroAlimentacion[]
+  movimientosStock      MovimientoStockAlimentacion[]
 
   @@map("usuarios")
 }
@@ -108,6 +115,43 @@ model Racion {
   registrosAlimentacion RegistroAlimentacion[]
 
   @@map("raciones")
+}
+
+model InsumoAlimentacion {
+  id           Int      @id @default(autoincrement())
+  nombre       String   @unique
+  descripcion  String?
+  unidadMedida String
+  stockActual  Float    @default(0)
+  stockMinimo  Float    @default(0)
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  movimientos MovimientoStockAlimentacion[]
+
+  @@map("insumos_alimentacion")
+}
+
+model MovimientoStockAlimentacion {
+  id             Int                             @id @default(autoincrement())
+  insumoId       Int
+  tipoMovimiento TipoMovimientoStockAlimentacion
+  fecha          DateTime
+  cantidad       Float
+  observaciones  String?
+  usuarioId      Int?
+  createdAt      DateTime                        @default(now())
+  updatedAt      DateTime                        @updatedAt
+
+  insumo  InsumoAlimentacion @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+  usuario Usuario?           @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([insumoId])
+  @@index([usuarioId])
+  @@index([tipoMovimiento])
+  @@index([fecha])
+  @@map("movimientos_stock_alimentacion")
 }
 
 model RegistroAlimentacion {

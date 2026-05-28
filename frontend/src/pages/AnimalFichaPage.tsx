@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCcw } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { getAnimalFicha } from '../services/animalesService';
@@ -31,9 +31,13 @@ function InfoItem({ label, value }: { label: string; value: string | number | nu
 
 export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPageProps) {
   const { id } = useParams();
+  const location = useLocation();
   const [animal, setAnimal] = useState<AnimalFicha | null>(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const backState = location.state as { from?: string; label?: string } | null;
+  const backTo = backState?.from ?? '/rodeos';
+  const backLabel = backState?.label ?? 'Volver a Rodeo';
 
   async function loadFicha() {
     if (!authToken || !id) return;
@@ -67,9 +71,9 @@ export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPagePr
     <div className="settings-page animal-ficha-page">
       <section className="settings-header">
         <div>
-          <Link className="back-link" to="/rodeos">
+          <Link className="back-link" to={backTo}>
             <ArrowLeft size={16} />
-            Rodeo
+            {backLabel}
           </Link>
           <h2>{animal ? `Ficha #${animal.caravana}` : 'Ficha del animal'}</h2>
           <p>{animal?.nombre || 'Informacion integral del animal.'}</p>

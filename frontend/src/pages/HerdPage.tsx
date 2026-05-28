@@ -28,12 +28,11 @@ const estadoReproductivoOptions: EstadoReproductivo[] = [
   'SECA',
   'RECUPERACION',
 ];
-const estadoAnimalOptions: EstadoAnimal[] = ['ACTIVO', 'VENDIDO', 'MUERTO', 'ROBADO', 'TRASLADADO', 'OTRO'];
+const estadoAnimalOptions: EstadoAnimal[] = ['ACTIVO', 'VENDIDO', 'MUERTO', 'ROBADO', 'OTRO'];
 const motivoBajaOptions: Array<{ value: MotivoBajaAnimal; label: string }> = [
   { value: 'VENDIDO', label: 'Vendido' },
   { value: 'MUERTO', label: 'Muerto' },
   { value: 'ROBADO', label: 'Robado / extraviado' },
-  { value: 'TRASLADADO', label: 'Trasladado' },
   { value: 'OTRO', label: 'Otro' },
 ];
 const tipoEventoOptions: TipoEvento[] = [
@@ -44,8 +43,6 @@ const tipoEventoOptions: TipoEvento[] = [
   'PARTO',
   'ABORTO',
   'CLINICO',
-  'VACUNACION',
-  'CAMBIO_LOTE',
   'VENTA',
   'MUERTE',
 ];
@@ -74,6 +71,7 @@ const emptyAnimalForm: AnimalFormValues = {
 
 const emptyEventoForm: EventoFormValues = {
   tipo: 'CELO',
+  fecha: new Date().toISOString().slice(0, 10),
   observaciones: '',
   resultadoTacto: 'POSITIVO',
 };
@@ -185,7 +183,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
 
   function startRegisteringEvent(animal: Animal) {
     setEventAnimal(animal);
-    setEventFormValues(emptyEventoForm);
+    setEventFormValues({ ...emptyEventoForm, fecha: new Date().toISOString().slice(0, 10) });
     setError('');
     setSuccess('');
   }
@@ -427,7 +425,13 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                   {animales.map((animal) => (
                     <tr key={animal.id}>
                       <td className="animal-identity-cell">
-                        <Link className="table-link animal-caravana-link" to={`/rodeos/${animal.id}`}>#{animal.caravana}</Link>
+                        <Link
+                          className="table-link animal-caravana-link"
+                          to={`/rodeos/${animal.id}`}
+                          state={{ from: '/rodeos', label: 'Volver a Rodeo' }}
+                        >
+                          #{animal.caravana}
+                        </Link>
                         <span>{animal.nombre || animal.raza || 'Sin nombre'}</span>
                       </td>
                       <td>{animal.lote.nombre}</td>
@@ -480,16 +484,8 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                 <input value={formValues.caravana} onChange={(event) => setFormValues({ ...formValues, caravana: event.target.value })} required disabled={Boolean(editingAnimal)} />
               </label>
               <label>
-                <span>Nombre</span>
-                <input value={formValues.nombre} onChange={(event) => setFormValues({ ...formValues, nombre: event.target.value })} />
-              </label>
-              <label>
                 <span>Fecha nacimiento</span>
                 <input type="date" value={formValues.fechaNacimiento} onChange={(event) => setFormValues({ ...formValues, fechaNacimiento: event.target.value })} required />
-              </label>
-              <label>
-                <span>Raza</span>
-                <input value={formValues.raza} onChange={(event) => setFormValues({ ...formValues, raza: event.target.value })} />
               </label>
               <label>
                 <span>Lote</span>
@@ -531,11 +527,6 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                   {estadoAnimalOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </label>
-              <label className="checkbox-row">
-                <input type="checkbox" checked={formValues.activo} onChange={(event) => setFormValues({ ...formValues, activo: event.target.checked })} />
-                <span>Animal activo</span>
-              </label>
-
               {error && <div className="form-error animal-form-message">{error}</div>}
               {success && <div className="form-success animal-form-message">{success}</div>}
 
@@ -666,6 +657,16 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                 >
                   {tipoEventoOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
+              </label>
+
+              <label>
+                <span>Fecha del evento</span>
+                <input
+                  type="date"
+                  value={eventFormValues.fecha}
+                  onChange={(event) => setEventFormValues({ ...eventFormValues, fecha: event.target.value })}
+                  required
+                />
               </label>
 
               {eventFormValues.tipo === 'TACTO' && (

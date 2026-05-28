@@ -45,6 +45,16 @@ export async function updateLote(token: string, id: number, values: LoteFormValu
 
 export async function deactivateLote(token: string, id: number) {
   const response = await apiRequest<LoteResponse>(`/lotes/${id}`, {
+    method: 'PUT',
+    token,
+    body: JSON.stringify({ activo: false }),
+  });
+
+  return response.lote;
+}
+
+export async function deleteLote(token: string, id: number) {
+  const response = await apiRequest<LoteResponse>(`/lotes/${id}`, {
     method: 'DELETE',
     token,
   });

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CalendarClock, ClipboardList, RefreshCcw } from 'lucide-react';
+import { AlertTriangle, CalendarClock, RefreshCcw } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { getListadosOperativos } from '../services/agendaService';
 import { AgendaTaskActions } from '../components/ui/AgendaTaskActions';
@@ -21,10 +21,6 @@ const sections: Array<{ key: keyof ListadosOperativos; title: string; descriptio
   { key: 'vencidas', title: 'Vencidas', description: 'Tareas pendientes con fecha anterior a hoy.' },
   { key: 'hoy', title: 'Hoy', description: 'Tareas pendientes programadas para hoy.' },
   { key: 'proximas', title: 'Proximas', description: 'Tareas pendientes con fecha futura.' },
-  { key: 'tactos', title: 'Tactos', description: 'Animales a tactar.' },
-  { key: 'secados', title: 'Secados', description: 'Animales proximos a secado.' },
-  { key: 'partos', title: 'Partos', description: 'Animales proximos a parto.' },
-  { key: 'altasPostParto', title: 'Altas post parto', description: 'Revisiones post parto pendientes.' },
 ];
 
 interface ListingsPageProps {
@@ -35,6 +31,16 @@ interface ListingsPageProps {
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString();
+}
+
+function isTaskOverdue(task: AgendaTarea) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return task.estado === 'PENDIENTE' && new Date(task.fechaProgramada) < today;
+}
+
+function getVisibleTaskStatus(task: AgendaTarea) {
+  return isTaskOverdue(task) ? 'VENCIDA' : task.estado;
 }
 
 function TaskTable({
@@ -74,12 +80,22 @@ function TaskTable({
               <td>{formatDate(task.fechaProgramada)}</td>
               <td>{task.tipo}</td>
               <td>
-                <Link className="table-link" to={`/rodeos/${task.animal.id}`}>#{task.animal.caravana}</Link>
+                <Link
+                  className="table-link"
+                  to={`/rodeos/${task.animal.id}`}
+                  state={{ from: '/listados', label: 'Volver a Listados' }}
+                >
+                  #{task.animal.caravana}
+                </Link>
                 <span>{task.animal.categoria}</span>
               </td>
               <td>{task.animal.lote.nombre}</td>
               <td>{task.animal.estadoReproductivo}</td>
-              <td><span className="status-pill status-active">{task.estado}</span></td>
+              <td>
+                <span className={`status-pill ${isTaskOverdue(task) ? 'status-warning' : 'status-active'}`}>
+                  {getVisibleTaskStatus(task)}
+                </span>
+              </td>
               <td>
                 <AgendaTaskActions
                   authToken={authToken}
@@ -87,6 +103,8 @@ function TaskTable({
                   task={task}
                   onChanged={onChanged}
                   onUnauthorized={onUnauthorized}
+                  showEventAction={false}
+                  fichaLinkState={{ from: '/listados', label: 'Volver a Listados' }}
                 />
               </td>
             </tr>
@@ -107,9 +125,6 @@ export function ListingsPage({ authToken, currentUser, onUnauthorized }: Listing
       { title: 'Vencidas', value: listados.vencidas.length, icon: AlertTriangle, tone: 'rose' },
       { title: 'Hoy', value: listados.hoy.length, icon: CalendarClock, tone: 'blue' },
       { title: 'Proximas', value: listados.proximas.length, icon: CalendarClock, tone: 'emerald' },
-      { title: 'Tactos', value: listados.tactos.length, icon: ClipboardList, tone: 'indigo' },
-      { title: 'Secados', value: listados.secados.length, icon: ClipboardList, tone: 'amber' },
-      { title: 'Partos', value: listados.partos.length, icon: ClipboardList, tone: 'pink' },
     ],
     [listados],
   );
