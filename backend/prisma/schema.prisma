@@ -72,6 +72,21 @@ enum TipoMovimientoStockAlimentacion {
   AJUSTE
 }
 
+enum TurnoOrdene {
+  MANANA
+  TARDE
+  NOCHE
+}
+
+enum MotivoDescarteLeche {
+  MASTITIS
+  ANTIBIOTICO
+  CALOSTRO
+  MALA_CALIDAD
+  CONTAMINACION
+  OTRO
+}
+
 model Usuario {
   id           Int        @id @default(autoincrement())
   nombre       String
@@ -86,6 +101,7 @@ model Usuario {
   eventos               Evento[]
   registrosAlimentacion RegistroAlimentacion[]
   movimientosStock      MovimientoStockAlimentacion[]
+  producciones          ProduccionAnimal[]
 
   @@map("usuarios")
 }
@@ -199,6 +215,7 @@ model Animal {
   hijos   Animal[]      @relation("MadreHijos")
   eventos Evento[]
   tareas  AgendaTarea[]
+  producciones ProduccionAnimal[]
 
   @@index([loteId])
   @@index([madreId])
@@ -254,4 +271,36 @@ model AgendaTarea {
   @@index([tipo])
   @@index([fechaProgramada])
   @@map("agenda_tareas")
+}
+
+model ProduccionAnimal {
+  id                        Int                  @id @default(autoincrement())
+  animalId                  Int
+  fechaHora                 DateTime
+  fecha                     DateTime
+  turno                     TurnoOrdene
+  litrosProducidos          Decimal              @db.Decimal(10, 2)
+  litrosDescartados         Decimal              @default(0) @db.Decimal(10, 2)
+  motivoDescarte            MotivoDescarteLeche?
+  observacionDescarte       String?
+  temperaturaTanque         Decimal?             @db.Decimal(5, 2)
+  grasa                     Decimal?             @db.Decimal(5, 2)
+  proteina                  Decimal?             @db.Decimal(5, 2)
+  recuentoCelulasSomaticas  Int?
+  recuentoBacteriano        Int?
+  observacionesCalidad      String?
+  usuarioId                 Int?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+
+  animal  Animal   @relation(fields: [animalId], references: [id], onDelete: Restrict)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@unique([animalId, fecha, turno])
+  @@index([animalId])
+  @@index([fecha])
+  @@index([fechaHora])
+  @@index([turno])
+  @@index([usuarioId])
+  @@map("producciones_animales")
 }

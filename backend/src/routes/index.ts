@@ -7,6 +7,7 @@ import { dashboardRouter } from './dashboard.routes';
 import { eventosRouter } from './eventos.routes';
 import { healthRouter } from './health.routes';
 import { lotesRouter } from './lotes.routes';
+import { produccionRouter } from './produccion.routes';
 import { usersRouter } from './users.routes';
 import { vacunacionRouter } from './vacunacion.routes';
 
@@ -20,5 +21,6 @@ routes.use(animalesRouter);
 routes.use(eventosRouter);
 routes.use(agendaRouter);
 routes.use(vacunacionRouter);
+routes.use(produccionRouter);
 routes.use(lotesRouter);
 routes.use(usersRouter);

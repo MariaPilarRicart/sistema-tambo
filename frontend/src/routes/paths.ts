@@ -6,6 +6,7 @@ export const paths = {
   agenda: '/agenda',
   listings: '/listados',
   feed: '/alimentacion',
+  production: '/produccion',
   vaccination: '/vacunacion',
   settings: '/configuracion',
   login: '/login',

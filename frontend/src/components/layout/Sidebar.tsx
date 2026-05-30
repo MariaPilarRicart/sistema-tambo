@@ -1,4 +1,4 @@
-import { CalendarCheck, History, LayoutDashboard, List, Settings, Syringe, Wheat } from 'lucide-react';
+import { CalendarCheck, History, LayoutDashboard, List, Milk, Settings, Syringe, Wheat } from 'lucide-react';
 import { paths } from '../../routes/paths';
 import type { AuthUser } from '../../types/auth';
 import type { NavigationItem } from '../../types/navigation';
@@ -12,6 +12,7 @@ const primaryNavigation: NavigationItem[] = [
   { label: 'Agenda', path: paths.agenda, icon: CalendarCheck },
   { label: 'Listados', path: paths.listings, icon: List },
   { label: 'Alimentacion', path: paths.feed, icon: Wheat },
+  { label: 'Produccion', path: paths.production, icon: Milk },
   { label: 'Vacunacion', path: paths.vaccination, icon: Syringe },
 ];
 

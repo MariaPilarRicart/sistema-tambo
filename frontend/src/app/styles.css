@@ -1534,6 +1534,56 @@ a {
   margin-top: 8px;
 }
 
+.production-summary-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.production-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.production-wide-field {
+  grid-column: 1 / -1;
+}
+
+.production-chart {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-100);
+  border-radius: 14px;
+  min-height: 220px;
+  padding: 14px;
+}
+
+.production-chart svg {
+  display: block;
+  height: 220px;
+  width: 100%;
+}
+
+.production-chart-grid {
+  fill: none;
+  stroke: var(--slate-200);
+  stroke-width: 2;
+}
+
+.production-chart-line {
+  fill: none;
+  stroke: var(--emerald);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.production-chart circle {
+  fill: #ffffff;
+  stroke: var(--emerald-dark);
+  stroke-width: 3;
+}
+
+.production-history-table {
+  min-width: 820px;
+}
+
 .table-actions {
   display: flex;
   gap: 8px;
@@ -1716,6 +1766,8 @@ a {
   .feed-grid,
   .settings-grid,
   .vaccination-form,
+  .production-summary-grid,
+  .production-form,
   .operative-summary-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1758,6 +1810,8 @@ a {
   .metric-grid,
   .dashboard-real-metrics,
   .dashboard-kpi-grid,
+  .production-summary-grid,
+  .production-form,
   .operative-summary-grid {
     grid-template-columns: 1fr;
   }

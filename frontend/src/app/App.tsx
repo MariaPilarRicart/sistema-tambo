@@ -15,6 +15,7 @@ import { VaccinationPage } from '../pages/VaccinationPage';
 import { paths } from '../routes/paths';
 import { clearAuthToken, getCurrentUser, getStoredAuthToken, saveAuthToken } from '../services/authService';
 import type { AuthUser } from '../types/auth';
+import { ProduccionView } from '../views/ProduccionView';
 
 export function App() {
   const [authToken, setAuthToken] = useState<string | null>(null);
@@ -116,6 +117,10 @@ export function App() {
           <Route
             path={paths.feed}
             element={<FeedPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
+          />
+          <Route
+            path={paths.production}
+            element={<ProduccionView authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
           />
           <Route
             path={paths.vaccination}
