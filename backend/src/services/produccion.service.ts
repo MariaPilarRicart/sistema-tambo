@@ -1,25 +1,23 @@
-import { MotivoDescarteLeche, Prisma, TurnoOrdene } from '@prisma/client';
+import { EstadoLoteLeche, MotivoDescarteLeche, Prisma, TurnoOrdene } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 import {
+  countProduccionesByLoteLeche,
+  createLoteLeche,
   createProduccionAnimal,
+  deleteLoteLeche,
   deleteProduccionAnimal,
   findAnimalForProduccion,
-  findAnimalesProductivos,
   findLoteById,
+  findLoteLecheById,
+  findLoteLecheWithProducciones,
+  findLotesLeche,
   findProduccionAnimalById,
   findProduccionesAnimales,
   findProduccionesAnimalesAsc,
+  updateLoteLeche,
   type ProduccionAnimalWithRelations,
   type ProduccionFilters,
 } from '../repositories/produccion.repository';
-
-const QUALITY_LIMITS = {
-  temperaturaMaxima: 4,
-  grasaMinima: 2.8,
-  proteinaMinima: 2.8,
-  celulasSomaticasMaximas: 400000,
-  bacteriasMaximas: 100000,
-};
 
 function parseId(value: unknown, fieldName: string) {
   const parsed = Number(value);
@@ -32,10 +30,10 @@ function parseOptionalId(value: unknown, fieldName: string) {
   return parseId(value, fieldName);
 }
 
-function parseDateTime(value: unknown) {
-  if (typeof value !== 'string' || !value) throw new AppError('Fecha y hora del ordeñe es obligatoria.', 400);
+function parseDateTime(value: unknown, fieldName: string) {
+  if (typeof value !== 'string' || !value) throw new AppError(`${fieldName} es obligatorio.`, 400);
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new AppError('Fecha y hora del ordeñe inválida.', 400);
+  if (Number.isNaN(date.getTime())) throw new AppError(`${fieldName} inválido.`, 400);
   return date;
 }
 
@@ -43,28 +41,10 @@ function parseDateFilter(value: unknown, endOfDay = false) {
   if (value === undefined || value === null || value === '') return undefined;
   if (typeof value !== 'string') throw new AppError('Fecha de filtro inválida.', 400);
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  const date = match
-    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-    : new Date(value);
+  const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date(value);
   if (Number.isNaN(date.getTime())) throw new AppError('Fecha de filtro inválida.', 400);
   date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
   return date;
-}
-
-function startOfDay(date: Date) {
-  const next = new Date(date);
-  next.setHours(0, 0, 0, 0);
-  return next;
-}
-
-function endOfDay(date: Date) {
-  const next = new Date(date);
-  next.setHours(23, 59, 59, 999);
-  return next;
-}
-
-function dateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
 }
 
 function parseTurno(value: unknown) {
@@ -79,6 +59,14 @@ function parseRequiredTurno(value: unknown) {
   const turno = parseTurno(value);
   if (!turno) throw new AppError('Turno es obligatorio.', 400);
   return turno;
+}
+
+function parseEstadoLoteLeche(value: unknown) {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (value !== EstadoLoteLeche.DISPONIBLE && value !== EstadoLoteLeche.VENDIDO && value !== EstadoLoteLeche.VENCIDO) {
+    throw new AppError('Estado del lote de leche inválido.', 400);
+  }
+  return value;
 }
 
 function parseMotivoDescarte(value: unknown) {
@@ -114,16 +102,35 @@ function parseDecimal(value: unknown, fieldName: string, options: { required?: b
 function parseOptionalInt(value: unknown, fieldName: string) {
   if (value === undefined || value === null || value === '') return null;
   const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new AppError(`${fieldName} debe ser un número entero mayor o igual a 0.`, 400);
-  }
+  if (!Number.isInteger(parsed) || parsed < 0) throw new AppError(`${fieldName} debe ser un número entero mayor o igual a 0.`, 400);
   return parsed;
 }
 
 function normalizeOptionalString(value: unknown, fieldName: string) {
   if (value === undefined || value === null || value === '') return null;
-  if (typeof value !== 'string') throw new AppError(`${fieldName} inválida.`, 400);
+  if (typeof value !== 'string') throw new AppError(`${fieldName} inválido.`, 400);
   return value.trim() || null;
+}
+
+function normalizeRequiredString(value: unknown, fieldName: string) {
+  if (typeof value !== 'string' || !value.trim()) throw new AppError(`${fieldName} es obligatorio.`, 400);
+  return value.trim();
+}
+
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function endOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(23, 59, 59, 999);
+  return next;
+}
+
+function dateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
 }
 
 function toNumber(value: Prisma.Decimal | number | string | null | undefined) {
@@ -134,57 +141,16 @@ function produccionNeta(registro: Pick<ProduccionAnimalWithRelations, 'litrosPro
   return toNumber(registro.litrosProducidos) - toNumber(registro.litrosDescartados);
 }
 
-function isProductionLote(nombre: string) {
-  const normalized = nombre.trim().toLocaleLowerCase('es-AR');
-  return normalized === 'produccion' || normalized === 'producción' || normalized === 'lecheras';
-}
-
-function canRegisterAnimal(animal: Awaited<ReturnType<typeof findAnimalForProduccion>>) {
-  return Boolean(
-    animal &&
-      animal.activo &&
-      animal.estadoAnimal === 'ACTIVO' &&
-      (animal.categoria === 'VACA' || isProductionLote(animal.lote.nombre)),
-  );
-}
-
-function getQualityWarnings(record: {
-  temperaturaTanque?: Prisma.Decimal | number | string | null;
-  grasa?: Prisma.Decimal | number | string | null;
-  proteina?: Prisma.Decimal | number | string | null;
-  recuentoCelulasSomaticas?: number | null;
-  recuentoBacteriano?: number | null;
-}) {
-  const warnings: string[] = [];
-  if (record.temperaturaTanque !== null && record.temperaturaTanque !== undefined && toNumber(record.temperaturaTanque) > QUALITY_LIMITS.temperaturaMaxima) {
-    warnings.push('Temperatura del tanque alta');
-  }
-  if (record.grasa !== null && record.grasa !== undefined && toNumber(record.grasa) < QUALITY_LIMITS.grasaMinima) {
-    warnings.push('Grasa baja');
-  }
-  if (record.proteina !== null && record.proteina !== undefined && toNumber(record.proteina) < QUALITY_LIMITS.proteinaMinima) {
-    warnings.push('Proteína baja');
-  }
-  if ((record.recuentoCelulasSomaticas ?? 0) > QUALITY_LIMITS.celulasSomaticasMaximas) {
-    warnings.push('Recuento de células somáticas alto');
-  }
-  if ((record.recuentoBacteriano ?? 0) > QUALITY_LIMITS.bacteriasMaximas) {
-    warnings.push('Recuento bacteriano alto');
-  }
-  return warnings;
+function promedio(values: number[]) {
+  return values.length > 0 ? values.reduce((total, value) => total + value, 0) / values.length : 0;
 }
 
 function buildDailyEvolution(registros: ProduccionAnimalWithRelations[]) {
   const grouped = new Map<string, { fecha: string; litrosNetos: number; litrosProducidos: number; litrosDescartados: number }>();
 
   registros.forEach((registro) => {
-    const key = dateKey(registro.fecha);
-    const current = grouped.get(key) ?? {
-      fecha: key,
-      litrosNetos: 0,
-      litrosProducidos: 0,
-      litrosDescartados: 0,
-    };
+    const key = dateKey(registro.fechaHora);
+    const current = grouped.get(key) ?? { fecha: key, litrosNetos: 0, litrosProducidos: 0, litrosDescartados: 0 };
     current.litrosNetos += produccionNeta(registro);
     current.litrosProducidos += toNumber(registro.litrosProducidos);
     current.litrosDescartados += toNumber(registro.litrosDescartados);
@@ -210,132 +176,131 @@ function summarizeRecords(registros: ProduccionAnimalWithRelations[]) {
   };
 }
 
+function qualityFromLotes(registros: ProduccionAnimalWithRelations[]) {
+  const lotes = Array.from(new Map(registros.map((registro) => [registro.loteLeche.id, registro.loteLeche])).values());
+  return {
+    proteinaPromedio: promedio(lotes.map((lote) => toNumber(lote.proteina)).filter((value) => value > 0)),
+    recuentoBacterianoPromedio: promedio(lotes.map((lote) => lote.recuentoBacteriano ?? 0).filter((value) => value > 0)),
+  };
+}
+
 function parseFilters(input: Record<string, unknown>): ProduccionFilters {
   return {
     fechaDesde: parseDateFilter(input.fechaDesde),
     fechaHasta: parseDateFilter(input.fechaHasta, true),
     animalId: parseOptionalId(input.animalId, 'animalId'),
     loteId: parseOptionalId(input.loteId, 'loteId'),
+    loteLecheId: parseOptionalId(input.loteLecheId, 'loteLecheId'),
     turno: parseTurno(input.turno),
   };
 }
 
-async function getAlertasBajoRendimiento() {
-  const registros = await findProduccionesAnimalesAsc({});
-  const byLote = new Map<number, Map<number, ProduccionAnimalWithRelations[]>>();
-
-  registros.forEach((registro) => {
-    const loteId = registro.animal.loteId;
-    const loteMap = byLote.get(loteId) ?? new Map<number, ProduccionAnimalWithRelations[]>();
-    const animalRecords = loteMap.get(registro.animalId) ?? [];
-    animalRecords.push(registro);
-    loteMap.set(registro.animalId, animalRecords);
-    byLote.set(loteId, loteMap);
-  });
-
-  const alertas: Array<{ animalId: number; caravana: string; loteId: number; loteNombre: string; mensaje: string }> = [];
-
-  byLote.forEach((animalMap, loteId) => {
-    const loteRecords = Array.from(animalMap.values()).flat();
-    const promedioLote =
-      loteRecords.length > 0
-        ? loteRecords.reduce((total, item) => total + produccionNeta(item), 0) / loteRecords.length
-        : 0;
-
-    if (promedioLote <= 0) return;
-
-    animalMap.forEach((animalRecords) => {
-      const lastThree = animalRecords.slice(-3);
-      if (lastThree.length < 3) return;
-
-      const bajo = lastThree.every((item) => produccionNeta(item) < promedioLote * 0.7);
-      if (!bajo) return;
-
-      const animal = lastThree[0].animal;
-      alertas.push({
-        animalId: animal.id,
-        caravana: animal.caravana,
-        loteId,
-        loteNombre: animal.lote.nombre,
-        mensaje: `La vaca #${animal.caravana} viene rindiendo por debajo del promedio del lote`,
-      });
-    });
-  });
-
-  return alertas;
+export async function listLotesLeche() {
+  return { lotesLeche: await findLotesLeche() };
 }
 
-async function getAlertasFaltantesDeHoy() {
-  const todayStart = startOfDay(new Date());
-  const todayEnd = endOfDay(todayStart);
-  const [animalesProductivos, registrosHoy] = await Promise.all([
-    findAnimalesProductivos(),
-    findProduccionesAnimales({ fechaDesde: todayStart, fechaHasta: todayEnd }),
-  ]);
-  const animalesConRegistro = new Set(registrosHoy.map((registro) => registro.animalId));
+export async function createNewLoteLeche(input: Record<string, unknown>) {
+  const codigo = normalizeRequiredString(input.codigo, 'Código');
+  const fechaProduccion = parseDateTime(input.fechaProduccion, 'Fecha de producción');
+  const fechaVencimiento = parseDateTime(input.fechaVencimiento, 'Fecha de vencimiento');
 
-  return animalesProductivos
-    .filter((animal) => !animalesConRegistro.has(animal.id))
-    .map((animal) => ({
-      animalId: animal.id,
-      caravana: animal.caravana,
-      loteId: animal.loteId,
-      loteNombre: animal.lote.nombre,
-      mensaje: `Falta cargar producción para la vaca #${animal.caravana}`,
-    }));
+  if (fechaVencimiento < fechaProduccion) {
+    throw new AppError('La fecha de vencimiento no puede ser anterior a la fecha de producción.', 400);
+  }
+
+  try {
+    const loteLeche = await createLoteLeche({
+      codigo,
+      fechaProduccion,
+      fechaVencimiento,
+      fechaVenta: input.fechaVenta ? parseDateTime(input.fechaVenta, 'Fecha de venta') : null,
+      estado: parseEstadoLoteLeche(input.estado) ?? EstadoLoteLeche.DISPONIBLE,
+      grasa: parseDecimal(input.grasa, 'Grasa', { min: 0 }),
+      proteina: parseDecimal(input.proteina, 'Proteína', { min: 0 }),
+      recuentoBacteriano: parseOptionalInt(input.recuentoBacteriano, 'Recuento bacteriano'),
+      recuentoCelulasSomaticas: parseOptionalInt(input.recuentoCelulasSomaticas, 'Recuento de células somáticas'),
+      temperatura: parseDecimal(input.temperatura, 'Temperatura', { min: 0 }),
+      observacionesCalidad: normalizeOptionalString(input.observacionesCalidad, 'Observaciones de calidad'),
+    });
+    return loteLeche;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new AppError('Ya existe un lote de leche con ese código.', 409);
+    }
+    throw error;
+  }
+}
+
+export async function updateExistingLoteLeche(idParam: string, input: Record<string, unknown>) {
+  const id = parseId(idParam, 'Id de lote de leche');
+  const existing = await findLoteLecheById(id);
+  if (!existing) throw new AppError('Lote de leche no encontrado.', 404);
+
+  return updateLoteLeche(id, {
+    codigo: input.codigo !== undefined ? normalizeRequiredString(input.codigo, 'Código') : undefined,
+    fechaProduccion: input.fechaProduccion !== undefined ? parseDateTime(input.fechaProduccion, 'Fecha de producción') : undefined,
+    fechaVencimiento: input.fechaVencimiento !== undefined ? parseDateTime(input.fechaVencimiento, 'Fecha de vencimiento') : undefined,
+    fechaVenta: input.fechaVenta !== undefined ? (input.fechaVenta ? parseDateTime(input.fechaVenta, 'Fecha de venta') : null) : undefined,
+    estado: parseEstadoLoteLeche(input.estado),
+    grasa: input.grasa !== undefined ? parseDecimal(input.grasa, 'Grasa', { min: 0 }) : undefined,
+    proteina: input.proteina !== undefined ? parseDecimal(input.proteina, 'Proteína', { min: 0 }) : undefined,
+    recuentoBacteriano: input.recuentoBacteriano !== undefined ? parseOptionalInt(input.recuentoBacteriano, 'Recuento bacteriano') : undefined,
+    recuentoCelulasSomaticas:
+      input.recuentoCelulasSomaticas !== undefined ? parseOptionalInt(input.recuentoCelulasSomaticas, 'Recuento de células somáticas') : undefined,
+    temperatura: input.temperatura !== undefined ? parseDecimal(input.temperatura, 'Temperatura', { min: 0 }) : undefined,
+    observacionesCalidad:
+      input.observacionesCalidad !== undefined ? normalizeOptionalString(input.observacionesCalidad, 'Observaciones de calidad') : undefined,
+  });
+}
+
+export async function deleteExistingLoteLeche(idParam: string) {
+  const id = parseId(idParam, 'Id de lote de leche');
+  const existing = await findLoteLecheById(id);
+  if (!existing) throw new AppError('Lote de leche no encontrado.', 404);
+  const producciones = await countProduccionesByLoteLeche(id);
+  if (producciones > 0) throw new AppError('No se puede eliminar un lote de leche con ordeñes asociados.', 400);
+  return deleteLoteLeche(id);
 }
 
 export async function listProducciones(query: Record<string, unknown>) {
-  const filters = parseFilters(query);
-  return {
-    registros: await findProduccionesAnimales(filters),
-  };
+  return { registros: await findProduccionesAnimales(parseFilters(query)) };
 }
 
 export async function createNewProduccion(input: Record<string, unknown>, usuarioId?: number) {
+  if (!usuarioId) throw new AppError('Usuario no autenticado.', 401);
+
   const animalId = parseId(input.animalId, 'animalId');
-  const fechaHora = parseDateTime(input.fechaHora);
-  const fecha = startOfDay(fechaHora);
+  const loteLecheId = parseId(input.loteLecheId, 'loteLecheId');
+  const fechaHora = parseDateTime(input.fechaHora, 'Fecha y hora del ordeñe');
   const turno = parseRequiredTurno(input.turno);
   const litrosProducidos = parseDecimal(input.litrosProducidos, 'Litros producidos', { required: true, min: 0 })!;
   const litrosDescartados = parseDecimal(input.litrosDescartados ?? 0, 'Litros descartados', { min: 0 }) ?? new Prisma.Decimal(0);
   const motivoDescarte = parseMotivoDescarte(input.motivoDescarte);
 
-  if (litrosDescartados.gt(litrosProducidos)) {
-    throw new AppError('Litros descartados no puede ser mayor a litros producidos.', 400);
-  }
+  if (litrosDescartados.gt(litrosProducidos)) throw new AppError('Litros descartados no puede superar litros producidos.', 400);
+  if (litrosDescartados.gt(0) && !motivoDescarte) throw new AppError('Motivo de descarte es obligatorio si hay litros descartados.', 400);
 
-  if (litrosDescartados.gt(0) && !motivoDescarte) {
-    throw new AppError('Motivo de descarte es obligatorio si hay litros descartados.', 400);
-  }
-
-  const animal = await findAnimalForProduccion(animalId);
+  const [animal, loteLeche] = await Promise.all([findAnimalForProduccion(animalId), findLoteLecheById(loteLecheId)]);
   if (!animal) throw new AppError('Animal no encontrado.', 404);
-  if (!canRegisterAnimal(animal)) {
-    throw new AppError('Solo se puede cargar producción a vacas activas o animales del lote Producción/Lecheras.', 400);
-  }
+  if (!animal.activo || animal.estadoAnimal !== 'ACTIVO') throw new AppError('Solo se puede cargar producción a animales activos.', 400);
+  if (!loteLeche) throw new AppError('Lote de leche no encontrado.', 404);
+  if (loteLeche.estado !== EstadoLoteLeche.DISPONIBLE) throw new AppError('El lote de leche debe estar disponible.', 400);
 
   try {
     return await createProduccionAnimal({
       animalId,
+      loteLecheId,
+      usuarioId,
       fechaHora,
-      fecha,
       turno,
       litrosProducidos,
       litrosDescartados,
       motivoDescarte,
       observacionDescarte: normalizeOptionalString(input.observacionDescarte, 'Observación de descarte'),
-      temperaturaTanque: parseDecimal(input.temperaturaTanque, 'Temperatura del tanque', { min: 0 }),
-      grasa: parseDecimal(input.grasa, 'Grasa', { min: 0 }),
-      proteina: parseDecimal(input.proteina, 'Proteína', { min: 0 }),
-      recuentoCelulasSomaticas: parseOptionalInt(input.recuentoCelulasSomaticas, 'Recuento de células somáticas'),
-      recuentoBacteriano: parseOptionalInt(input.recuentoBacteriano, 'Recuento bacteriano'),
-      observacionesCalidad: normalizeOptionalString(input.observacionesCalidad, 'Observaciones de calidad'),
-      usuarioId: usuarioId ?? null,
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new AppError('Ya existe un registro para ese animal, fecha y turno.', 409);
+      throw new AppError('Ya existe un registro para ese animal, fecha y hora y turno.', 409);
     }
     throw error;
   }
@@ -352,19 +317,9 @@ export async function getResumenProduccion() {
   const todayStart = startOfDay(new Date());
   const todayEnd = endOfDay(todayStart);
   const registrosHoy = await findProduccionesAnimales({ fechaDesde: todayStart, fechaHasta: todayEnd });
-  const resumen = summarizeRecords(registrosHoy);
-  const [alertasBajoRendimiento, alertasFaltantes] = await Promise.all([
-    getAlertasBajoRendimiento(),
-    getAlertasFaltantesDeHoy(),
-  ]);
-  const alertasCalidad = registrosHoy.flatMap((item) => getQualityWarnings(item));
-
   return {
-    ...resumen,
-    alertasBajoRendimiento,
-    alertasFaltantes,
+    ...summarizeRecords(registrosHoy),
     alertaDescarte: registrosHoy.some((item) => toNumber(item.litrosDescartados) > 0),
-    alertasCalidad: Array.from(new Set(alertasCalidad)),
     evolucionDiaria: buildDailyEvolution(registrosHoy),
   };
 }
@@ -376,23 +331,18 @@ export async function getProduccionPorAnimal(idParam: string) {
 
   const historial = await findProduccionesAnimalesAsc({ animalId });
   const resumen = summarizeRecords(historial);
-  const dias = new Set(historial.map((item) => dateKey(item.fecha)));
-  const recordsWithNet = historial.map((registro) => ({ registro, neta: produccionNeta(registro) }));
-  const mejor = recordsWithNet.reduce((best, item) => (!best || item.neta > best.neta ? item : best), null as null | typeof recordsWithNet[number]);
-  const peor = recordsWithNet.reduce((worst, item) => (!worst || item.neta < worst.neta ? item : worst), null as null | typeof recordsWithNet[number]);
-  const alertasBajoRendimiento = (await getAlertasBajoRendimiento()).filter((alerta) => alerta.animalId === animalId);
+  const quality = qualityFromLotes(historial);
 
   return {
     animal,
     historial,
-    totalProducido: resumen.totalLitrosNetos,
-    promedioDiario: dias.size > 0 ? resumen.totalLitrosNetos / dias.size : 0,
+    litrosTotales: resumen.totalLitrosProducidos,
+    litrosDescartados: resumen.totalLitrosDescartados,
+    litrosNetos: resumen.totalLitrosNetos,
     promedioPorOrdene: historial.length > 0 ? resumen.totalLitrosNetos / historial.length : 0,
-    mejorRegistro: mejor?.registro ?? null,
-    peorRegistro: peor?.registro ?? null,
-    litrosDescartadosTotales: resumen.totalLitrosDescartados,
+    proteinaPromedio: quality.proteinaPromedio,
+    recuentoBacterianoPromedio: quality.recuentoBacterianoPromedio,
     evolucion: buildDailyEvolution(historial),
-    bajoRendimiento: alertasBajoRendimiento.length > 0,
   };
 }
 
@@ -403,15 +353,13 @@ export async function getProduccionPorLote(idParam: string) {
 
   const registros = await findProduccionesAnimalesAsc({ loteId });
   const resumen = summarizeRecords(registros);
-  const porAnimal = new Map<number, { animal: ProduccionAnimalWithRelations['animal']; total: number; registros: number }>();
+  const quality = qualityFromLotes(registros);
+  const porAnimal = new Map<number, { animal: ProduccionAnimalWithRelations['animal']; total: number; descartado: number; registros: number }>();
 
   registros.forEach((registro) => {
-    const current = porAnimal.get(registro.animalId) ?? {
-      animal: registro.animal,
-      total: 0,
-      registros: 0,
-    };
-    current.total += produccionNeta(registro);
+    const current = porAnimal.get(registro.animalId) ?? { animal: registro.animal, total: 0, descartado: 0, registros: 0 };
+    current.total += toNumber(registro.litrosProducidos);
+    current.descartado += toNumber(registro.litrosDescartados);
     current.registros += 1;
     porAnimal.set(registro.animalId, current);
   });
@@ -419,19 +367,40 @@ export async function getProduccionPorLote(idParam: string) {
   const rankingAnimales = Array.from(porAnimal.values())
     .map((item) => ({
       animal: item.animal,
-      totalProducido: item.total,
-      promedioPorOrdene: item.registros > 0 ? item.total / item.registros : 0,
+      litrosTotales: item.total,
+      litrosDescartados: item.descartado,
+      litrosNetos: item.total - item.descartado,
+      promedioPorOrdene: item.registros > 0 ? (item.total - item.descartado) / item.registros : 0,
     }))
-    .sort((a, b) => b.totalProducido - a.totalProducido);
-
-  const alertasBajoRendimiento = (await getAlertasBajoRendimiento()).filter((alerta) => alerta.loteId === loteId);
+    .sort((a, b) => b.litrosNetos - a.litrosNetos);
 
   return {
     lote,
-    totalProducido: resumen.totalLitrosNetos,
+    litrosTotales: resumen.totalLitrosProducidos,
+    litrosDescartados: resumen.totalLitrosDescartados,
+    litrosNetos: resumen.totalLitrosNetos,
     promedioPorAnimal: resumen.promedioPorAnimal,
+    proteinaPromedio: quality.proteinaPromedio,
+    recuentoBacterianoPromedio: quality.recuentoBacterianoPromedio,
     rankingAnimales,
-    animalesBajoRendimiento: alertasBajoRendimiento,
     evolucionDiaria: buildDailyEvolution(registros),
+  };
+}
+
+export async function getProduccionPorLoteLeche(idParam: string) {
+  const loteLecheId = parseId(idParam, 'loteLecheId');
+  const loteLeche = await findLoteLecheWithProducciones(loteLecheId);
+  if (!loteLeche) throw new AppError('Lote de leche no encontrado.', 404);
+
+  const animalesMap = new Map<number, { animal: ProduccionAnimalWithRelations['animal']; litrosNetos: number }>();
+  loteLeche.producciones.forEach((registro) => {
+    const current = animalesMap.get(registro.animalId) ?? { animal: registro.animal, litrosNetos: 0 };
+    current.litrosNetos += produccionNeta(registro);
+    animalesMap.set(registro.animalId, current);
+  });
+
+  return {
+    loteLeche,
+    animales: Array.from(animalesMap.values()).sort((a, b) => b.litrosNetos - a.litrosNetos),
   };
 }

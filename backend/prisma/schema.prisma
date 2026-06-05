@@ -87,6 +87,12 @@ enum MotivoDescarteLeche {
   OTRO
 }
 
+enum EstadoLoteLeche {
+  DISPONIBLE
+  VENDIDO
+  VENCIDO
+}
+
 model Usuario {
   id           Int        @id @default(autoincrement())
   nombre       String
@@ -147,6 +153,31 @@ model InsumoAlimentacion {
   movimientos MovimientoStockAlimentacion[]
 
   @@map("insumos_alimentacion")
+}
+
+model LoteLeche {
+  id                       Int              @id @default(autoincrement())
+  codigo                   String           @unique
+  fechaProduccion          DateTime
+  fechaVencimiento         DateTime
+  fechaVenta               DateTime?
+  estado                   EstadoLoteLeche  @default(DISPONIBLE)
+  litrosTotales            Decimal          @default(0) @db.Decimal(10, 2)
+  litrosDescartados        Decimal          @default(0) @db.Decimal(10, 2)
+  litrosNetos              Decimal          @default(0) @db.Decimal(10, 2)
+  grasa                    Decimal?         @db.Decimal(5, 2)
+  proteina                 Decimal?         @db.Decimal(5, 2)
+  recuentoBacteriano       Int?
+  recuentoCelulasSomaticas Int?
+  temperatura              Decimal?         @db.Decimal(5, 2)
+  observacionesCalidad     String?
+  producciones             ProduccionAnimal[]
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  @@index([estado])
+  @@index([fechaProduccion])
+  @@map("lotes_leche")
 }
 
 model MovimientoStockAlimentacion {
@@ -274,31 +305,26 @@ model AgendaTarea {
 }
 
 model ProduccionAnimal {
-  id                        Int                  @id @default(autoincrement())
-  animalId                  Int
-  fechaHora                 DateTime
-  fecha                     DateTime
-  turno                     TurnoOrdene
-  litrosProducidos          Decimal              @db.Decimal(10, 2)
-  litrosDescartados         Decimal              @default(0) @db.Decimal(10, 2)
-  motivoDescarte            MotivoDescarteLeche?
-  observacionDescarte       String?
-  temperaturaTanque         Decimal?             @db.Decimal(5, 2)
-  grasa                     Decimal?             @db.Decimal(5, 2)
-  proteina                  Decimal?             @db.Decimal(5, 2)
-  recuentoCelulasSomaticas  Int?
-  recuentoBacteriano        Int?
-  observacionesCalidad      String?
-  usuarioId                 Int?
-  createdAt                 DateTime             @default(now())
-  updatedAt                 DateTime             @updatedAt
+  id                  Int                  @id @default(autoincrement())
+  animalId            Int
+  loteLecheId         Int
+  usuarioId           Int
+  fechaHora           DateTime
+  turno               TurnoOrdene
+  litrosProducidos    Decimal              @db.Decimal(10, 2)
+  litrosDescartados   Decimal              @default(0) @db.Decimal(10, 2)
+  motivoDescarte      MotivoDescarteLeche?
+  observacionDescarte String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 
-  animal  Animal   @relation(fields: [animalId], references: [id], onDelete: Restrict)
-  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  animal    Animal    @relation(fields: [animalId], references: [id], onDelete: Restrict)
+  loteLeche LoteLeche @relation(fields: [loteLecheId], references: [id], onDelete: Restrict)
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
 
-  @@unique([animalId, fecha, turno])
+  @@unique([animalId, fechaHora, turno])
   @@index([animalId])
-  @@index([fecha])
+  @@index([loteLecheId])
   @@index([fechaHora])
   @@index([turno])
   @@index([usuarioId])

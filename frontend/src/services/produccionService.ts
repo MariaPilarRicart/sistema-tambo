@@ -1,12 +1,23 @@
 import { apiRequest } from './apiClient';
 import type {
+  LoteLeche,
+  LoteLecheFormValues,
   ProduccionAnimal,
   ProduccionFilters,
   ProduccionFormValues,
   ProduccionPorAnimal,
   ProduccionPorLote,
+  ProduccionPorLoteLeche,
   ProduccionResumen,
 } from '../types/produccion';
+
+interface LotesLecheResponse {
+  lotesLeche: LoteLeche[];
+}
+
+interface LoteLecheResponse {
+  loteLeche: LoteLeche;
+}
 
 interface ProduccionesResponse {
   registros: ProduccionAnimal[];
@@ -28,39 +39,72 @@ interface ProduccionPorLoteResponse {
   produccion: ProduccionPorLote;
 }
 
+interface ProduccionPorLoteLecheResponse {
+  produccion: ProduccionPorLoteLeche;
+}
+
 function optionalNumber(value: string) {
   return value === '' ? null : Number(value);
 }
 
 function buildQuery(filters: Partial<ProduccionFilters>) {
   const params = new URLSearchParams();
-
   Object.entries(filters).forEach(([key, value]) => {
     if (value) params.set(key, value);
   });
-
   const query = params.toString();
   return query ? `?${query}` : '';
 }
 
+function buildLoteLechePayload(values: LoteLecheFormValues) {
+  return {
+    codigo: values.codigo.trim(),
+    fechaProduccion: values.fechaProduccion,
+    fechaVencimiento: values.fechaVencimiento,
+    estado: values.estado,
+    grasa: optionalNumber(values.grasa),
+    proteina: optionalNumber(values.proteina),
+    recuentoBacteriano: optionalNumber(values.recuentoBacteriano),
+    recuentoCelulasSomaticas: optionalNumber(values.recuentoCelulasSomaticas),
+    temperatura: optionalNumber(values.temperatura),
+    observacionesCalidad: values.observacionesCalidad.trim() || null,
+  };
+}
+
 function buildProduccionPayload(values: ProduccionFormValues) {
   const litrosDescartados = Number(values.litrosDescartados || 0);
-
   return {
     animalId: Number(values.animalId),
+    loteLecheId: Number(values.loteLecheId),
     fechaHora: values.fechaHora,
     turno: values.turno,
     litrosProducidos: Number(values.litrosProducidos || 0),
     litrosDescartados,
     motivoDescarte: litrosDescartados > 0 ? values.motivoDescarte : null,
     observacionDescarte: values.observacionDescarte.trim() || null,
-    temperaturaTanque: optionalNumber(values.temperaturaTanque),
-    grasa: optionalNumber(values.grasa),
-    proteina: optionalNumber(values.proteina),
-    recuentoCelulasSomaticas: optionalNumber(values.recuentoCelulasSomaticas),
-    recuentoBacteriano: optionalNumber(values.recuentoBacteriano),
-    observacionesCalidad: values.observacionesCalidad.trim() || null,
   };
+}
+
+export async function getLotesLeche(token: string) {
+  const response = await apiRequest<LotesLecheResponse>('/api/lotes-leche', { token });
+  return response.lotesLeche;
+}
+
+export async function createLoteLeche(token: string, values: LoteLecheFormValues) {
+  const response = await apiRequest<LoteLecheResponse>('/api/lotes-leche', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(buildLoteLechePayload(values)),
+  });
+  return response.loteLeche;
+}
+
+export async function deleteLoteLeche(token: string, id: number) {
+  const response = await apiRequest<LoteLecheResponse>(`/api/lotes-leche/${id}`, {
+    method: 'DELETE',
+    token,
+  });
+  return response.loteLeche;
 }
 
 export async function getProducciones(token: string, filters: Partial<ProduccionFilters> = {}) {
@@ -80,6 +124,11 @@ export async function getProduccionPorAnimal(token: string, animalId: number) {
 
 export async function getProduccionPorLote(token: string, loteId: number) {
   const response = await apiRequest<ProduccionPorLoteResponse>(`/api/produccion/por-lote/${loteId}`, { token });
+  return response.produccion;
+}
+
+export async function getProduccionPorLoteLeche(token: string, loteLecheId: number) {
+  const response = await apiRequest<ProduccionPorLoteLecheResponse>(`/api/produccion/por-lote-leche/${loteLecheId}`, { token });
   return response.produccion;
 }
 
