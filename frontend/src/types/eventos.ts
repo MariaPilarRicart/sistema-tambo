@@ -25,7 +25,7 @@ export interface Evento {
   animal: {
     id: number;
     caravana: string;
-    categoria: CategoriaAnimal;
+    categoriaAnimal: CategoriaAnimal;
     estadoReproductivo: EstadoReproductivo;
     lote?: {
       id: number;

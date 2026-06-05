@@ -102,10 +102,15 @@ const estadoLoteLecheLabels: Record<EstadoLoteLeche, string> = {
 };
 
 const categoriaLabels: Record<CategoriaAnimal, string> = {
+  GUACHERA: 'Guachera',
+  ESCUELITA: 'Escuelita',
   TERNERA: 'Ternera',
   VAQUILLONA: 'Vaquillona',
-  VACA: 'Vaca',
+  VACA_PRODUCCION: 'Vaca en producción',
+  VACA_SECA: 'Vaca seca',
+  PREPARTO: 'Preparto',
   TORO: 'Toro',
+  BAJA: 'Baja',
 };
 
 const estadoReproductivoLabels: Record<EstadoReproductivo, string> = {
@@ -144,8 +149,8 @@ function netLiters(registro: ProduccionAnimal) {
   return Number(registro.litrosProducidos) - Number(registro.litrosDescartados);
 }
 
-function animalLabel(animal: Pick<Animal, 'caravana' | 'categoria' | 'estadoReproductivo'>) {
-  return `Caravana ${animal.caravana} - ${categoriaLabels[animal.categoria]} - ${estadoReproductivoLabels[animal.estadoReproductivo]}`;
+function animalLabel(animal: Pick<Animal, 'caravana' | 'categoriaAnimal' | 'estadoReproductivo'>) {
+  return `Caravana ${animal.caravana} - ${categoriaLabels[animal.categoriaAnimal]} - ${estadoReproductivoLabels[animal.estadoReproductivo]}`;
 }
 
 export function ProduccionView({ authToken, currentUser, onUnauthorized }: ProduccionViewProps) {
@@ -172,7 +177,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
   const hasDiscard = Number(form.litrosDescartados || 0) > 0;
   const availableLotesLeche = useMemo(() => lotesLeche.filter((lote) => lote.estado === 'DISPONIBLE'), [lotesLeche]);
   const selectedLoteAnimals = useMemo(
-    () => animales.filter((animal) => animal.activo && animal.estadoAnimal === 'ACTIVO' && String(animal.loteId) === form.loteId),
+    () => animales.filter((animal) => animal.activo && animal.estadoAnimal === 'ACTIVO' && animal.categoriaAnimal === 'VACA_PRODUCCION' && String(animal.loteId) === form.loteId),
     [animales, form.loteId],
   );
 
@@ -193,7 +198,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
       const [nextRegistros, nextResumen, nextAnimales, nextLotes, nextLotesLeche] = await Promise.all([
         getProducciones(authToken, nextFilters),
         getResumenProduccion(authToken),
-        getAnimales(authToken, { caravana: '', loteId: '', estadoReproductivo: '', estadoAnimal: '', activo: 'true' }),
+        getAnimales(authToken, { caravana: '', categoriaAnimal: 'VACA_PRODUCCION', loteId: '', estadoReproductivo: '', estadoAnimal: '', activo: 'true' }),
         getLotes(authToken),
         getLotesLeche(authToken),
       ]);
@@ -436,7 +441,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                 {registros.map((registro) => (
                   <tr key={registro.id}>
                     <td>{formatDateTime(registro.fechaHora)}</td>
-                    <td><strong>{registro.animal.caravana}</strong><span>{categoriaLabels[registro.animal.categoria]}</span></td>
+                    <td><strong>{registro.animal.caravana}</strong><span>{categoriaLabels[registro.animal.categoriaAnimal]}</span></td>
                     <td>{registro.animal.lote.nombre}</td>
                     <td>{registro.loteLeche.codigo}</td>
                     <td>{turnoLabels[registro.turno]}</td>
@@ -498,7 +503,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
             <article className="dashboard-kpi-card dashboard-kpi-pink"><strong>Proteína</strong><h3>{formatNumber(loteLecheStats.loteLeche.proteina, '%')}</h3></article>
             <article className="dashboard-kpi-card dashboard-kpi-rose"><strong>RB</strong><h3>{formatNumber(loteLecheStats.loteLeche.recuentoBacteriano)}</h3></article>
           </div>
-          <div className="table-wrap feed-table-wrap"><table className="users-table"><thead><tr><th>Animal</th><th>Lote</th><th>Litros netos aportados</th></tr></thead><tbody>{loteLecheStats.animales.map((item) => <tr key={item.animal.id}><td><strong>{item.animal.caravana}</strong><span>{categoriaLabels[item.animal.categoria]}</span></td><td>{item.animal.lote.nombre}</td><td>{formatLiters(item.litrosNetos)}</td></tr>)}</tbody></table></div>
+          <div className="table-wrap feed-table-wrap"><table className="users-table"><thead><tr><th>Animal</th><th>Lote</th><th>Litros netos aportados</th></tr></thead><tbody>{loteLecheStats.animales.map((item) => <tr key={item.animal.id}><td><strong>{item.animal.caravana}</strong><span>{categoriaLabels[item.animal.categoriaAnimal]}</span></td><td>{item.animal.lote.nombre}</td><td>{formatLiters(item.litrosNetos)}</td></tr>)}</tbody></table></div>
         </> : <p className="table-empty">Seleccioná un lote de leche para ver estadísticas.</p>}
       </section>
     </div>

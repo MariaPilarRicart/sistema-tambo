@@ -41,7 +41,7 @@ export async function scheduleVaccination(token: string, values: ScheduleVaccina
       descripcion: values.descripcion.trim() || null,
       animalIds: values.animalIds,
       loteId: values.loteId ? Number(values.loteId) : undefined,
-      categoria: values.categoria || undefined,
+      categoriaAnimal: values.categoria || undefined,
     }),
   });
 

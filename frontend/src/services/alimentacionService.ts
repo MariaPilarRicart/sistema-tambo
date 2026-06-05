@@ -56,6 +56,7 @@ function buildRacionPayload(values: RacionFormValues) {
   return {
     nombre: values.nombre.trim(),
     descripcion: values.descripcion.trim() || null,
+    categoriaAnimal: values.categoriaAnimal || null,
     activa: values.activa,
   };
 }
@@ -63,7 +64,7 @@ function buildRacionPayload(values: RacionFormValues) {
 function buildRegistroPayload(values: RegistroAlimentacionFormValues) {
   return {
     fecha: values.fecha,
-    loteId: Number(values.loteId),
+    categoriaAnimal: values.categoriaAnimal,
     racionId: Number(values.racionId),
     cantidadKg: Number(values.cantidadKg),
     observaciones: values.observaciones.trim() || null,

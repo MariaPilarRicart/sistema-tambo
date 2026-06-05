@@ -6,7 +6,7 @@ const eventoInclude = {
     select: {
       id: true,
       caravana: true,
-      categoria: true,
+      categoriaAnimal: true,
       estadoReproductivo: true,
     },
   },

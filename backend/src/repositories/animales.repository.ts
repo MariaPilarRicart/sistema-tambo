@@ -20,6 +20,7 @@ const animalInclude = {
 
 export function findAnimales(filters: {
   caravana?: string;
+  categoriaAnimal?: CategoriaAnimal;
   loteId?: number;
   estadoReproductivo?: EstadoReproductivo;
   estadoAnimal?: EstadoAnimal;
@@ -34,6 +35,7 @@ export function findAnimales(filters: {
           }
         : undefined,
       loteId: filters.loteId,
+      categoriaAnimal: filters.categoriaAnimal,
       estadoReproductivo: filters.estadoReproductivo,
       estadoAnimal: filters.estadoAnimal,
       activo: filters.activo,
@@ -60,7 +62,7 @@ export function findAnimalFichaById(id: number) {
           id: true,
           caravana: true,
           nombre: true,
-          categoria: true,
+          categoriaAnimal: true,
           estadoAnimal: true,
           activo: true,
         },
@@ -122,7 +124,7 @@ export function createAnimal(data: {
   nombre?: string | null;
   fechaNacimiento: Date;
   raza?: string | null;
-  categoria: CategoriaAnimal;
+  categoriaAnimal: CategoriaAnimal;
   estadoReproductivo: EstadoReproductivo;
   estadoAnimal: EstadoAnimal;
   activo: boolean;
@@ -142,7 +144,7 @@ export function updateAnimal(
     nombre: string | null;
     fechaNacimiento: Date;
     raza: string | null;
-    categoria: CategoriaAnimal;
+    categoriaAnimal: CategoriaAnimal;
     estadoReproductivo: EstadoReproductivo;
     estadoAnimal: EstadoAnimal;
     activo: boolean;

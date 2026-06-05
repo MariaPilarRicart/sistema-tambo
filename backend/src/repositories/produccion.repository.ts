@@ -7,7 +7,7 @@ export const produccionAnimalInclude = {
       id: true,
       caravana: true,
       nombre: true,
-      categoria: true,
+      categoriaAnimal: true,
       estadoReproductivo: true,
       activo: true,
       estadoAnimal: true,
@@ -228,6 +228,7 @@ export function findAnimalesProductivos() {
     where: {
       activo: true,
       estadoAnimal: 'ACTIVO',
+      categoriaAnimal: 'VACA_PRODUCCION',
     },
     orderBy: { caravana: 'asc' },
     include: {

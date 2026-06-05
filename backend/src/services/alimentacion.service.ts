@@ -1,4 +1,4 @@
-import { Prisma, TipoMovimientoStockAlimentacion } from '@prisma/client';
+import { CategoriaAnimal, Prisma, TipoMovimientoStockAlimentacion } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 import {
   aggregateTotalKg,
@@ -18,8 +18,6 @@ import {
   findInsumosAlimentacion,
   findInsumosBajoStock,
   findActiveRacion,
-  findLoteForFeeding,
-  findLotesByIds,
   findMovimientosStockAlimentacion,
   findRacionById,
   findRacionByNombre,
@@ -92,6 +90,14 @@ function parseTipoMovimientoStock(value: unknown) {
   return value;
 }
 
+function parseCategoriaAnimal(value: unknown) {
+  if (Object.values(CategoriaAnimal).includes(value as CategoriaAnimal)) {
+    return value as CategoriaAnimal;
+  }
+
+  throw new AppError('Categoría animal inválida.', 400);
+}
+
 function startOfToday() {
   const date = new Date();
   date.setHours(0, 0, 0, 0);
@@ -119,6 +125,7 @@ export async function createNewRacion(input: Record<string, unknown>) {
     return await createRacion({
       nombre,
       descripcion: normalizeOptionalString(input.descripcion, 'Descripcion'),
+      categoriaAnimal: input.categoriaAnimal ? parseCategoriaAnimal(input.categoriaAnimal) : null,
       activa: input.activa === undefined ? true : Boolean(input.activa),
     });
   } catch (error) {
@@ -138,6 +145,9 @@ export async function updateExistingRacion(idParam: string, input: Record<string
     data.nombre = nombre;
   }
   if (input.descripcion !== undefined) data.descripcion = normalizeOptionalString(input.descripcion, 'Descripcion');
+  if (input.categoriaAnimal !== undefined) {
+    data.categoriaAnimal = input.categoriaAnimal ? parseCategoriaAnimal(input.categoriaAnimal) : null;
+  }
   if (input.activa !== undefined) data.activa = Boolean(input.activa);
 
   try {
@@ -160,20 +170,17 @@ export function listRegistrosAlimentacion() {
 }
 
 export async function createNewRegistroAlimentacion(input: Record<string, unknown>, usuarioId?: number) {
-  const loteId = parseId(input.loteId, 'loteId');
+  const categoriaAnimal = parseCategoriaAnimal(input.categoriaAnimal ?? input.categoria);
   const racionId = parseId(input.racionId, 'racionId');
   const fecha = parseDate(input.fecha);
   const cantidadKg = parseCantidadKg(input.cantidadKg);
-
-  const lote = await findLoteForFeeding(loteId);
-  if (!lote || !lote.activo) throw new AppError('El lote debe existir y estar activo.', 400);
 
   const racion = await findActiveRacion(racionId);
   if (!racion) throw new AppError('La racion debe existir y estar activa.', 400);
 
   return createRegistroAlimentacion({
     fecha,
-    loteId,
+    categoriaAnimal,
     racionId,
     cantidadKg,
     observaciones: normalizeOptionalString(input.observaciones, 'Observaciones'),
@@ -202,17 +209,16 @@ export async function getResumenAlimentacion() {
     findUltimosRegistrosAlimentacion(),
   ]);
 
-  const lotes = await findLotesByIds(porLote.map((item) => item.loteId));
   const raciones = await findRacionesByIds(porRacion.map((item) => item.racionId));
 
   return {
     totalKgEntregados: totalKg._sum.cantidadKg ?? 0,
     registrosHoy,
     racionesActivas,
-    lotesAlimentados: lotesAlimentados.length,
-    alimentacionPorLote: porLote.map((item) => ({
-      loteId: item.loteId,
-      nombre: lotes.find((lote) => lote.id === item.loteId)?.nombre ?? `Lote ${item.loteId}`,
+    categoriasAlimentadas: lotesAlimentados.length,
+    alimentacionPorCategoria: porLote.map((item) => ({
+      categoriaAnimal: item.categoriaAnimal,
+      nombre: item.categoriaAnimal,
       totalKg: item._sum.cantidadKg ?? 0,
     })),
     alimentacionPorRacion: porRacion.map((item) => ({

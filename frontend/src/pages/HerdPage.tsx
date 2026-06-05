@@ -19,7 +19,17 @@ import type { AuthUser } from '../types/auth';
 import type { EventoFormValues, TipoEvento } from '../types/eventos';
 import type { Lote } from '../types/lotes';
 
-const categoriaOptions: CategoriaAnimal[] = ['TERNERA', 'VAQUILLONA', 'VACA', 'TORO'];
+const categoriaOptions: CategoriaAnimal[] = [
+  'GUACHERA',
+  'ESCUELITA',
+  'TERNERA',
+  'VAQUILLONA',
+  'VACA_PRODUCCION',
+  'VACA_SECA',
+  'PREPARTO',
+  'TORO',
+  'BAJA',
+];
 const estadoReproductivoOptions: EstadoReproductivo[] = [
   'NO_APLICA',
   'VACIA',
@@ -49,6 +59,7 @@ const tipoEventoOptions: TipoEvento[] = [
 
 const emptyFilters: AnimalFilters = {
   caravana: '',
+  categoriaAnimal: '',
   loteId: '',
   estadoReproductivo: '',
   estadoAnimal: '',
@@ -60,7 +71,7 @@ const emptyAnimalForm: AnimalFormValues = {
   nombre: '',
   fechaNacimiento: '',
   raza: '',
-  categoria: 'VACA',
+  categoriaAnimal: 'VACA_PRODUCCION',
   estadoReproductivo: 'VACIA',
   estadoAnimal: 'ACTIVO',
   activo: true,
@@ -169,7 +180,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
       nombre: animal.nombre ?? '',
       fechaNacimiento: animal.fechaNacimiento.slice(0, 10),
       raza: animal.raza ?? '',
-      categoria: animal.categoria,
+      categoriaAnimal: animal.categoriaAnimal,
       estadoReproductivo: animal.estadoReproductivo,
       estadoAnimal: animal.estadoAnimal,
       activo: animal.activo,
@@ -376,6 +387,10 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
               <option key={lote.id} value={lote.id}>{lote.nombre}</option>
             ))}
           </select>
+          <select value={filters.categoriaAnimal} onChange={(event) => setFilters({ ...filters, categoriaAnimal: event.target.value })}>
+            <option value="">Categoría</option>
+            {categoriaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
           <select value={filters.estadoReproductivo} onChange={(event) => setFilters({ ...filters, estadoReproductivo: event.target.value })}>
             <option value="">Estado reproductivo</option>
             {estadoReproductivoOptions.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -439,7 +454,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                         <strong>{animal.madre ? `#${animal.madre.caravana}` : '-'}</strong>
                         <span>{animal.padreNombre || 'Sin padre'}</span>
                       </td>
-                      <td>{animal.categoria}</td>
+                      <td>{animal.categoriaAnimal}</td>
                       <td>
                         <span className={`status-pill ${animal.activo ? 'status-active' : 'status-inactive'}`}>
                           {animal.estadoAnimal}
@@ -511,7 +526,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
               </label>
               <label>
                 <span>Categoria</span>
-                <select value={formValues.categoria} onChange={(event) => setFormValues({ ...formValues, categoria: event.target.value as CategoriaAnimal })}>
+                <select value={formValues.categoriaAnimal} onChange={(event) => setFormValues({ ...formValues, categoriaAnimal: event.target.value as CategoriaAnimal })}>
                   {categoriaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </label>

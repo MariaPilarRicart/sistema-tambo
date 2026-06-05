@@ -17,7 +17,7 @@ import type { AuthUser } from '../types/auth';
 import type { Evento } from '../types/eventos';
 import type { Lote } from '../types/lotes';
 
-const categoriaOptions: CategoriaAnimal[] = ['TERNERA', 'VAQUILLONA', 'VACA', 'TORO'];
+const categoriaOptions: CategoriaAnimal[] = ['GUACHERA', 'ESCUELITA', 'TERNERA', 'VAQUILLONA', 'VACA_PRODUCCION', 'VACA_SECA', 'PREPARTO', 'TORO'];
 type ScheduleMode = 'individual' | 'lote' | 'categoria' | 'lote_categoria';
 
 const scheduleModes: Array<{ value: ScheduleMode; label: string; helper: string }> = [
@@ -103,12 +103,12 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
 
     return activeAnimals.filter((animal) => {
       if (scheduleMode === 'lote') return formValues.loteId && String(animal.loteId) === formValues.loteId;
-      if (scheduleMode === 'categoria') return formValues.categoria && animal.categoria === formValues.categoria;
+      if (scheduleMode === 'categoria') return formValues.categoria && animal.categoriaAnimal === formValues.categoria;
       return (
         formValues.loteId &&
         formValues.categoria &&
         String(animal.loteId) === formValues.loteId &&
-        animal.categoria === formValues.categoria
+        animal.categoriaAnimal === formValues.categoria
       );
     }).length;
   }, [activeAnimals, formValues.categoria, formValues.loteId, scheduleMode, selectedAnimals.length]);
@@ -133,7 +133,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
       const [nextTasks, nextEvents, nextAnimals, nextLotes] = await Promise.all([
         getPendingVaccinationTasks(authToken),
         getVaccinationEvents(authToken),
-        getAnimales(authToken, { caravana: '', loteId: '', estadoReproductivo: '', estadoAnimal: '', activo: 'true' }),
+        getAnimales(authToken, { caravana: '', categoriaAnimal: '', loteId: '', estadoReproductivo: '', estadoAnimal: '', activo: 'true' }),
         getLotes(authToken),
       ]);
 
@@ -417,7 +417,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
                       <Link className="table-link" to={`/rodeos/${task.animal.id}`}>#{task.animal.caravana}</Link>
                     </td>
                     <td>{task.animal.lote.nombre}</td>
-                    <td>{task.animal.categoria}</td>
+                    <td>{task.animal.categoriaAnimal}</td>
                     <td>{task.descripcion || '-'}</td>
                     <td><span className="status-pill status-active">{task.estado}</span></td>
                     <td>

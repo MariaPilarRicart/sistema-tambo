@@ -47,7 +47,7 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
     try {
       const [nextEventos, nextAnimales] = await Promise.all([
         getEventos(authToken, nextFilters),
-        getAnimales(authToken, { caravana: '', loteId: '', estadoReproductivo: '', estadoAnimal: '', activo: '' }),
+        getAnimales(authToken, { caravana: '', categoriaAnimal: '', loteId: '', estadoReproductivo: '', estadoAnimal: '', activo: '' }),
       ]);
       setEventos(nextEventos);
       setAnimales(nextAnimales);
@@ -138,7 +138,7 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
                   <tr key={evento.id}>
                     <td>{new Date(evento.fecha).toLocaleString()}</td>
                     <td><span className="status-pill status-active">{evento.tipo}</span></td>
-                    <td><strong>#{evento.animal.caravana}</strong><span>{evento.animal.categoria}</span></td>
+                    <td><strong>#{evento.animal.caravana}</strong><span>{evento.animal.categoriaAnimal}</span></td>
                     <td>{evento.usuario?.nombre ?? 'Sin usuario'}</td>
                     <td>{evento.observaciones || '-'}</td>
                   </tr>

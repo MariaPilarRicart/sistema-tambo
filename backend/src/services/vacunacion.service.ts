@@ -59,13 +59,13 @@ export async function scheduleVaccination(input: Record<string, unknown>) {
   const descripcion = parseOptionalString(input.descripcion, 'Descripcion');
   const animalIds = parseAnimalIds(input.animalIds);
   const loteId = input.loteId ? parseId(input.loteId, 'loteId') : undefined;
-  const categoria = input.categoria ? parseCategoria(input.categoria) : undefined;
+  const categoriaAnimal = input.categoriaAnimal || input.categoria ? parseCategoria(input.categoriaAnimal ?? input.categoria) : undefined;
 
-  if (!animalIds && !loteId && !categoria) {
-    throw new AppError('Debe seleccionar al menos un animal, lote o categoria.', 400);
+  if (!animalIds && !loteId && !categoriaAnimal) {
+    throw new AppError('Debe seleccionar al menos un animal, lote o categoría.', 400);
   }
 
-  const animals = await findActiveAnimalsForVaccination({ animalIds, loteId, categoria });
+  const animals = await findActiveAnimalsForVaccination({ animalIds, loteId, categoriaAnimal });
 
   if (animalIds) {
     const uniqueRequestedIds = Array.from(new Set(animalIds));

@@ -281,12 +281,11 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
 
       case TipoEvento.SECADO: {
         await closePendingTaskOrThrow(tx, animalId, 'SECADO', evento.id);
-        const loteSecas = await tx.lote.findFirst({ where: { nombre: 'Secas', activo: true } });
         await tx.animal.update({
           where: { id: animalId },
           data: {
             estadoReproductivo: EstadoReproductivo.SECA,
-            ...(loteSecas ? { loteId: loteSecas.id } : {}),
+            categoriaAnimal: CategoriaAnimal.VACA_SECA,
           },
         });
         break;
@@ -298,8 +297,8 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
           where: { id: animalId },
           data: {
             estadoReproductivo: EstadoReproductivo.RECUPERACION,
-            ...(animal.categoria === CategoriaAnimal.VAQUILLONA
-              ? { categoria: CategoriaAnimal.VACA }
+            ...(animal.categoriaAnimal === CategoriaAnimal.VAQUILLONA
+              ? { categoriaAnimal: CategoriaAnimal.VACA_PRODUCCION }
               : {}),
           },
         });
@@ -359,7 +358,7 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
           select: {
             id: true,
             caravana: true,
-            categoria: true,
+            categoriaAnimal: true,
             estadoReproductivo: true,
           },
         },

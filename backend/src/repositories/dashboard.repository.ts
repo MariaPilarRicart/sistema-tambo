@@ -23,9 +23,9 @@ export function groupAnimalesByEstadoReproductivo() {
 
 export function groupAnimalesByCategoria() {
   return prisma.animal.groupBy({
-    by: ['categoria'],
+    by: ['categoriaAnimal'],
     _count: { _all: true },
-    orderBy: { categoria: 'asc' },
+    orderBy: { categoriaAnimal: 'asc' },
   });
 }
 

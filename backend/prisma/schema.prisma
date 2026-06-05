@@ -13,10 +13,15 @@ enum RolUsuario {
 }
 
 enum CategoriaAnimal {
+  GUACHERA
+  ESCUELITA
   TERNERA
   VAQUILLONA
-  VACA
+  VACA_PRODUCCION
+  VACA_SECA
+  PREPARTO
   TORO
+  BAJA
 }
 
 enum EstadoReproductivo {
@@ -121,7 +126,6 @@ model Lote {
   updatedAt   DateTime @updatedAt
 
   animales              Animal[]
-  registrosAlimentacion RegistroAlimentacion[]
 
   @@map("lotes")
 }
@@ -130,6 +134,7 @@ model Racion {
   id          Int      @id @default(autoincrement())
   nombre      String   @unique
   descripcion String?
+  categoriaAnimal CategoriaAnimal?
   activa      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -204,7 +209,7 @@ model MovimientoStockAlimentacion {
 model RegistroAlimentacion {
   id            Int      @id @default(autoincrement())
   fecha         DateTime
-  loteId        Int
+  categoriaAnimal CategoriaAnimal
   racionId      Int
   cantidadKg    Float
   observaciones String?
@@ -212,12 +217,11 @@ model RegistroAlimentacion {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  lote    Lote     @relation(fields: [loteId], references: [id], onDelete: Restrict)
   racion  Racion   @relation(fields: [racionId], references: [id], onDelete: Restrict)
   usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@index([fecha])
-  @@index([loteId])
+  @@index([categoriaAnimal])
   @@index([racionId])
   @@index([usuarioId])
   @@map("registros_alimentacion")
@@ -229,7 +233,7 @@ model Animal {
   nombre             String?
   fechaNacimiento    DateTime
   raza               String?
-  categoria          CategoriaAnimal
+  categoriaAnimal    CategoriaAnimal @map("categoria")
   estadoReproductivo EstadoReproductivo @default(VACIA)
   estadoAnimal       EstadoAnimal       @default(ACTIVO)
   activo             Boolean            @default(true)

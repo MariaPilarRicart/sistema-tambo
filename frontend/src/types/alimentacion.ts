@@ -1,10 +1,11 @@
 import type { UserRole } from './auth';
-import type { Lote } from './lotes';
+import type { CategoriaAnimal } from './animales';
 
 export interface Racion {
   id: number;
   nombre: string;
   descripcion: string | null;
+  categoriaAnimal: CategoriaAnimal | null;
   activa: boolean;
   createdAt: string;
   updatedAt: string;
@@ -13,20 +14,20 @@ export interface Racion {
 export interface RacionFormValues {
   nombre: string;
   descripcion: string;
+  categoriaAnimal: CategoriaAnimal | '';
   activa: boolean;
 }
 
 export interface RegistroAlimentacion {
   id: number;
   fecha: string;
-  loteId: number;
+  categoriaAnimal: CategoriaAnimal;
   racionId: number;
   cantidadKg: number;
   observaciones: string | null;
   usuarioId: number | null;
   createdAt: string;
   updatedAt: string;
-  lote: Pick<Lote, 'id' | 'nombre' | 'activo'>;
   racion: Pick<Racion, 'id' | 'nombre' | 'descripcion' | 'activa'>;
   usuario: {
     id: number;
@@ -38,7 +39,7 @@ export interface RegistroAlimentacion {
 
 export interface RegistroAlimentacionFormValues {
   fecha: string;
-  loteId: string;
+  categoriaAnimal: CategoriaAnimal | '';
   racionId: string;
   cantidadKg: string;
   observaciones: string;
@@ -48,9 +49,9 @@ export interface AlimentacionResumen {
   totalKgEntregados: number;
   registrosHoy: number;
   racionesActivas: number;
-  lotesAlimentados: number;
-  alimentacionPorLote: Array<{
-    loteId: number;
+  categoriasAlimentadas: number;
+  alimentacionPorCategoria: Array<{
+    categoriaAnimal: CategoriaAnimal;
     nombre: string;
     totalKg: number;
   }>;

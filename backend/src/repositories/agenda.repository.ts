@@ -6,7 +6,7 @@ const agendaInclude = {
     select: {
       id: true,
       caravana: true,
-      categoria: true,
+      categoriaAnimal: true,
       estadoReproductivo: true,
       estadoAnimal: true,
       activo: true,

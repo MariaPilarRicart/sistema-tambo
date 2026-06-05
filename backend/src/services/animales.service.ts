@@ -126,6 +126,7 @@ function parseOptionalMadreId(value: unknown) {
 export async function listAnimales(query: Record<string, unknown>) {
   return findAnimales({
     caravana: typeof query.caravana === 'string' ? query.caravana.trim() : undefined,
+    categoriaAnimal: query.categoriaAnimal ? parseCategoria(query.categoriaAnimal) : undefined,
     loteId: query.loteId ? parseId(query.loteId, 'loteId') : undefined,
     estadoReproductivo: query.estadoReproductivo
       ? parseEstadoReproductivo(query.estadoReproductivo)
@@ -181,7 +182,7 @@ export async function createNewAnimal(input: Record<string, unknown>) {
       nombre: normalizeOptionalString(input.nombre, 'Nombre'),
       fechaNacimiento: parseDate(input.fechaNacimiento),
       raza: normalizeOptionalString(input.raza, 'Raza'),
-      categoria: parseCategoria(input.categoria),
+      categoriaAnimal: parseCategoria(input.categoriaAnimal ?? input.categoria),
       estadoReproductivo: parseEstadoReproductivo(input.estadoReproductivo ?? EstadoReproductivo.VACIA),
       estadoAnimal: parseEstadoAnimal(input.estadoAnimal ?? EstadoAnimal.ACTIVO),
       activo: input.activo === undefined ? true : Boolean(input.activo),
@@ -211,7 +212,9 @@ export async function updateExistingAnimal(idParam: string, input: Record<string
   if (input.nombre !== undefined) data.nombre = normalizeOptionalString(input.nombre, 'Nombre');
   if (input.fechaNacimiento !== undefined) data.fechaNacimiento = parseDate(input.fechaNacimiento);
   if (input.raza !== undefined) data.raza = normalizeOptionalString(input.raza, 'Raza');
-  if (input.categoria !== undefined) data.categoria = parseCategoria(input.categoria);
+  if (input.categoriaAnimal !== undefined || input.categoria !== undefined) {
+    data.categoriaAnimal = parseCategoria(input.categoriaAnimal ?? input.categoria);
+  }
   if (input.estadoReproductivo !== undefined) {
     data.estadoReproductivo = parseEstadoReproductivo(input.estadoReproductivo);
   }

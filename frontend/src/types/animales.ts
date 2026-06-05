@@ -3,7 +3,16 @@ import type { EstadoTarea, TipoTarea } from './agenda';
 import type { UserRole } from './auth';
 import type { TipoEvento } from './eventos';
 
-export type CategoriaAnimal = 'TERNERA' | 'VAQUILLONA' | 'VACA' | 'TORO';
+export type CategoriaAnimal =
+  | 'GUACHERA'
+  | 'ESCUELITA'
+  | 'TERNERA'
+  | 'VAQUILLONA'
+  | 'VACA_PRODUCCION'
+  | 'VACA_SECA'
+  | 'PREPARTO'
+  | 'TORO'
+  | 'BAJA';
 export type EstadoReproductivo = 'NO_APLICA' | 'VACIA' | 'INSEMINADA' | 'PRENADA' | 'SECA' | 'RECUPERACION';
 export type EstadoAnimal = 'ACTIVO' | 'VENDIDO' | 'MUERTO' | 'ROBADO' | 'TRASLADADO' | 'OTRO';
 export type MotivoBajaAnimal = Exclude<EstadoAnimal, 'ACTIVO'>;
@@ -14,7 +23,7 @@ export interface Animal {
   nombre: string | null;
   fechaNacimiento: string;
   raza: string | null;
-  categoria: CategoriaAnimal;
+  categoriaAnimal: CategoriaAnimal;
   estadoReproductivo: EstadoReproductivo;
   estadoAnimal: EstadoAnimal;
   activo: boolean;
@@ -38,7 +47,7 @@ export interface AnimalFormValues {
   nombre: string;
   fechaNacimiento: string;
   raza: string;
-  categoria: CategoriaAnimal;
+  categoriaAnimal: CategoriaAnimal;
   estadoReproductivo: EstadoReproductivo;
   estadoAnimal: EstadoAnimal;
   activo: boolean;
@@ -49,6 +58,7 @@ export interface AnimalFormValues {
 
 export interface AnimalFilters {
   caravana: string;
+  categoriaAnimal: string;
   loteId: string;
   estadoReproductivo: string;
   estadoAnimal: string;
@@ -65,7 +75,7 @@ export interface AnimalFicha extends Animal {
     id: number;
     caravana: string;
     nombre: string | null;
-    categoria: CategoriaAnimal;
+    categoriaAnimal: CategoriaAnimal;
     estadoAnimal: EstadoAnimal;
     activo: boolean;
   }>;

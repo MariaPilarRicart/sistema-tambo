@@ -46,7 +46,7 @@ export interface ProduccionAnimal {
   observacionDescarte: string | null;
   createdAt: string;
   updatedAt: string;
-  animal: Pick<Animal, 'id' | 'caravana' | 'nombre' | 'categoria' | 'estadoReproductivo' | 'activo' | 'estadoAnimal' | 'loteId'> & {
+  animal: Pick<Animal, 'id' | 'caravana' | 'nombre' | 'categoriaAnimal' | 'estadoReproductivo' | 'activo' | 'estadoAnimal' | 'loteId'> & {
     lote: Pick<Lote, 'id' | 'nombre' | 'activo'>;
   };
   loteLeche: LoteLeche;

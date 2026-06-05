@@ -108,7 +108,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
                   <tr key={task.id}>
                     <td>{new Date(task.fechaProgramada).toLocaleDateString()}</td>
                     <td>{task.tipo}</td>
-                    <td><strong>#{task.animal.caravana}</strong><span>{task.animal.categoria}</span></td>
+                    <td><strong>#{task.animal.caravana}</strong><span>{task.animal.categoriaAnimal}</span></td>
                     <td>{task.animal.lote.nombre}</td>
                     <td><span className="status-pill status-active">{task.estado}</span></td>
                     <td>
@@ -161,7 +161,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
                   {group.tasks.map((task) => (
                     <tr key={task.id}>
                       <td>{new Date(task.fechaProgramada).toLocaleDateString()}</td>
-                      <td><strong>#{task.animal.caravana}</strong><span>{task.animal.categoria}</span></td>
+                      <td><strong>#{task.animal.caravana}</strong><span>{task.animal.categoriaAnimal}</span></td>
                       <td>{task.animal.lote.nombre}</td>
                       <td><span className="status-pill status-active">{task.estado}</span></td>
                       <td>

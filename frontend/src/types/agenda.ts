@@ -16,7 +16,7 @@ export interface AgendaTarea {
   animal: {
     id: number;
     caravana: string;
-    categoria: CategoriaAnimal;
+    categoriaAnimal: CategoriaAnimal;
     estadoReproductivo: EstadoReproductivo;
     estadoAnimal: EstadoAnimal;
     activo: boolean;

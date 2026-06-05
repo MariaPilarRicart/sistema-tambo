@@ -17,7 +17,6 @@ import {
   updateInsumoAlimentacion,
   updateRacion,
 } from '../services/alimentacionService';
-import { getLotes } from '../services/lotesService';
 import type {
   AlimentacionResumen,
   InsumoAlimentacion,
@@ -30,18 +29,21 @@ import type {
   RegistroAlimentacionFormValues,
   StockAlimentacionResumen,
 } from '../types/alimentacion';
+import type { CategoriaAnimal } from '../types/animales';
 import type { AuthUser } from '../types/auth';
-import type { Lote } from '../types/lotes';
+
+const categoriaOptions: CategoriaAnimal[] = ['GUACHERA', 'ESCUELITA', 'TERNERA', 'VAQUILLONA', 'VACA_PRODUCCION', 'VACA_SECA', 'PREPARTO'];
 
 const emptyRacionForm: RacionFormValues = {
   nombre: '',
   descripcion: '',
+  categoriaAnimal: '',
   activa: true,
 };
 
 const emptyRegistroForm: RegistroAlimentacionFormValues = {
   fecha: new Date().toISOString().slice(0, 10),
-  loteId: '',
+  categoriaAnimal: '',
   racionId: '',
   cantidadKg: '',
   observaciones: '',
@@ -88,7 +90,6 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
   const [insumos, setInsumos] = useState<InsumoAlimentacion[]>([]);
   const [movimientosStock, setMovimientosStock] = useState<MovimientoStockAlimentacion[]>([]);
   const [resumenStock, setResumenStock] = useState<StockAlimentacionResumen | null>(null);
-  const [lotes, setLotes] = useState<Lote[]>([]);
   const [racionForm, setRacionForm] = useState<RacionFormValues>(emptyRacionForm);
   const [registroForm, setRegistroForm] = useState<RegistroAlimentacionFormValues>(emptyRegistroForm);
   const [insumoForm, setInsumoForm] = useState<InsumoAlimentacionFormValues>(emptyInsumoForm);
@@ -104,9 +105,8 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
   const isAdmin = currentUser?.role === 'ADMIN';
   const activeRaciones = useMemo(() => raciones.filter((racion) => racion.activa), [raciones]);
   const activeInsumos = useMemo(() => insumos.filter((insumo) => insumo.activo), [insumos]);
-  const activeLotes = useMemo(() => lotes.filter((lote) => lote.activo), [lotes]);
   const maxKgByLote = useMemo(
-    () => Math.max(...(resumen?.alimentacionPorLote.map((item) => item.totalKg) ?? [1]), 1),
+    () => Math.max(...(resumen?.alimentacionPorCategoria.map((item) => item.totalKg) ?? [1]), 1),
     [resumen],
   );
   const stockTotalRegistrado = useMemo(
@@ -133,7 +133,6 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
         nextRaciones,
         nextRegistros,
         nextResumen,
-        nextLotes,
         nextInsumos,
         nextMovimientosStock,
         nextResumenStock,
@@ -141,7 +140,6 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
         getRaciones(authToken),
         getRegistrosAlimentacion(authToken),
         getResumenAlimentacion(authToken),
-        getLotes(authToken),
         getInsumosAlimentacion(authToken),
         getMovimientosStockAlimentacion(authToken),
         getResumenStockAlimentacion(authToken),
@@ -149,7 +147,6 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
       setRaciones(nextRaciones);
       setRegistros(nextRegistros);
       setResumen(nextResumen);
-      setLotes(nextLotes);
       setInsumos(nextInsumos);
       setMovimientosStock(nextMovimientosStock);
       setResumenStock(nextResumenStock);
@@ -175,6 +172,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
     setRacionForm({
       nombre: racion.nombre,
       descripcion: racion.descripcion ?? '',
+      categoriaAnimal: racion.categoriaAnimal ?? '',
       activa: racion.activa,
     });
     setError('');
@@ -324,7 +322,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
       <section className="settings-header">
         <div>
           <h2>Alimentacion</h2>
-          <p>Raciones, entregas por lote e historial operativo.</p>
+          <p>Raciones, entregas por categoría e historial operativo.</p>
         </div>
         <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar alimentacion">
           <RefreshCcw size={18} />
@@ -352,8 +350,8 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
         </article>
         <article className="metric-card operative-card">
           <div className="metric-icon metric-icon-amber"><Wheat size={20} /></div>
-          <p className="metric-title">Lotes alimentados</p>
-          <strong className="metric-value">{resumen?.lotesAlimentados ?? 0}</strong>
+          <p className="metric-title">Categorías alimentadas</p>
+          <strong className="metric-value">{resumen?.categoriasAlimentadas ?? 0}</strong>
         </article>
       </div>
 
@@ -373,6 +371,13 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
 
           {isAdmin && (
             <form className="user-form" onSubmit={handleRacionSubmit}>
+              <label>
+                <span>Categoría animal</span>
+                <select value={racionForm.categoriaAnimal} onChange={(event) => setRacionForm({ ...racionForm, categoriaAnimal: event.target.value as RacionFormValues['categoriaAnimal'] })}>
+                  <option value="">Sin categoría fija</option>
+                  {categoriaOptions.map((categoriaAnimal) => <option key={categoriaAnimal} value={categoriaAnimal}>{categoriaAnimal}</option>)}
+                </select>
+              </label>
               <label>
                 <span>Nombre</span>
                 <input
@@ -437,7 +442,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
           <div className="panel-header">
             <div>
               <h2>Registrar alimentacion</h2>
-              <p>Entrega de alimento por lote.</p>
+              <p>Entrega de alimento por categoría productiva.</p>
             </div>
           </div>
           <form className="user-form" onSubmit={handleRegistroSubmit}>
@@ -446,10 +451,10 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
               <input type="date" value={registroForm.fecha} onChange={(event) => setRegistroForm({ ...registroForm, fecha: event.target.value })} required />
             </label>
             <label>
-              <span>Lote</span>
-              <select value={registroForm.loteId} onChange={(event) => setRegistroForm({ ...registroForm, loteId: event.target.value })} required>
-                <option value="">Seleccionar lote</option>
-                {activeLotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
+              <span>Categoría animal</span>
+              <select value={registroForm.categoriaAnimal} onChange={(event) => setRegistroForm({ ...registroForm, categoriaAnimal: event.target.value as RegistroAlimentacionFormValues['categoriaAnimal'] })} required>
+                <option value="">Seleccionar categoría</option>
+                {categoriaOptions.map((categoriaAnimal) => <option key={categoriaAnimal} value={categoriaAnimal}>{categoriaAnimal}</option>)}
               </select>
             </label>
             <label>
@@ -752,13 +757,13 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
       <section className="panel">
         <div className="panel-header">
           <div>
-            <h2>Resumen por lote</h2>
+            <h2>Resumen por categoría</h2>
             <p>Kg entregados acumulados.</p>
           </div>
         </div>
         <div className="compact-bars">
-          {(resumen?.alimentacionPorLote ?? []).map((item) => (
-            <div className="compact-bar-row" key={item.loteId}>
+          {(resumen?.alimentacionPorCategoria ?? []).map((item) => (
+            <div className="compact-bar-row" key={item.categoriaAnimal}>
               <div className="compact-bar-label">
                 <strong>{item.nombre}</strong>
                 <span>{formatKg(item.totalKg)}</span>
@@ -768,7 +773,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
               </div>
             </div>
           ))}
-          {(!resumen || resumen.alimentacionPorLote.length === 0) && <p className="table-empty">Sin datos para mostrar.</p>}
+          {(!resumen || resumen.alimentacionPorCategoria.length === 0) && <p className="table-empty">Sin datos para mostrar.</p>}
         </div>
       </section>
 
@@ -785,7 +790,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
               <thead>
                 <tr>
                   <th>Fecha</th>
-                  <th>Lote</th>
+                  <th>Categoría</th>
                   <th>Racion</th>
                   <th>Kg</th>
                   <th>Usuario</th>
@@ -796,7 +801,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
                 {registros.map((registro) => (
                   <tr key={registro.id}>
                     <td>{formatDate(registro.fecha)}</td>
-                    <td>{registro.lote.nombre}</td>
+                    <td>{registro.categoriaAnimal}</td>
                     <td>{registro.racion.nombre}</td>
                     <td>{formatKg(registro.cantidadKg)}</td>
                     <td>{registro.usuario?.nombre ?? '-'}</td>

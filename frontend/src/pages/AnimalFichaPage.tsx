@@ -112,7 +112,7 @@ export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPagePr
               <div className="info-grid">
                 <InfoItem label="Caravana" value={`#${animal.caravana}`} />
                 <InfoItem label="Nombre" value={animal.nombre} />
-                <InfoItem label="Categoria" value={animal.categoria} />
+                <InfoItem label="Categoría" value={animal.categoriaAnimal} />
                 <InfoItem label="Estado reproductivo" value={animal.estadoReproductivo} />
                 <InfoItem label="Estado animal" value={animal.estadoAnimal} />
                 <InfoItem label="Lote" value={animal.lote.nombre} />
@@ -164,7 +164,7 @@ export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPagePr
                   <div className="chip-list">
                     {animal.hijos.map((hijo) => (
                       <Link key={hijo.id} className="lineage-chip" to={`/rodeos/${hijo.id}`}>
-                        #{hijo.caravana} · {hijo.categoria} · {hijo.activo ? 'Activo' : hijo.estadoAnimal}
+                        #{hijo.caravana} · {hijo.categoriaAnimal} · {hijo.activo ? 'Activo' : hijo.estadoAnimal}
                       </Link>
                     ))}
                   </div>

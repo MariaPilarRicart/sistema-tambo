@@ -283,6 +283,7 @@ export async function createNewProduccion(input: Record<string, unknown>, usuari
   const [animal, loteLeche] = await Promise.all([findAnimalForProduccion(animalId), findLoteLecheById(loteLecheId)]);
   if (!animal) throw new AppError('Animal no encontrado.', 404);
   if (!animal.activo || animal.estadoAnimal !== 'ACTIVO') throw new AppError('Solo se puede cargar producción a animales activos.', 400);
+  if (animal.categoriaAnimal !== 'VACA_PRODUCCION') throw new AppError('Solo se puede cargar ordeñe a animales en categoría VACA_PRODUCCION.', 400);
   if (!loteLeche) throw new AppError('Lote de leche no encontrado.', 404);
   if (loteLeche.estado !== EstadoLoteLeche.DISPONIBLE) throw new AppError('El lote de leche debe estar disponible.', 400);
 

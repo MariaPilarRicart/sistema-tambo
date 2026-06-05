@@ -33,7 +33,7 @@ function buildAnimalPayload(values: AnimalFormValues, includeCaravana: boolean) 
     nombre: values.nombre.trim() || null,
     fechaNacimiento: values.fechaNacimiento,
     raza: values.raza.trim() || null,
-    categoria: values.categoria,
+    categoriaAnimal: values.categoriaAnimal,
     estadoReproductivo: values.estadoReproductivo,
     estadoAnimal: values.estadoAnimal,
     activo: values.activo,

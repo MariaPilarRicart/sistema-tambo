@@ -1,23 +1,17 @@
-import { TipoMovimientoStockAlimentacion } from '@prisma/client';
+import { CategoriaAnimal, TipoMovimientoStockAlimentacion } from '@prisma/client';
 import { prisma } from '../config/prisma';
 
 const racionSelect = {
   id: true,
   nombre: true,
   descripcion: true,
+  categoriaAnimal: true,
   activa: true,
   createdAt: true,
   updatedAt: true,
 };
 
 const registroInclude = {
-  lote: {
-    select: {
-      id: true,
-      nombre: true,
-      activo: true,
-    },
-  },
   racion: {
     select: {
       id: true,
@@ -89,7 +83,7 @@ export function findRacionByNombre(nombre: string) {
   });
 }
 
-export function createRacion(data: { nombre: string; descripcion?: string | null; activa?: boolean }) {
+export function createRacion(data: { nombre: string; descripcion?: string | null; categoriaAnimal?: CategoriaAnimal | null; activa?: boolean }) {
   return prisma.racion.create({
     data,
     select: racionSelect,
@@ -101,6 +95,7 @@ export function updateRacion(
   data: Partial<{
     nombre: string;
     descripcion: string | null;
+    categoriaAnimal: CategoriaAnimal | null;
     activa: boolean;
   }>,
 ) {
@@ -119,16 +114,6 @@ export function deactivateRacion(id: number) {
   });
 }
 
-export function findLoteForFeeding(id: number) {
-  return prisma.lote.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      activo: true,
-    },
-  });
-}
-
 export function findActiveRacion(id: number) {
   return prisma.racion.findFirst({
     where: {
@@ -140,7 +125,7 @@ export function findActiveRacion(id: number) {
 
 export function createRegistroAlimentacion(data: {
   fecha: Date;
-  loteId: number;
+  categoriaAnimal: CategoriaAnimal;
   racionId: number;
   cantidadKg: number;
   observaciones?: string | null;
@@ -177,9 +162,9 @@ export function aggregateTotalKg() {
 
 export function groupAlimentacionByLote() {
   return prisma.registroAlimentacion.groupBy({
-    by: ['loteId'],
+    by: ['categoriaAnimal'],
     _sum: { cantidadKg: true },
-    orderBy: { loteId: 'asc' },
+    orderBy: { categoriaAnimal: 'asc' },
   });
 }
 
@@ -188,13 +173,6 @@ export function groupAlimentacionByRacion() {
     by: ['racionId'],
     _sum: { cantidadKg: true },
     orderBy: { racionId: 'asc' },
-  });
-}
-
-export function findLotesByIds(ids: number[]) {
-  return prisma.lote.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, nombre: true },
   });
 }
 
@@ -207,8 +185,8 @@ export function findRacionesByIds(ids: number[]) {
 
 export function countDistinctLotesAlimentados() {
   return prisma.registroAlimentacion.findMany({
-    distinct: ['loteId'],
-    select: { loteId: true },
+    distinct: ['categoriaAnimal'],
+    select: { categoriaAnimal: true },
   });
 }
 

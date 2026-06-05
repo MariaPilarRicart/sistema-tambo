@@ -70,7 +70,7 @@ export async function getDashboardResumen() {
     animalesInactivos,
     animalesPorEstadoAnimal: mapGroup(animalesPorEstadoAnimal, 'estadoAnimal'),
     animalesPorEstadoReproductivo: mapGroup(animalesPorEstadoReproductivo, 'estadoReproductivo'),
-    animalesPorCategoria: mapGroup(animalesPorCategoria, 'categoria'),
+    animalesPorCategoria: mapGroup(animalesPorCategoria, 'categoriaAnimal'),
     animalesPorLote: animalesPorLote.map((lote) => ({
       id: lote.id,
       nombre: lote.nombre,

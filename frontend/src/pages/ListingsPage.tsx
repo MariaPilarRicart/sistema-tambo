@@ -87,7 +87,7 @@ function TaskTable({
                 >
                   #{task.animal.caravana}
                 </Link>
-                <span>{task.animal.categoria}</span>
+                <span>{task.animal.categoriaAnimal}</span>
               </td>
               <td>{task.animal.lote.nombre}</td>
               <td>{task.animal.estadoReproductivo}</td>

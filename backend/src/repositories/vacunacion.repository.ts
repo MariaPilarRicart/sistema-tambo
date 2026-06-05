@@ -6,7 +6,7 @@ const vaccinationTaskInclude = {
     select: {
       id: true,
       caravana: true,
-      categoria: true,
+      categoriaAnimal: true,
       estadoReproductivo: true,
       estadoAnimal: true,
       activo: true,
@@ -39,7 +39,7 @@ const vaccinationEventInclude = {
     select: {
       id: true,
       caravana: true,
-      categoria: true,
+      categoriaAnimal: true,
       estadoReproductivo: true,
       lote: {
         select: {
@@ -81,7 +81,7 @@ export function findVaccinationEvents() {
 export function findActiveAnimalsForVaccination(filters: {
   animalIds?: number[];
   loteId?: number;
-  categoria?: CategoriaAnimal;
+  categoriaAnimal?: CategoriaAnimal;
 }) {
   return prisma.animal.findMany({
     where: {
@@ -89,7 +89,7 @@ export function findActiveAnimalsForVaccination(filters: {
       estadoAnimal: 'ACTIVO',
       id: filters.animalIds ? { in: filters.animalIds } : undefined,
       loteId: filters.loteId,
-      categoria: filters.categoria,
+      categoriaAnimal: filters.categoriaAnimal,
     },
     select: { id: true },
   });
