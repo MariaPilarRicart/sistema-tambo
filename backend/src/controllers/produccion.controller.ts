@@ -8,6 +8,7 @@ import {
   getProduccionPorLote,
   getProduccionPorLoteLeche,
   getResumenProduccion,
+  getSiguienteCodigoLoteLeche,
   listLotesLeche,
   listProducciones,
   updateExistingLoteLeche,
@@ -15,6 +16,10 @@ import {
 
 export async function listLotesLecheController(_request: Request, response: Response) {
   response.status(200).json(await listLotesLeche());
+}
+
+export async function getSiguienteCodigoLoteLecheController(_request: Request, response: Response) {
+  response.status(200).json(await getSiguienteCodigoLoteLeche());
 }
 
 export async function createLoteLecheController(request: Request, response: Response) {

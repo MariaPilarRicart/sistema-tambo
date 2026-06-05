@@ -1,7 +1,8 @@
 import { apiRequest } from './apiClient';
 import type {
   LoteLeche,
-  LoteLecheFormValues,
+  LoteLecheCreateValues,
+  LoteLecheEditValues,
   ProduccionAnimal,
   ProduccionFilters,
   ProduccionFormValues,
@@ -17,6 +18,10 @@ interface LotesLecheResponse {
 
 interface LoteLecheResponse {
   loteLeche: LoteLeche;
+}
+
+interface SiguienteCodigoResponse {
+  codigo: string;
 }
 
 interface ProduccionesResponse {
@@ -56,10 +61,16 @@ function buildQuery(filters: Partial<ProduccionFilters>) {
   return query ? `?${query}` : '';
 }
 
-function buildLoteLechePayload(values: LoteLecheFormValues) {
+function buildLoteLecheCreatePayload(values: LoteLecheCreateValues) {
   return {
     codigo: values.codigo.trim(),
-    fechaProduccion: values.fechaProduccion,
+    descripcion: values.descripcion.trim() || null,
+  };
+}
+
+function buildLoteLecheEditPayload(values: LoteLecheEditValues) {
+  return {
+    descripcion: values.descripcion.trim() || null,
     fechaVencimiento: values.fechaVencimiento,
     estado: values.estado,
     grasa: optionalNumber(values.grasa),
@@ -68,6 +79,9 @@ function buildLoteLechePayload(values: LoteLecheFormValues) {
     recuentoCelulasSomaticas: optionalNumber(values.recuentoCelulasSomaticas),
     temperatura: optionalNumber(values.temperatura),
     observacionesCalidad: values.observacionesCalidad.trim() || null,
+    litrosDescartados: Number(values.litrosDescartados || 0),
+    motivoDescarte: Number(values.litrosDescartados || 0) > 0 ? values.motivoDescarte : null,
+    observacionDescarte: values.observacionDescarte.trim() || null,
   };
 }
 
@@ -90,11 +104,25 @@ export async function getLotesLeche(token: string) {
   return response.lotesLeche;
 }
 
-export async function createLoteLeche(token: string, values: LoteLecheFormValues) {
+export async function getSiguienteCodigoLoteLeche(token: string) {
+  const response = await apiRequest<SiguienteCodigoResponse>('/api/lotes-leche/siguiente-codigo', { token });
+  return response.codigo;
+}
+
+export async function createLoteLeche(token: string, values: LoteLecheCreateValues) {
   const response = await apiRequest<LoteLecheResponse>('/api/lotes-leche', {
     method: 'POST',
     token,
-    body: JSON.stringify(buildLoteLechePayload(values)),
+    body: JSON.stringify(buildLoteLecheCreatePayload(values)),
+  });
+  return response.loteLeche;
+}
+
+export async function updateLoteLeche(token: string, id: number, values: LoteLecheEditValues) {
+  const response = await apiRequest<LoteLecheResponse>(`/api/lotes-leche/${id}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(buildLoteLecheEditPayload(values)),
   });
   return response.loteLeche;
 }

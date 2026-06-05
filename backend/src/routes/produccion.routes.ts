@@ -9,6 +9,7 @@ import {
   getProduccionPorLoteController,
   getProduccionPorLoteLecheController,
   getResumenProduccionController,
+  getSiguienteCodigoLoteLecheController,
   listLotesLecheController,
   listProduccionesController,
   updateLoteLecheController,
@@ -20,8 +21,9 @@ import { authorizeRoles } from '../middlewares/authorize.middleware';
 export const produccionRouter = Router();
 
 produccionRouter.get('/api/lotes-leche', authenticate, asyncHandler(listLotesLecheController));
-produccionRouter.post('/api/lotes-leche', authenticate, asyncHandler(createLoteLecheController));
-produccionRouter.patch('/api/lotes-leche/:id', authenticate, asyncHandler(updateLoteLecheController));
+produccionRouter.get('/api/lotes-leche/siguiente-codigo', authenticate, asyncHandler(getSiguienteCodigoLoteLecheController));
+produccionRouter.post('/api/lotes-leche', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(createLoteLecheController));
+produccionRouter.patch('/api/lotes-leche/:id', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(updateLoteLecheController));
 produccionRouter.delete(
   '/api/lotes-leche/:id',
   authenticate,

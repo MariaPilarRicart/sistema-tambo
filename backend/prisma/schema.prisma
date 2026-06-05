@@ -86,9 +86,12 @@ enum TurnoOrdene {
 enum MotivoDescarteLeche {
   MASTITIS
   ANTIBIOTICO
+  ANTIBIOTICOS
   CALOSTRO
   MALA_CALIDAD
   CONTAMINACION
+  PROBLEMA_SANITARIO
+  TEMPERATURA_FUERA_DE_RANGO
   OTRO
 }
 
@@ -163,6 +166,7 @@ model InsumoAlimentacion {
 model LoteLeche {
   id                       Int              @id @default(autoincrement())
   codigo                   String           @unique
+  descripcion              String?
   fechaProduccion          DateTime
   fechaVencimiento         DateTime
   fechaVenta               DateTime?
@@ -170,6 +174,8 @@ model LoteLeche {
   litrosTotales            Decimal          @default(0) @db.Decimal(10, 2)
   litrosDescartados        Decimal          @default(0) @db.Decimal(10, 2)
   litrosNetos              Decimal          @default(0) @db.Decimal(10, 2)
+  motivoDescarte           MotivoDescarteLeche?
+  observacionDescarte      String?
   grasa                    Decimal?         @db.Decimal(5, 2)
   proteina                 Decimal?         @db.Decimal(5, 2)
   recuentoBacteriano       Int?

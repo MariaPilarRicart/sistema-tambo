@@ -70,23 +70,24 @@ function buildWhere(filters: ProduccionFilters): Prisma.ProduccionAnimalWhereInp
 }
 
 async function recalculateLoteLecheTotals(tx: Prisma.TransactionClient, loteLecheId: number) {
-  const totals = await tx.produccionAnimal.aggregate({
-    where: { loteLecheId },
-    _sum: {
-      litrosProducidos: true,
-      litrosDescartados: true,
-    },
-  });
+  const [loteLeche, totals] = await Promise.all([
+    tx.loteLeche.findUnique({ where: { id: loteLecheId }, select: { litrosDescartados: true } }),
+    tx.produccionAnimal.aggregate({
+      where: { loteLecheId },
+      _sum: {
+        litrosProducidos: true,
+      },
+    }),
+  ]);
 
   const litrosTotales = totals._sum.litrosProducidos ?? 0;
-  const litrosDescartados = totals._sum.litrosDescartados ?? 0;
+  const litrosDescartados = loteLeche?.litrosDescartados ?? 0;
   const litrosNetos = new Prisma.Decimal(litrosTotales).minus(litrosDescartados);
 
   return tx.loteLeche.update({
     where: { id: loteLecheId },
     data: {
       litrosTotales,
-      litrosDescartados,
       litrosNetos,
     },
   });
@@ -197,6 +198,12 @@ export function findLoteLecheWithProducciones(id: number) {
 export function findLotesLeche() {
   return prisma.loteLeche.findMany({
     orderBy: [{ fechaProduccion: 'desc' }, { id: 'desc' }],
+  });
+}
+
+export function findLotesLecheCodigos() {
+  return prisma.loteLeche.findMany({
+    select: { codigo: true },
   });
 }
 
