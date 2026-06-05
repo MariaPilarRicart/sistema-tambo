@@ -1,4 +1,4 @@
-import { EstadoTarea, Prisma, TipoTarea } from '@prisma/client';
+import { EstadoTarea, Prisma, TipoEvento, TipoTarea } from '@prisma/client';
 import { prisma } from '../config/prisma';
 
 export function countAnimales(where?: Prisma.AnimalWhereInput) {
@@ -44,6 +44,40 @@ export function groupAnimalesByLote() {
   });
 }
 
+export function findLotesWithActiveAnimals() {
+  return prisma.lote.findMany({
+    where: { activo: true },
+    orderBy: { nombre: 'asc' },
+    select: {
+      id: true,
+      nombre: true,
+      animales: {
+        where: {
+          activo: true,
+          estadoAnimal: 'ACTIVO',
+        },
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+}
+
+export function findActiveInsumosAlimentacion() {
+  return prisma.insumoAlimentacion.findMany({
+    where: { activo: true },
+    orderBy: { nombre: 'asc' },
+    select: {
+      id: true,
+      nombre: true,
+      unidadMedida: true,
+      stockActual: true,
+      stockMinimo: true,
+    },
+  });
+}
+
 export function countTareas(where: {
   estado?: EstadoTarea;
   tipo?: TipoTarea;
@@ -55,6 +89,56 @@ export function countTareas(where: {
   };
 }) {
   return prisma.agendaTarea.count({ where });
+}
+
+export function findTareasDetalle(where: {
+  estado?: EstadoTarea;
+  fechaProgramada?: {
+    lt?: Date;
+    lte?: Date;
+    gt?: Date;
+    gte?: Date;
+  };
+}) {
+  return prisma.agendaTarea.findMany({
+    where,
+    take: 20,
+    orderBy: { fechaProgramada: 'asc' },
+    select: {
+      id: true,
+      tipo: true,
+      fechaProgramada: true,
+      estado: true,
+      descripcion: true,
+      animal: {
+        select: {
+          id: true,
+          caravana: true,
+          lote: {
+            select: {
+              id: true,
+              nombre: true,
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+export function findSanitaryEvents() {
+  return prisma.evento.findMany({
+    where: {
+      tipo: { in: [TipoEvento.VACUNACION, TipoEvento.CLINICO] },
+    },
+    orderBy: { fecha: 'desc' },
+    select: {
+      id: true,
+      fecha: true,
+      observaciones: true,
+      datosJson: true,
+    },
+  });
 }
 
 export function findUltimosEventos() {

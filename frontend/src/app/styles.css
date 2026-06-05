@@ -804,6 +804,98 @@ a {
   grid-template-columns: minmax(300px, 0.8fr) minmax(0, 1.2fr);
 }
 
+.dashboard-two-column,
+.dashboard-alert-grid,
+.employee-grid {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboard-alert-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.alert-card small {
+  display: block;
+  font-size: 11px;
+  font-weight: 900;
+  margin-top: 8px;
+}
+
+.dashboard-coverage-table {
+  min-width: 720px;
+}
+
+.employee-primary-panel {
+  border-color: #a7f3d0;
+}
+
+.employee-task-list {
+  display: grid;
+  gap: 12px;
+}
+
+.employee-task-card {
+  align-items: center;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.employee-task-card strong {
+  color: var(--slate-800);
+  font-size: 15px;
+}
+
+.employee-task-card p {
+  color: var(--slate-600);
+  font-size: 13px;
+  font-weight: 800;
+  margin: 4px 0;
+}
+
+.employee-task-card span {
+  color: var(--slate-500);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.employee-quick-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.employee-quick-card {
+  align-items: center;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  color: var(--slate-700);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  min-height: 108px;
+  padding: 16px;
+  text-align: center;
+}
+
+.employee-quick-card:hover {
+  border-color: #a7f3d0;
+  color: var(--emerald-dark);
+}
+
+.employee-quick-card strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .agenda-mini-grid {
   display: grid;
   gap: 10px;
@@ -1722,7 +1814,11 @@ a {
 
   .dashboard-grid,
   .dashboard-distribution-grid,
+  .dashboard-two-column,
+  .dashboard-alert-grid,
   .dashboard-bottom-grid,
+  .employee-grid,
+  .employee-quick-grid,
   .feed-grid,
   .settings-grid {
     grid-template-columns: 1fr;
@@ -1780,6 +1876,11 @@ a {
   }
 
   .dashboard-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .employee-task-card {
     align-items: stretch;
     flex-direction: column;
   }
