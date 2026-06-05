@@ -40,6 +40,62 @@ export interface DashboardUltimoEvento {
   } | null;
 }
 
+export interface AlertaAlimentacion {
+  alimento: string;
+  lote?: string;
+  mensaje: string;
+  severidad: 'CRITICA' | 'MEDIA' | 'INFO';
+  diasCobertura?: number;
+}
+
+export interface AlertaSanitaria {
+  tipo: 'ANTIAFTOSA' | 'BRUCELOSIS' | 'TUBERCULINA' | 'ANALISIS_BRUCELOSIS';
+  mensaje: string;
+  fechaLimite: string | null;
+  ultimaAplicacion: string | null;
+  estado: 'VENCIDA' | 'PROXIMA' | 'OK' | 'PENDIENTE';
+}
+
+export interface AlertaPrioritaria {
+  titulo: string;
+  detalle: string;
+  severidad: 'CRITICA' | 'MEDIA' | 'INFO';
+  accionSugerida: string;
+}
+
+export interface CoberturaAlimento {
+  alimento: string;
+  stockActual: number;
+  unidad: 'KG' | 'ROLLO' | 'UNIDAD';
+  consumoDiarioEstimado: number;
+  diasCobertura: number | null;
+  estado: 'CRITICO' | 'ATENCION' | 'OK' | 'SIN_CALCULO';
+}
+
+export interface ControlSanitario {
+  tipo: 'ANTIAFTOSA' | 'BRUCELOSIS' | 'TUBERCULINA' | 'ANALISIS_BRUCELOSIS';
+  nombre: string;
+  ultimaAplicacion: string | null;
+  proximaFechaEsperada: string | null;
+  estado: 'OK' | 'PROXIMO' | 'PENDIENTE' | 'VENCIDO';
+}
+
+export interface DashboardTareaDetalle {
+  id: number;
+  tipoTarea: string;
+  fechaProyectada: string;
+  estado: string;
+  descripcion: string | null;
+  animal: {
+    id: number;
+    caravana: string;
+    lote: {
+      id: number;
+      nombre: string;
+    } | null;
+  } | null;
+}
+
 export interface DashboardResumen {
   totalAnimales: number;
   animalesActivos: number;
@@ -54,5 +110,12 @@ export interface DashboardResumen {
   tactosPendientes: number;
   secadosPendientes: number;
   partosPendientes: number;
+  alertasAlimentacion: AlertaAlimentacion[];
+  alertasSanitarias: AlertaSanitaria[];
+  alertasPrioritarias: AlertaPrioritaria[];
+  coberturaAlimentos: CoberturaAlimento[];
+  controlesSanitarios: ControlSanitario[];
+  tareasHoyDetalle: DashboardTareaDetalle[];
+  tareasProximos7Dias: DashboardTareaDetalle[];
   ultimosEventos: DashboardUltimoEvento[];
 }

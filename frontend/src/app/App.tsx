@@ -86,7 +86,13 @@ export function App() {
         >
           <Route
             path={paths.dashboard}
-            element={<DashboardPage authToken={authToken} onUnauthorized={handleLogout} />}
+            element={
+              <DashboardPage
+                authToken={authToken}
+                currentUser={user}
+                onUnauthorized={handleLogout}
+              />
+            }
           />
           <Route
             path={paths.herd}
