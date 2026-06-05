@@ -5,12 +5,14 @@ import { MainLayout } from '../components/layout/MainLayout';
 import { DashboardPage } from '../pages/DashboardPage';
 import { AgendaPage } from '../pages/AgendaPage';
 import { AnimalFichaPage } from '../pages/AnimalFichaPage';
+import { ClientsPage } from '../pages/ClientsPage';
 import { EventsPage } from '../pages/EventsPage';
 import { FeedPage } from '../pages/FeedPage';
 import { HerdPage } from '../pages/HerdPage';
 import { ListingsPage } from '../pages/ListingsPage';
 import { LoginPage } from '../pages/LoginPage';
 import { SettingsPage } from '../pages/SettingsPage';
+import { SalesPage } from '../pages/SalesPage';
 import { VaccinationPage } from '../pages/VaccinationPage';
 import { paths } from '../routes/paths';
 import { clearAuthToken, getCurrentUser, getStoredAuthToken, saveAuthToken } from '../services/authService';
@@ -113,6 +115,14 @@ export function App() {
           <Route
             path={paths.listings}
             element={<ListingsPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
+          />
+          <Route
+            path={paths.clients}
+            element={<ClientsPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
+          />
+          <Route
+            path={paths.sales}
+            element={<SalesPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
           />
           <Route
             path={paths.feed}

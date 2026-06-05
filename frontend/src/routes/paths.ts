@@ -5,6 +5,8 @@ export const paths = {
   events: '/eventos',
   agenda: '/agenda',
   listings: '/listados',
+  clients: '/clientes',
+  sales: '/ventas',
   feed: '/alimentacion',
   production: '/produccion',
   vaccination: '/vacunacion',

@@ -464,10 +464,14 @@ export async function getProduccionPorLoteLeche(idParam: string) {
     litrosPorAnimal.set(registro.animalId, current);
   });
   const sortedLitrosPorAnimal = Array.from(litrosPorAnimal.values()).sort((a, b) => b.litrosNetos - a.litrosNetos);
+  const litrosVendidos = loteLeche.ventaDetalles.reduce((total, detalle) => total + toNumber(detalle.litrosVendidos), 0);
 
   return {
     loteLeche,
     produccionesAsociadas: loteLeche.producciones,
+    ventasAsociadas: loteLeche.ventaDetalles.map((detalle) => detalle.venta),
+    clientesCompradores: Array.from(new Map(loteLeche.ventaDetalles.map((detalle) => [detalle.venta.cliente.id, detalle.venta.cliente])).values()),
+    facturasRelacionadas: Array.from(new Set(loteLeche.ventaDetalles.map((detalle) => detalle.venta.numeroFactura))),
     animales: sortedLitrosPorAnimal,
     litrosPorAnimal: sortedLitrosPorAnimal,
     calidad: {
@@ -481,5 +485,7 @@ export async function getProduccionPorLoteLeche(idParam: string) {
     litrosTotales: toNumber(loteLeche.litrosTotales),
     litrosDescartados: toNumber(loteLeche.litrosDescartados),
     litrosNetos: toNumber(loteLeche.litrosNetos),
+    litrosVendidos,
+    litrosDisponibles: Math.max(toNumber(loteLeche.litrosNetos) - litrosVendidos, 0),
   };
 }

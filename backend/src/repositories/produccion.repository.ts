@@ -41,6 +41,15 @@ export type LoteLecheWithProducciones = Prisma.LoteLecheGetPayload<{
     producciones: {
       include: typeof produccionAnimalInclude;
     };
+    ventaDetalles: {
+      include: {
+        venta: {
+          include: {
+            cliente: true;
+          };
+        };
+      };
+    };
   };
 }>;
 
@@ -190,6 +199,16 @@ export function findLoteLecheWithProducciones(id: number) {
       producciones: {
         include: produccionAnimalInclude,
         orderBy: [{ fechaHora: 'asc' }, { id: 'asc' }],
+      },
+      ventaDetalles: {
+        include: {
+          venta: {
+            include: {
+              cliente: true,
+            },
+          },
+        },
+        orderBy: { id: 'asc' },
       },
     },
   });

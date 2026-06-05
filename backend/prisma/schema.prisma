@@ -116,6 +116,7 @@ model Usuario {
   registrosAlimentacion RegistroAlimentacion[]
   movimientosStock      MovimientoStockAlimentacion[]
   producciones          ProduccionAnimal[]
+  ventas                Venta[]
 
   @@map("usuarios")
 }
@@ -183,12 +184,69 @@ model LoteLeche {
   temperatura              Decimal?         @db.Decimal(5, 2)
   observacionesCalidad     String?
   producciones             ProduccionAnimal[]
+  ventaDetalles            VentaDetalle[]
   createdAt                DateTime         @default(now())
   updatedAt                DateTime         @updatedAt
 
   @@index([estado])
   @@index([fechaProduccion])
   @@map("lotes_leche")
+}
+
+model Cliente {
+  id          Int      @id @default(autoincrement())
+  cuit        String   @unique
+  razonSocial String
+  direccion   String?
+  telefono    String?
+  email       String?
+  fechaAlta   DateTime @default(now())
+  activo      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  ventas Venta[]
+
+  @@index([activo])
+  @@map("clientes")
+}
+
+model Venta {
+  id            Int      @id @default(autoincrement())
+  clienteId     Int
+  numeroFactura String   @unique
+  fechaVenta    DateTime
+  totalLitros   Decimal  @db.Decimal(10, 2)
+  precioTotal   Decimal  @db.Decimal(12, 2)
+  observaciones String?
+  usuarioId     Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  cliente  Cliente        @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  usuario  Usuario        @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+  detalles VentaDetalle[]
+
+  @@index([clienteId])
+  @@index([usuarioId])
+  @@index([fechaVenta])
+  @@map("ventas")
+}
+
+model VentaDetalle {
+  id              Int     @id @default(autoincrement())
+  ventaId         Int
+  loteLecheId     Int
+  litrosVendidos  Decimal @db.Decimal(10, 2)
+  precioUnitario  Decimal @db.Decimal(12, 2)
+  subtotal        Decimal @db.Decimal(12, 2)
+
+  venta     Venta     @relation(fields: [ventaId], references: [id], onDelete: Restrict)
+  loteLeche LoteLeche @relation(fields: [loteLecheId], references: [id], onDelete: Restrict)
+
+  @@index([ventaId])
+  @@index([loteLecheId])
+  @@map("venta_detalles")
 }
 
 model MovimientoStockAlimentacion {

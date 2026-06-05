@@ -3,6 +3,7 @@ import { agendaRouter } from './agenda.routes';
 import { alimentacionRouter } from './alimentacion.routes';
 import { animalesRouter } from './animales.routes';
 import { authRouter } from './auth.routes';
+import { clientesRouter } from './clientes.routes';
 import { dashboardRouter } from './dashboard.routes';
 import { eventosRouter } from './eventos.routes';
 import { healthRouter } from './health.routes';
@@ -10,17 +11,20 @@ import { lotesRouter } from './lotes.routes';
 import { produccionRouter } from './produccion.routes';
 import { usersRouter } from './users.routes';
 import { vacunacionRouter } from './vacunacion.routes';
+import { ventasRouter } from './ventas.routes';
 
 export const routes = Router();
 
 routes.use(healthRouter);
 routes.use(authRouter);
 routes.use(dashboardRouter);
+routes.use(clientesRouter);
 routes.use(alimentacionRouter);
 routes.use(animalesRouter);
 routes.use(eventosRouter);
 routes.use(agendaRouter);
 routes.use(vacunacionRouter);
 routes.use(produccionRouter);
+routes.use(ventasRouter);
 routes.use(lotesRouter);
 routes.use(usersRouter);
