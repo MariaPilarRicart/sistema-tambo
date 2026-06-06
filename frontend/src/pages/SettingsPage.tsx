@@ -2,9 +2,11 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Edit2, Plus, RefreshCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { createLote, deleteLote, getLotes, updateLote } from '../services/lotesService';
+import { createReglaSanitaria, getReglasSanitarias, updateReglaSanitaria } from '../services/reglasSanitariasService';
 import { createUser, deactivateUser, getUsers, updateUser } from '../services/usersService';
 import type { AuthUser, UserRole } from '../types/auth';
 import type { Lote, LoteFormValues } from '../types/lotes';
+import type { ReglaSanitaria, ReglaSanitariaFormValues, TipoReglaSanitaria } from '../services/reglasSanitariasService';
 import type { User, UserFormValues } from '../types/users';
 
 const emptyUserForm: UserFormValues = {
@@ -22,7 +24,18 @@ const emptyLoteForm: LoteFormValues = {
   activo: true,
 };
 
-type SettingsTab = 'usuarios' | 'lotes';
+const emptyReglaForm: ReglaSanitariaFormValues = {
+  nombre: '',
+  codigo: '',
+  tipo: 'VACUNA',
+  mesFijo: '',
+  frecuenciaMeses: '12',
+  anticipacionMeses: '1',
+  activo: true,
+  observaciones: '',
+};
+
+type SettingsTab = 'usuarios' | 'lotes' | 'vacunas';
 
 interface SettingsPageProps {
   authToken: string | null;
@@ -34,10 +47,13 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
   const [activeTab, setActiveTab] = useState<SettingsTab>('usuarios');
   const [users, setUsers] = useState<User[]>([]);
   const [lotes, setLotes] = useState<Lote[]>([]);
+  const [reglas, setReglas] = useState<ReglaSanitaria[]>([]);
   const [userFormValues, setUserFormValues] = useState<UserFormValues>(emptyUserForm);
   const [loteFormValues, setLoteFormValues] = useState<LoteFormValues>(emptyLoteForm);
+  const [reglaFormValues, setReglaFormValues] = useState<ReglaSanitariaFormValues>(emptyReglaForm);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editingLote, setEditingLote] = useState<Lote | null>(null);
+  const [editingRegla, setEditingRegla] = useState<ReglaSanitaria | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -46,6 +62,9 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
   const isAdmin = currentUser?.role === 'ADMIN';
   const activeUsersCount = useMemo(() => users.filter((user) => user.activo).length, [users]);
   const activeLotesCount = useMemo(() => lotes.filter((lote) => lote.activo).length, [lotes]);
+  const activeReglasCount = useMemo(() => reglas.filter((regla) => regla.activo).length, [reglas]);
+  const summaryCount = activeTab === 'usuarios' ? activeUsersCount : activeTab === 'lotes' ? activeLotesCount : activeReglasCount;
+  const summaryLabel = activeTab === 'usuarios' ? 'usuarios activos' : activeTab === 'lotes' ? 'lotes activos' : 'reglas activas';
 
   function handleRequestError(requestError: unknown) {
     if (requestError instanceof ApiError && requestError.statusCode === 401) {
@@ -84,12 +103,24 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     }
   }
 
-  useEffect(() => {
-    if (activeTab === 'usuarios') {
-      void loadUsers();
-    } else {
-      void loadLotes();
+  async function loadReglas() {
+    if (!authToken || !isAdmin) return;
+    setIsLoading(true);
+    setError('');
+
+    try {
+      setReglas(await getReglasSanitarias(authToken));
+    } catch (loadError) {
+      handleRequestError(loadError);
+    } finally {
+      setIsLoading(false);
     }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'usuarios') void loadUsers();
+    if (activeTab === 'lotes') void loadLotes();
+    if (activeTab === 'vacunas') void loadReglas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, authToken, isAdmin]);
 
@@ -103,6 +134,13 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
   function resetLoteForm() {
     setEditingLote(null);
     setLoteFormValues(emptyLoteForm);
+    setError('');
+    setSuccess('');
+  }
+
+  function resetReglaForm() {
+    setEditingRegla(null);
+    setReglaFormValues(emptyReglaForm);
     setError('');
     setSuccess('');
   }
@@ -127,6 +165,22 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
       nombre: lote.nombre,
       descripcion: lote.descripcion ?? '',
       activo: lote.activo,
+    });
+    setError('');
+    setSuccess('');
+  }
+
+  function startEditingRegla(regla: ReglaSanitaria) {
+    setEditingRegla(regla);
+    setReglaFormValues({
+      nombre: regla.nombre,
+      codigo: regla.codigo,
+      tipo: regla.tipo,
+      mesFijo: regla.mesFijo ? String(regla.mesFijo) : '',
+      frecuenciaMeses: String(regla.frecuenciaMeses),
+      anticipacionMeses: String(regla.anticipacionMeses),
+      activo: regla.activo,
+      observaciones: regla.observaciones ?? '',
     });
     setError('');
     setSuccess('');
@@ -182,6 +236,53 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     }
   }
 
+  async function handleReglaSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!authToken) return onUnauthorized();
+    setIsSaving(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (editingRegla) {
+        await updateReglaSanitaria(authToken, editingRegla.id, reglaFormValues);
+        resetReglaForm();
+        setSuccess('Regla sanitaria actualizada correctamente.');
+      } else {
+        await createReglaSanitaria(authToken, reglaFormValues);
+        resetReglaForm();
+        setSuccess('Regla sanitaria creada correctamente.');
+      }
+      await loadReglas();
+    } catch (saveError) {
+      handleRequestError(saveError);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function toggleReglaActiva(regla: ReglaSanitaria) {
+    if (!authToken) return onUnauthorized();
+    setError('');
+    setSuccess('');
+    try {
+      await updateReglaSanitaria(authToken, regla.id, {
+        nombre: regla.nombre,
+        codigo: regla.codigo,
+        tipo: regla.tipo,
+        mesFijo: regla.mesFijo ? String(regla.mesFijo) : '',
+        frecuenciaMeses: String(regla.frecuenciaMeses),
+        anticipacionMeses: String(regla.anticipacionMeses),
+        activo: !regla.activo,
+        observaciones: regla.observaciones ?? '',
+      });
+      setSuccess(regla.activo ? 'Regla sanitaria desactivada.' : 'Regla sanitaria activada.');
+      await loadReglas();
+    } catch (updateError) {
+      handleRequestError(updateError);
+    }
+  }
+
   async function handleDeactivateUser(user: User) {
     if (!authToken) return onUnauthorized();
     if (!window.confirm(`Dar de baja al usuario ${user.username}?`)) return;
@@ -226,11 +327,11 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
       <section className="settings-header">
         <div>
           <h2>Configuracion</h2>
-          <p>Usuarios y lotes base del sistema.</p>
+          <p>Usuarios, lotes y reglas sanitarias del sistema.</p>
         </div>
         <div className="settings-summary">
-          <strong>{activeTab === 'usuarios' ? activeUsersCount : activeLotesCount}</strong>
-          <span>{activeTab === 'usuarios' ? 'usuarios activos' : 'lotes activos'}</span>
+          <strong>{summaryCount}</strong>
+          <span>{summaryLabel}</span>
         </div>
       </section>
 
@@ -256,6 +357,17 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
           }}
         >
           Lotes
+        </button>
+        <button
+          type="button"
+          className={activeTab === 'vacunas' ? 'settings-tab-active' : ''}
+          onClick={() => {
+            setActiveTab('vacunas');
+            setError('');
+            setSuccess('');
+          }}
+        >
+          Vacunas
         </button>
       </div>
 
@@ -350,7 +462,7 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
             )}
           </section>
         </div>
-      ) : (
+      ) : activeTab === 'lotes' ? (
         <div className="settings-grid">
           <section className="panel user-form-panel">
             <div className="panel-header">
@@ -418,6 +530,88 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
                           <div className="table-actions">
                             <button type="button" onClick={() => startEditingLote(lote)} aria-label={`Editar ${lote.nombre}`}><Edit2 size={16} /></button>
                             <button type="button" onClick={() => void handleDeleteLote(lote)} aria-label={`Eliminar ${lote.nombre}`}><Trash2 size={16} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
+      ) : (
+        <div className="settings-grid">
+          <section className="panel user-form-panel">
+            <div className="panel-header">
+              <div>
+                <h2>{editingRegla ? 'Editar regla sanitaria' : 'Nueva regla sanitaria'}</h2>
+                <p>Vacunas y análisis configurables para generación automática.</p>
+              </div>
+              {editingRegla && (
+                <button type="button" className="icon-button" onClick={resetReglaForm} aria-label="Cancelar edicion">
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            <form className="user-form" onSubmit={handleReglaSubmit}>
+              <label><span>Nombre</span><input value={reglaFormValues.nombre} onChange={(event) => setReglaFormValues({ ...reglaFormValues, nombre: event.target.value })} required /></label>
+              <label><span>Código</span><input value={reglaFormValues.codigo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, codigo: event.target.value })} required /></label>
+              <label>
+                <span>Tipo</span>
+                <select value={reglaFormValues.tipo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, tipo: event.target.value as TipoReglaSanitaria })}>
+                  <option value="VACUNA">VACUNA</option>
+                  <option value="ANALISIS">ANALISIS</option>
+                </select>
+              </label>
+              <label><span>Mes fijo</span><input type="number" min="1" max="12" value={reglaFormValues.mesFijo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, mesFijo: event.target.value })} placeholder="Opcional" /></label>
+              <label><span>Frecuencia meses</span><input type="number" min="1" value={reglaFormValues.frecuenciaMeses} onChange={(event) => setReglaFormValues({ ...reglaFormValues, frecuenciaMeses: event.target.value })} required /></label>
+              <label><span>Anticipación meses</span><input type="number" min="1" value={reglaFormValues.anticipacionMeses} onChange={(event) => setReglaFormValues({ ...reglaFormValues, anticipacionMeses: event.target.value })} required /></label>
+              <label><span>Observaciones</span><input value={reglaFormValues.observaciones} onChange={(event) => setReglaFormValues({ ...reglaFormValues, observaciones: event.target.value })} /></label>
+              <label className="checkbox-row">
+                <input type="checkbox" checked={reglaFormValues.activo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, activo: event.target.checked })} />
+                <span>Regla activa</span>
+              </label>
+
+              {error && <div className="form-error">{error}</div>}
+              {success && <div className="form-success">{success}</div>}
+
+              <button type="submit" className="primary-button" disabled={isSaving}>
+                <Plus size={18} />
+                {isSaving ? 'Guardando...' : editingRegla ? 'Guardar cambios' : 'Crear regla'}
+              </button>
+            </form>
+          </section>
+
+          <section className="panel users-list-panel">
+            <div className="panel-header">
+              <div>
+                <h2>Vacunas y Reglas Sanitarias</h2>
+                <p>{reglas.length} reglas registradas.</p>
+              </div>
+              <button type="button" className="icon-button" onClick={() => void loadReglas()} aria-label="Actualizar reglas sanitarias">
+                <RefreshCcw size={18} />
+              </button>
+            </div>
+
+            {isLoading ? <p className="table-empty">Cargando reglas...</p> : (
+              <div className="table-wrap">
+                <table className="users-table">
+                  <thead>
+                    <tr><th>Regla</th><th>Tipo</th><th>Frecuencia</th><th>Estado</th><th>Acciones</th></tr>
+                  </thead>
+                  <tbody>
+                    {reglas.map((regla) => (
+                      <tr key={regla.id}>
+                        <td><strong>{regla.nombre}</strong><span>{regla.codigo}</span></td>
+                        <td>{regla.tipo}</td>
+                        <td>{regla.mesFijo ? `Mes ${regla.mesFijo}` : `Cada ${regla.frecuenciaMeses} meses`} · anticipa {regla.anticipacionMeses}</td>
+                        <td><span className={`status-pill ${regla.activo ? 'status-active' : 'status-inactive'}`}>{regla.activo ? 'Activa' : 'Inactiva'}</span></td>
+                        <td>
+                          <div className="table-actions">
+                            <button type="button" onClick={() => startEditingRegla(regla)} aria-label={`Editar ${regla.codigo}`}><Edit2 size={16} /></button>
+                            <button type="button" onClick={() => void toggleReglaActiva(regla)} aria-label={`${regla.activo ? 'Desactivar' : 'Activar'} ${regla.codigo}`}><Trash2 size={16} /></button>
                           </div>
                         </td>
                       </tr>
