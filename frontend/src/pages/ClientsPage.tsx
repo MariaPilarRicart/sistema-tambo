@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { Edit2, RefreshCcw, Save, X } from 'lucide-react';
+import { Edit2, Eye, Power, RefreshCcw, Save, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { createCliente, getCliente, getClientes, updateCliente, updateClienteEstado } from '../services/clientesService';
 import type { AuthUser } from '../types/auth';
@@ -42,6 +42,7 @@ interface ClientsPageProps {
 
 export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsPageProps) {
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [search, setSearch] = useState('');
   const [createForm, setCreateForm] = useState<ClienteCreateValues>(emptyCreateForm);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [editForm, setEditForm] = useState<ClienteEditValues | null>(null);
@@ -61,12 +62,12 @@ export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsP
     setError(requestError instanceof Error ? requestError.message : fallback);
   }
 
-  async function loadData() {
+  async function loadData(nextSearch = search) {
     if (!authToken) return;
     setIsLoading(true);
     setError('');
     try {
-      setClientes(await getClientes(authToken));
+      setClientes(await getClientes(authToken, nextSearch));
     } catch (loadError) {
       handleRequestError(loadError, 'No se pudieron cargar los clientes.');
     } finally {
@@ -75,9 +76,10 @@ export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsP
   }
 
   useEffect(() => {
-    void loadData();
+    const timer = window.setTimeout(() => void loadData(search), 250);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken]);
+  }, [authToken, search]);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -166,53 +168,42 @@ export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsP
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
-      <div className="feed-grid">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Nuevo cliente</h2>
-              <p>{isAdmin ? 'CUIT y razón social quedan fijos al crear.' : 'Solo usuarios ADMIN pueden crear clientes.'}</p>
-            </div>
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Nuevo cliente</h2>
+            <p>{isAdmin ? 'CUIT y razón social quedan fijos al crear.' : 'Solo usuarios ADMIN pueden crear clientes.'}</p>
           </div>
-          {isAdmin ? (
-            <form className="user-form" onSubmit={handleCreate}>
-              <label><span>CUIT</span><input value={createForm.cuit} onChange={(event) => setCreateForm({ ...createForm, cuit: event.target.value })} required /></label>
-              <label><span>Razón social / nombre</span><input value={createForm.razonSocial} onChange={(event) => setCreateForm({ ...createForm, razonSocial: event.target.value })} required /></label>
-              <label><span>Dirección</span><input value={createForm.direccion} onChange={(event) => setCreateForm({ ...createForm, direccion: event.target.value })} /></label>
-              <label><span>Teléfono</span><input value={createForm.telefono} onChange={(event) => setCreateForm({ ...createForm, telefono: event.target.value })} /></label>
-              <label><span>Email</span><input type="email" value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} /></label>
-              <button type="submit" className="primary-button" disabled={isSaving}><Save size={18} />Guardar cliente</button>
-            </form>
-          ) : <p className="table-empty">Podés consultar clientes y ventas asociadas.</p>}
-        </section>
-
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Detalle del cliente</h2>
-              <p>Ventas, litros comprados e importe total.</p>
-            </div>
-          </div>
-          {selectedCliente ? (
-            <div className="dashboard-kpi-grid production-stats-grid">
-              <article className="dashboard-kpi-card dashboard-kpi-emerald"><strong>Cliente</strong><h3>{selectedCliente.razonSocial}</h3></article>
-              <article className="dashboard-kpi-card dashboard-kpi-blue"><strong>Ventas</strong><h3>{selectedCliente.resumen.cantidadVentas}</h3></article>
-              <article className="dashboard-kpi-card dashboard-kpi-indigo"><strong>Litros comprados</strong><h3>{formatLiters(selectedCliente.resumen.litrosComprados)}</h3></article>
-              <article className="dashboard-kpi-card dashboard-kpi-amber"><strong>Importe total</strong><h3>{formatCurrency(selectedCliente.resumen.importeTotalComprado)}</h3></article>
-            </div>
-          ) : <p className="table-empty">Seleccioná un cliente para ver su trazabilidad.</p>}
-        </section>
-      </div>
+        </div>
+        {isAdmin ? (
+          <form className="user-form production-form" onSubmit={handleCreate}>
+            <label><span>CUIT</span><input value={createForm.cuit} onChange={(event) => setCreateForm({ ...createForm, cuit: event.target.value })} required /></label>
+            <label><span>Razón social / nombre</span><input value={createForm.razonSocial} onChange={(event) => setCreateForm({ ...createForm, razonSocial: event.target.value })} required /></label>
+            <label><span>Dirección</span><input value={createForm.direccion} onChange={(event) => setCreateForm({ ...createForm, direccion: event.target.value })} /></label>
+            <label><span>Teléfono</span><input value={createForm.telefono} onChange={(event) => setCreateForm({ ...createForm, telefono: event.target.value })} /></label>
+            <label><span>Email</span><input type="email" value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} /></label>
+            <button type="submit" className="primary-button production-wide-field" disabled={isSaving}><Save size={18} />Guardar cliente</button>
+          </form>
+        ) : <p className="table-empty">Podés consultar clientes y ventas asociadas.</p>}
+      </section>
 
       <section className="panel">
         <div className="panel-header">
           <div>
             <h2>Listado de clientes</h2>
-            <p>{clientes.length} clientes registrados.</p>
+            <p>{clientes.length} clientes encontrados.</p>
           </div>
         </div>
+        <label className="filter-field production-selector">
+          <span>Buscar</span>
+          <input
+            placeholder="Buscar por CUIT o razón social..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+        </label>
         {isLoading ? <p className="table-empty">Cargando clientes...</p> : (
-          <div className="table-wrap">
+          <div className="table-wrap feed-table-wrap">
             <table className="users-table">
               <thead><tr><th>CUIT</th><th>Razón social</th><th>Dirección</th><th>Teléfono</th><th>Email</th><th>Fecha alta</th><th>Estado</th><th>Acciones</th></tr></thead>
               <tbody>
@@ -227,11 +218,11 @@ export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsP
                     <td><span className={`status-pill ${cliente.activo ? 'status-active' : 'status-inactive'}`}>{cliente.activo ? 'ACTIVO' : 'INACTIVO'}</span></td>
                     <td>
                       <div className="table-actions">
-                        <button type="button" onClick={() => void openClienteDetalle(cliente)} aria-label={`Ver ${cliente.razonSocial}`}><RefreshCcw size={16} /></button>
+                        <button type="button" onClick={() => void openClienteDetalle(cliente)} aria-label={`Ver detalle de ${cliente.razonSocial}`}><Eye size={16} /></button>
                         {isAdmin && <button type="button" onClick={() => startEditing(cliente)} aria-label={`Editar ${cliente.razonSocial}`}><Edit2 size={16} /></button>}
                         {isAdmin && (
                           <button type="button" onClick={() => void handleEstado(cliente, !cliente.activo)} aria-label={cliente.activo ? 'Desactivar cliente' : 'Activar cliente'}>
-                            <X size={16} />
+                            <Power size={16} />
                           </button>
                         )}
                       </div>
@@ -244,6 +235,48 @@ export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsP
           </div>
         )}
       </section>
+
+      {selectedCliente && (
+        <div className="modal-backdrop">
+          <div className="modal-panel animal-form-modal">
+            <div className="panel-header">
+              <div>
+                <h2>{selectedCliente.razonSocial}</h2>
+                <p>Detalle y trazabilidad comercial.</p>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setSelectedCliente(null)} aria-label="Cerrar detalle"><X size={18} /></button>
+            </div>
+            <div className="info-grid">
+              <div className="info-item"><span>CUIT</span><strong>{selectedCliente.cuit}</strong></div>
+              <div className="info-item"><span>Razón social</span><strong>{selectedCliente.razonSocial}</strong></div>
+              <div className="info-item"><span>Dirección</span><strong>{selectedCliente.direccion || '-'}</strong></div>
+              <div className="info-item"><span>Teléfono</span><strong>{selectedCliente.telefono || '-'}</strong></div>
+              <div className="info-item"><span>Email</span><strong>{selectedCliente.email || '-'}</strong></div>
+              <div className="info-item"><span>Fecha alta</span><strong>{formatDate(selectedCliente.fechaAlta)}</strong></div>
+              <div className="info-item"><span>Estado</span><strong>{selectedCliente.activo ? 'Activo' : 'Inactivo'}</strong></div>
+              <div className="info-item"><span>Ventas</span><strong>{selectedCliente.resumen.cantidadVentas}</strong></div>
+              <div className="info-item"><span>Total litros comprados</span><strong>{formatLiters(selectedCliente.resumen.litrosComprados)}</strong></div>
+              <div className="info-item"><span>Importe total comprado</span><strong>{formatCurrency(selectedCliente.resumen.importeTotalComprado)}</strong></div>
+            </div>
+            <div className="table-wrap feed-table-wrap">
+              <table className="users-table">
+                <thead><tr><th>Fecha</th><th>Factura</th><th>Litros</th><th>Importe</th></tr></thead>
+                <tbody>
+                  {selectedCliente.ventas.map((venta) => (
+                    <tr key={venta.id}>
+                      <td>{formatDate(venta.fechaVenta)}</td>
+                      <td><strong>{venta.numeroFactura}</strong></td>
+                      <td>{formatLiters(venta.totalLitros)}</td>
+                      <td>{formatCurrency(venta.precioTotal)}</td>
+                    </tr>
+                  ))}
+                  {selectedCliente.ventas.length === 0 && <tr><td colSpan={4}>Sin ventas asociadas.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingCliente && editForm && (
         <div className="modal-backdrop">
@@ -274,4 +307,3 @@ export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsP
     </div>
   );
 }
-

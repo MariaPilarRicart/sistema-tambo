@@ -1546,6 +1546,71 @@ a {
   grid-column: 1 / -1;
 }
 
+.client-search-field {
+  position: relative;
+}
+
+.client-selection {
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgb(15 23 42 / 0.08);
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+}
+
+.client-results {
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  box-shadow: 0 14px 28px rgb(15 23 42 / 0.12);
+  display: grid;
+  left: 0;
+  max-height: 184px;
+  overflow: auto;
+  padding: 4px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+}
+
+.client-results button {
+  background: #ffffff;
+  border: 0;
+  border-radius: 8px;
+  color: var(--slate-700);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.client-results button:hover {
+  background: #ecfdf5;
+  color: var(--emerald-dark);
+}
+
+.client-selection strong {
+  color: var(--slate-800);
+  font-size: 13px;
+}
+
+.client-results p {
+  color: var(--slate-500);
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0;
+  padding: 8px 10px;
+}
+
+.client-selection {
+  align-items: center;
+  grid-template-columns: 1fr auto;
+}
+
 .production-chart {
   background: var(--slate-50);
   border: 1px solid var(--slate-100);

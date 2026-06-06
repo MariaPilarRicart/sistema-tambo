@@ -32,8 +32,12 @@ function buildEditPayload(values: ClienteEditValues) {
   };
 }
 
-export async function getClientes(token: string) {
-  const response = await apiRequest<ClientesResponse>('/api/clientes', { token });
+export async function getClientes(token: string, search = '', activo?: boolean) {
+  const params = new URLSearchParams();
+  if (search.trim()) params.set('search', search.trim());
+  if (activo !== undefined) params.set('activo', String(activo));
+  const query = params.toString();
+  const response = await apiRequest<ClientesResponse>(`/api/clientes${query ? `?${query}` : ''}`, { token });
   return response.clientes;
 }
 
@@ -68,4 +72,3 @@ export async function updateClienteEstado(token: string, id: number, activo: boo
   });
   return response.cliente;
 }
-

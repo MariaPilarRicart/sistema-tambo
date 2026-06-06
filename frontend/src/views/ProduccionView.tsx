@@ -470,14 +470,14 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         )}
         <div className="table-wrap feed-table-wrap">
           <table className="users-table production-history-table">
-            <thead><tr><th>Código</th><th>Estado</th><th>Fechas</th><th>Totales</th><th>Calidad</th><th>Acciones</th></tr></thead>
+            <thead><tr><th>Código</th><th>Estado</th><th>Fechas</th><th>Disponibilidad</th><th>Calidad</th><th>Acciones</th></tr></thead>
             <tbody>
               {lotesLeche.map((loteLeche) => (
                 <tr key={loteLeche.id}>
                   <td><strong>{loteLeche.codigo}</strong><span>{loteLeche.descripcion || '-'}</span></td>
                   <td><span className={`status-pill ${loteLeche.estado === 'DISPONIBLE' ? 'status-active' : 'status-inactive'}`}>{estadoLoteLecheLabels[loteLeche.estado]}</span></td>
                   <td><strong>{formatDate(loteLeche.fechaProduccion)}</strong><span>Vence {formatDate(loteLeche.fechaVencimiento)}</span></td>
-                  <td><strong>{formatLiters(loteLeche.litrosNetos)}</strong><span>Total {formatLiters(loteLeche.litrosTotales)} / Descarte {formatLiters(loteLeche.litrosDescartados)}</span></td>
+                  <td><strong>{formatLiters(loteLeche.litrosDisponibles ?? loteLeche.litrosNetos)}</strong><span>Neto {formatLiters(loteLeche.litrosNetos)} / Vendido {formatLiters(loteLeche.litrosVendidos ?? 0)}</span></td>
                   <td><strong>Prot. {formatNumber(loteLeche.proteina, '%')}</strong><span>RB {formatNumber(loteLeche.recuentoBacteriano)} / Temp. {formatNumber(loteLeche.temperatura, ' °C')}</span></td>
                   <td>
                     {isAdmin && (

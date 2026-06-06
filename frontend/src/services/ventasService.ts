@@ -27,11 +27,11 @@ function buildVentaPayload(values: VentaFormValues) {
     clienteId: Number(values.clienteId),
     numeroFactura: values.numeroFactura.trim(),
     fechaVenta: values.fechaVenta,
+    precioPorLitro: Number(values.precioPorLitro || 0),
     observaciones: values.observaciones.trim() || null,
     detalles: values.detalles.map((detalle) => ({
       loteLecheId: Number(detalle.loteLecheId),
       litrosVendidos: Number(detalle.litrosVendidos || 0),
-      precioUnitario: Number(detalle.precioUnitario || 0),
     })),
   };
 }
@@ -59,4 +59,3 @@ export async function createVenta(token: string, values: VentaFormValues) {
   });
   return response.venta;
 }
-

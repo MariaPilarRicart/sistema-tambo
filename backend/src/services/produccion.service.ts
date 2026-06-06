@@ -208,7 +208,17 @@ function parseFilters(input: Record<string, unknown>): ProduccionFilters {
 }
 
 export async function listLotesLeche() {
-  return { lotesLeche: await findLotesLeche() };
+  const lotesLeche = await findLotesLeche();
+  return {
+    lotesLeche: lotesLeche.map((loteLeche) => {
+      const litrosVendidos = loteLeche.ventaDetalles.reduce((total, detalle) => total + toNumber(detalle.litrosVendidos), 0);
+      return {
+        ...loteLeche,
+        litrosVendidos,
+        litrosDisponibles: Math.max(toNumber(loteLeche.litrosNetos) - litrosVendidos, 0),
+      };
+    }),
+  };
 }
 
 export async function getSiguienteCodigoLoteLeche() {

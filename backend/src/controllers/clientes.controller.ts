@@ -7,8 +7,8 @@ import {
   updateExistingCliente,
 } from '../services/clientes.service';
 
-export async function listClientesController(_request: Request, response: Response) {
-  response.status(200).json({ clientes: await listClientes() });
+export async function listClientesController(request: Request, response: Response) {
+  response.status(200).json({ clientes: await listClientes(request.query as Record<string, unknown>) });
 }
 
 export async function getClienteController(request: Request, response: Response) {
@@ -26,4 +26,3 @@ export async function updateClienteController(request: Request, response: Respon
 export async function updateClienteEstadoController(request: Request, response: Response) {
   response.status(200).json({ cliente: await updateClienteEstado(String(request.params.id), request.body ?? {}) });
 }
-

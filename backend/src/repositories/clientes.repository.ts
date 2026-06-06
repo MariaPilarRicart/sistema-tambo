@@ -14,8 +14,17 @@ const clienteSelect = {
   updatedAt: true,
 } satisfies Prisma.ClienteSelect;
 
-export function findClientes() {
+export function findClientes(search?: string, activo?: boolean) {
   return prisma.cliente.findMany({
+    where: {
+      activo,
+      OR: search
+        ? [
+            { cuit: { contains: search, mode: 'insensitive' } },
+            { razonSocial: { contains: search, mode: 'insensitive' } },
+          ]
+        : undefined,
+    },
     orderBy: [{ activo: 'desc' }, { razonSocial: 'asc' }],
     select: clienteSelect,
   });
@@ -51,4 +60,3 @@ export function updateCliente(id: number, data: Prisma.ClienteUpdateInput) {
     select: clienteSelect,
   });
 }
-

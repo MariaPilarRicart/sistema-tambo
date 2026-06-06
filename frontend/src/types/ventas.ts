@@ -17,6 +17,7 @@ export interface Venta {
   clienteId: number;
   numeroFactura: string;
   fechaVenta: string;
+  precioPorLitro: number | string;
   totalLitros: number | string;
   precioTotal: number | string;
   observaciones: string | null;
@@ -38,21 +39,21 @@ export interface LoteLecheDisponible extends LoteLeche {
 export interface VentaDetalleFormValues {
   loteLecheId: string;
   litrosVendidos: string;
-  precioUnitario: string;
 }
 
 export interface VentaFormValues {
   clienteId: string;
   numeroFactura: string;
   fechaVenta: string;
+  precioPorLitro: string;
   observaciones: string;
   detalles: VentaDetalleFormValues[];
 }
 
 export interface VentaFilters {
   clienteId: string;
+  clienteSearch: string;
   fechaDesde: string;
   fechaHasta: string;
   factura: string;
 }
-

@@ -35,6 +35,8 @@ export interface LoteLeche {
   recuentoCelulasSomaticas: number | null;
   temperatura: number | string | null;
   observacionesCalidad: string | null;
+  litrosVendidos?: number;
+  litrosDisponibles?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -190,9 +192,16 @@ export interface ProduccionPorLoteLeche {
   }>;
   calidad: Pick<
     LoteLeche,
-    'grasa' | 'proteina' | 'temperatura' | 'recuentoBacteriano' | 'recuentoCelulasSomaticas' | 'observacionesCalidad'
+    | 'grasa'
+    | 'proteina'
+    | 'temperatura'
+    | 'recuentoBacteriano'
+    | 'recuentoCelulasSomaticas'
+    | 'observacionesCalidad'
   >;
   litrosTotales: number;
   litrosDescartados: number;
   litrosNetos: number;
+  litrosVendidos: number;
+  litrosDisponibles: number;
 }

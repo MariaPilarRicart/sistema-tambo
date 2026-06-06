@@ -16,6 +16,7 @@ export type VentaWithRelations = Prisma.VentaGetPayload<{ include: typeof ventaI
 
 export interface VentaFilters {
   clienteId?: number;
+  clienteSearch?: string;
   fechaDesde?: Date;
   fechaHasta?: Date;
   factura?: string;
@@ -24,6 +25,14 @@ export interface VentaFilters {
 function buildWhere(filters: VentaFilters): Prisma.VentaWhereInput {
   return {
     clienteId: filters.clienteId,
+    cliente: filters.clienteSearch
+      ? {
+          OR: [
+            { cuit: { contains: filters.clienteSearch, mode: 'insensitive' } },
+            { razonSocial: { contains: filters.clienteSearch, mode: 'insensitive' } },
+          ],
+        }
+      : undefined,
     numeroFactura: filters.factura ? { contains: filters.factura, mode: 'insensitive' } : undefined,
     fechaVenta:
       filters.fechaDesde || filters.fechaHasta
@@ -94,6 +103,7 @@ export async function createVentaConDetalles(data: {
   clienteId: number;
   numeroFactura: string;
   fechaVenta: Date;
+  precioPorLitro: Prisma.Decimal;
   totalLitros: Prisma.Decimal;
   precioTotal: Prisma.Decimal;
   observaciones?: string | null;
@@ -112,6 +122,7 @@ export async function createVentaConDetalles(data: {
         clienteId: data.clienteId,
         numeroFactura: data.numeroFactura,
         fechaVenta: data.fechaVenta,
+        precioPorLitro: data.precioPorLitro,
         totalLitros: data.totalLitros,
         precioTotal: data.precioTotal,
         observaciones: data.observaciones,
@@ -133,4 +144,3 @@ export async function createVentaConDetalles(data: {
     return venta;
   });
 }
-

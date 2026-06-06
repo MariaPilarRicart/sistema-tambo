@@ -216,6 +216,7 @@ model Venta {
   clienteId     Int
   numeroFactura String   @unique
   fechaVenta    DateTime
+  precioPorLitro Decimal  @db.Decimal(12, 2)
   totalLitros   Decimal  @db.Decimal(10, 2)
   precioTotal   Decimal  @db.Decimal(12, 2)
   observaciones String?

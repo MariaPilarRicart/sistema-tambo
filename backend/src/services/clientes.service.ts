@@ -14,6 +14,13 @@ function parseId(value: unknown, fieldName: string) {
   return parsed;
 }
 
+function parseOptionalBoolean(value: unknown, fieldName: string) {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  throw new AppError(`${fieldName} inválido.`, 400);
+}
+
 function normalizeRequiredString(value: unknown, fieldName: string) {
   if (typeof value !== 'string' || !value.trim()) throw new AppError(`${fieldName} es obligatorio.`, 400);
   return value.trim();
@@ -44,8 +51,10 @@ function resumenCliente(ventas: NonNullable<Awaited<ReturnType<typeof findClient
   );
 }
 
-export function listClientes() {
-  return findClientes();
+export function listClientes(query: Record<string, unknown> = {}) {
+  const search = typeof query.search === 'string' && query.search.trim() ? query.search.trim() : undefined;
+  const activo = parseOptionalBoolean(query.activo, 'Filtro activo');
+  return findClientes(search, activo);
 }
 
 export async function getCliente(idParam: string) {
@@ -98,4 +107,3 @@ export async function updateClienteEstado(idParam: string, input: Record<string,
   if (typeof input.activo !== 'boolean') throw new AppError('Estado activo es obligatorio.', 400);
   return updateCliente(id, { activo: input.activo });
 }
-

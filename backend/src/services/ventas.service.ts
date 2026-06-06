@@ -49,14 +49,14 @@ function normalizeOptionalString(value: unknown, fieldName: string) {
   return value.trim() || null;
 }
 
-function parseDecimal(value: unknown, fieldName: string, options: { min?: number; exclusiveMin?: number } = {}) {
+function parsePositiveDecimal(value: unknown, fieldName: string) {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) throw new AppError(`${fieldName} inválido.`, 400);
-  if (options.min !== undefined && parsed < options.min) throw new AppError(`${fieldName} debe ser mayor o igual a ${options.min}.`, 400);
-  if (options.exclusiveMin !== undefined && parsed <= options.exclusiveMin) {
-    throw new AppError(`${fieldName} debe ser mayor a ${options.exclusiveMin}.`, 400);
-  }
+  if (!Number.isFinite(parsed) || parsed <= 0) throw new AppError(`${fieldName} debe ser mayor a 0.`, 400);
   return new Prisma.Decimal(parsed);
+}
+
+function toDecimal(value: Prisma.Decimal | number | string | null | undefined) {
+  return new Prisma.Decimal(value ?? 0).toDecimalPlaces(2);
 }
 
 function toNumber(value: Prisma.Decimal | number | string | null | undefined) {
@@ -72,6 +72,7 @@ function isExpired(fechaVencimiento: Date, fechaVenta = new Date()) {
 function parseFilters(input: Record<string, unknown>): VentaFilters {
   return {
     clienteId: parseOptionalId(input.clienteId, 'clienteId'),
+    clienteSearch: typeof input.clienteSearch === 'string' && input.clienteSearch.trim() ? input.clienteSearch.trim() : undefined,
     fechaDesde: parseDateFilter(input.fechaDesde),
     fechaHasta: parseDateFilter(input.fechaHasta, true),
     factura: typeof input.factura === 'string' && input.factura.trim() ? input.factura.trim() : undefined,
@@ -80,27 +81,30 @@ function parseFilters(input: Record<string, unknown>): VentaFilters {
 
 function parseDetalles(input: unknown) {
   if (!Array.isArray(input) || input.length === 0) throw new AppError('La venta debe tener al menos un detalle.', 400);
+  const loteLecheIds = new Set<number>();
 
   return input.map((item, index) => {
     if (!item || typeof item !== 'object') throw new AppError(`Detalle ${index + 1} inválido.`, 400);
     const detalle = item as Record<string, unknown>;
-    const litrosVendidos = parseDecimal(detalle.litrosVendidos, `Litros vendidos del detalle ${index + 1}`, { exclusiveMin: 0 });
-    const precioUnitario = parseDecimal(detalle.precioUnitario, `Precio unitario del detalle ${index + 1}`, { min: 0 });
+    const loteLecheId = parseId(detalle.loteLecheId, `loteLecheId del detalle ${index + 1}`);
+    if (loteLecheIds.has(loteLecheId)) {
+      throw new AppError('No se puede vender el mismo lote más de una vez en la misma venta.', 400);
+    }
+    loteLecheIds.add(loteLecheId);
+
     return {
-      loteLecheId: parseId(detalle.loteLecheId, `loteLecheId del detalle ${index + 1}`),
-      litrosVendidos,
-      precioUnitario,
-      subtotal: litrosVendidos.mul(precioUnitario),
+      loteLecheId,
+      litrosVendidos: parsePositiveDecimal(detalle.litrosVendidos, `Litros vendidos del detalle ${index + 1}`),
     };
   });
 }
 
 async function availabilityByLote(loteLecheIds: number[]) {
   const [lotes, ventasPorLote] = await Promise.all([findLotesLecheForVenta(loteLecheIds), findVentaDetallesByLoteIds(loteLecheIds)]);
-  const soldMap = new Map(ventasPorLote.map((item) => [item.loteLecheId, toNumber(item._sum.litrosVendidos)]));
+  const soldMap = new Map(ventasPorLote.map((item) => [item.loteLecheId, toDecimal(item._sum.litrosVendidos)]));
   return lotes.map((lote) => {
-    const litrosVendidos = soldMap.get(lote.id) ?? 0;
-    const litrosDisponibles = toNumber(lote.litrosNetos) - litrosVendidos;
+    const litrosVendidos = soldMap.get(lote.id) ?? new Prisma.Decimal(0);
+    const litrosDisponibles = toDecimal(lote.litrosNetos).minus(litrosVendidos).toDecimalPlaces(2);
     return { ...lote, litrosVendidos, litrosDisponibles };
   });
 }
@@ -120,18 +124,18 @@ export async function listLotesDisponiblesParaVenta() {
   const lotes = await findLotesLecheConVentas();
   const now = new Date();
   return lotes.map((lote) => {
-    const litrosVendidos = lote.ventaDetalles.reduce((total, detalle) => total + toNumber(detalle.litrosVendidos), 0);
-    const litrosDisponibles = toNumber(lote.litrosNetos) - litrosVendidos;
+    const litrosVendidos = lote.ventaDetalles.reduce((total, detalle) => total.plus(toDecimal(detalle.litrosVendidos)), new Prisma.Decimal(0));
+    const litrosDisponibles = toDecimal(lote.litrosNetos).minus(litrosVendidos).toDecimalPlaces(2);
     const estadoCalculado = isExpired(lote.fechaVencimiento, now)
       ? EstadoLoteLeche.VENCIDO
-      : litrosDisponibles <= 0
+      : litrosDisponibles.lte(0)
         ? EstadoLoteLeche.VENDIDO
         : EstadoLoteLeche.DISPONIBLE;
 
     return {
       ...lote,
-      litrosVendidos,
-      litrosDisponibles: Math.max(litrosDisponibles, 0),
+      litrosVendidos: toNumber(litrosVendidos),
+      litrosDisponibles: Math.max(toNumber(litrosDisponibles), 0),
       estadoCalculado,
       ventasAsociadas: lote.ventaDetalles.map((detalle) => detalle.venta),
     };
@@ -143,7 +147,8 @@ export async function createNewVenta(input: Record<string, unknown>, usuarioId?:
   const clienteId = parseId(input.clienteId, 'clienteId');
   const numeroFactura = normalizeRequiredString(input.numeroFactura, 'Número de factura');
   const fechaVenta = parseDate(input.fechaVenta, 'Fecha de venta');
-  const detalles = parseDetalles(input.detalles);
+  const precioPorLitro = parsePositiveDecimal(input.precioPorLitro, 'Precio por litro');
+  const detallesInput = parseDetalles(input.detalles);
 
   const [cliente, existingFactura] = await Promise.all([findClienteForVenta(clienteId), findVentaByFactura(numeroFactura)]);
   if (!cliente) throw new AppError('Cliente no encontrado.', 404);
@@ -151,8 +156,8 @@ export async function createNewVenta(input: Record<string, unknown>, usuarioId?:
   if (existingFactura) throw new AppError('Ya existe una venta con ese número de factura.', 409);
 
   const litrosPorLote = new Map<number, Prisma.Decimal>();
-  detalles.forEach((detalle) => {
-    litrosPorLote.set(detalle.loteLecheId, (litrosPorLote.get(detalle.loteLecheId) ?? new Prisma.Decimal(0)).plus(detalle.litrosVendidos));
+  detallesInput.forEach((detalle) => {
+    litrosPorLote.set(detalle.loteLecheId, detalle.litrosVendidos.toDecimalPlaces(2));
   });
 
   const lotesConDisponibilidad = await availabilityByLote(Array.from(litrosPorLote.keys()));
@@ -163,16 +168,31 @@ export async function createNewVenta(input: Record<string, unknown>, usuarioId?:
       throw new AppError(`El lote ${lote.codigo} está vencido y no puede venderse.`, 400);
     }
 
+    if (lote.estado !== EstadoLoteLeche.DISPONIBLE) {
+      throw new AppError(`El lote ${lote.codigo} no está disponible para la venta.`, 400);
+    }
+
     const litrosSolicitados = litrosPorLote.get(lote.id) ?? new Prisma.Decimal(0);
     if (litrosSolicitados.gt(lote.litrosDisponibles)) {
       throw new AppError(`No hay litros disponibles suficientes en el lote ${lote.codigo}.`, 400);
     }
 
-    const litrosDisponiblesPosteriores = new Prisma.Decimal(lote.litrosDisponibles).minus(litrosSolicitados);
+    const litrosDisponiblesPosteriores = lote.litrosDisponibles.minus(litrosSolicitados).toDecimalPlaces(2);
     return {
       id: lote.id,
       estado: litrosDisponiblesPosteriores.lte(0) ? EstadoLoteLeche.VENDIDO : EstadoLoteLeche.DISPONIBLE,
       fechaVenta: litrosDisponiblesPosteriores.lte(0) ? fechaVenta : null,
+    };
+  });
+
+  const loteMap = new Map(lotesConDisponibilidad.map((lote) => [lote.id, lote]));
+  const detalles = detallesInput.map((detalle) => {
+    if (!loteMap.has(detalle.loteLecheId)) throw new AppError('Uno o más lotes de leche no existen.', 404);
+    return {
+      loteLecheId: detalle.loteLecheId,
+      litrosVendidos: detalle.litrosVendidos.toDecimalPlaces(2),
+      precioUnitario: precioPorLitro,
+      subtotal: detalle.litrosVendidos.mul(precioPorLitro).toDecimalPlaces(2),
     };
   });
 
@@ -183,6 +203,7 @@ export async function createNewVenta(input: Record<string, unknown>, usuarioId?:
     clienteId,
     numeroFactura,
     fechaVenta,
+    precioPorLitro,
     totalLitros,
     precioTotal,
     observaciones: normalizeOptionalString(input.observaciones, 'Observaciones'),
@@ -191,4 +212,3 @@ export async function createNewVenta(input: Record<string, unknown>, usuarioId?:
     estadosLotes,
   });
 }
-

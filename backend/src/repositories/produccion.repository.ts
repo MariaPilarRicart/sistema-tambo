@@ -217,6 +217,13 @@ export function findLoteLecheWithProducciones(id: number) {
 export function findLotesLeche() {
   return prisma.loteLeche.findMany({
     orderBy: [{ fechaProduccion: 'desc' }, { id: 'desc' }],
+    include: {
+      ventaDetalles: {
+        select: {
+          litrosVendidos: true,
+        },
+      },
+    },
   });
 }
 
