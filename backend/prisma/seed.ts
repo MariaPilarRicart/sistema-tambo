@@ -10,11 +10,14 @@ import {
   Prisma,
   PrismaClient,
   RolUsuario,
+  TipoAlimento,
+  TipoCalculoAlimentacion,
   TipoEvento,
   TipoMovimientoStockAlimentacion,
   TipoReglaSanitaria,
   TipoTarea,
   TurnoOrdene,
+  UnidadAlimento,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
@@ -221,18 +224,18 @@ async function seedAlimentacion(usuarioId: number) {
   }
 
   const insumos = [
-    ['Silo de maiz', 'KG', 2500, 400],
-    ['Balanceado 18%', 'KG', 900, 200],
-    ['Rollo de alfalfa', 'UNIDAD', 45, 10],
-    ['Harina de soja', 'KG', 350, 120],
-    ['Sales minerales', 'KG', 120, 30],
+    ['Silo de maiz', TipoAlimento.SILO, 'KG', 2500, 400],
+    ['Balanceado 18%', TipoAlimento.BALANCEADO, 'KG', 900, 200],
+    ['Rollo de alfalfa', TipoAlimento.FIBRA, 'ROLLO', 45, 10],
+    ['Harina de soja', TipoAlimento.SUPLEMENTO, 'KG', 350, 120],
+    ['Sales minerales', TipoAlimento.SALES, 'KG', 120, 30],
   ] as const;
 
-  for (const [nombre, unidadMedida, stockActual, stockMinimo] of insumos) {
+  for (const [nombre, tipoAlimento, unidadMedida, stockActual, stockMinimo] of insumos) {
     const insumo = await prisma.insumoAlimentacion.upsert({
       where: { nombre },
-      update: { unidadMedida, stockActual, stockMinimo, activo: true },
-      create: { nombre, unidadMedida, stockActual, stockMinimo, activo: true },
+      update: { tipoAlimento, unidadMedida, stockActual, stockMinimo, activo: true },
+      create: { nombre, tipoAlimento, unidadMedida, stockActual, stockMinimo, activo: true },
     });
 
     await prisma.movimientoStockAlimentacion.createMany({
@@ -272,6 +275,167 @@ async function seedAlimentacion(usuarioId: number) {
         usuarioId,
       },
     });
+  }
+}
+
+async function seedReglasAlimentacion() {
+  const alimentos = [
+    ['Silo de Maiz', TipoAlimento.SILO, UnidadAlimento.KG, 5000, 400],
+    ['Balanceado Lecheras', TipoAlimento.BALANCEADO, UnidadAlimento.KG, 2000, 250],
+    ['Cascarilla de Soja', TipoAlimento.SUPLEMENTO, UnidadAlimento.KG, 1200, 150],
+    ['Rollo de Alfalfa', TipoAlimento.FIBRA, UnidadAlimento.ROLLO, 60, 8],
+    ['Balanceado Pre-Parto', TipoAlimento.BALANCEADO, UnidadAlimento.KG, 800, 120],
+    ['Rollo de Avena o Moha', TipoAlimento.FIBRA, UnidadAlimento.ROLLO, 35, 6],
+    ['Sales Anionicas', TipoAlimento.SALES, UnidadAlimento.KG, 180, 40],
+    ['Cascarilla de Soja o Expeller de Soja', TipoAlimento.SUPLEMENTO, UnidadAlimento.KG, 600, 100],
+    ['Balanceado Vaquillonas o Maiz Molido', TipoAlimento.BALANCEADO, UnidadAlimento.KG, 700, 100],
+    ['Balanceado Terneros', TipoAlimento.BALANCEADO, UnidadAlimento.KG, 500, 80],
+    ['Balanceado Iniciador', TipoAlimento.BALANCEADO, UnidadAlimento.KG, 250, 50],
+  ] as const;
+
+  for (const [nombre, tipoAlimento, unidadMedida, stockActual, stockMinimo] of alimentos) {
+    await prisma.insumoAlimentacion.upsert({
+      where: { nombre },
+      update: { tipoAlimento, unidadMedida, stockActual, stockMinimo, activo: true },
+      create: { nombre, tipoAlimento, unidadMedida, stockActual, stockMinimo, activo: true },
+    });
+  }
+
+  const alimentoByName = new Map((await prisma.insumoAlimentacion.findMany()).map((alimento) => [alimento.nombre, alimento.id]));
+  const reglasLegacy = [
+    'Vacas lecheras - Silo de Maiz',
+    'Vacas lecheras - Balanceado',
+    'Vacas lecheras - Cascarilla',
+    'Vacas lecheras - Rollos',
+    'Vacas lecheras - Rollo de Alfalfa',
+    'Preparto - Silo',
+    'Preparto - Silo de Maiz',
+    'Preparto - Balanceado',
+    'Preparto - Rollos',
+    'Preparto - Rollo de Avena',
+    'Preparto - Sales',
+    'Preparto - Sales Anionicas',
+    'Vacas secas - Silo',
+    'Vacas secas - Silo de Maiz',
+    'Vacas secas - Rollos',
+    'Vacas secas - Rollo de Avena',
+    'Vacas secas - Cascarilla',
+    'Vaquillonas - Silo',
+    'Vaquillonas - Silo de Maiz',
+    'Vaquillonas - Rollos',
+    'Vaquillonas - Rollo de Alfalfa',
+    'Vaquillonas - Cascarilla',
+    'Vaquillonas - Cascarilla o Expeller',
+    'Vaquillonas - Balanceado',
+    'Vaquillonas - Balanceado o Maiz',
+    'Escuelita - Balanceado',
+    'Escuelita - Balanceado Terneros',
+    'Escuelita - Cascarilla',
+    'Escuelita - Rollo',
+    'Escuelita - Rollo de Alfalfa',
+    'Estaca - Balanceado',
+    'Guachera - Balanceado Iniciador',
+  ];
+  await prisma.reglaAlimentacion.deleteMany({ where: { nombre: { in: reglasLegacy } } });
+
+  const reglas = [
+    {
+      nombre: 'Vacas lecheras',
+      categoriaAnimal: CategoriaAnimal.VACA_PRODUCCION,
+      observaciones: 'Dieta base para vacas en produccion.',
+      detalles: [
+        ['Silo de Maiz', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 15, 18, null, null, null, false, null],
+        ['Balanceado Lecheras', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 6, 7, null, null, null, false, null],
+        ['Cascarilla de Soja', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 2, 3, null, null, null, false, null],
+        ['Rollo de Alfalfa', TipoCalculoAlimentacion.ROLLOS_POR_GRUPO_DURACION, UnidadAlimento.ROLLO, null, null, 50, 10, 4, false, null],
+      ],
+    },
+    {
+      nombre: 'Preparto',
+      categoriaAnimal: CategoriaAnimal.PREPARTO,
+      observaciones: 'Dieta de transicion preparto.',
+      detalles: [
+        ['Silo de Maiz', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 8, 10, null, null, null, false, null],
+        ['Balanceado Pre-Parto', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 4, 5, null, null, null, false, null],
+        ['Rollo de Avena o Moha', TipoCalculoAlimentacion.ROLLOS_POR_GRUPO_DURACION, UnidadAlimento.ROLLO, null, null, 10, 1, 7, false, null],
+        ['Sales Anionicas', TipoCalculoAlimentacion.OBLIGATORIO_SIN_CANTIDAD, UnidadAlimento.KG, null, null, null, null, null, true, 'A discrecion del operario segun indicacion tecnica.'],
+      ],
+    },
+    {
+      nombre: 'Vacas secas',
+      categoriaAnimal: CategoriaAnimal.VACA_SECA,
+      observaciones: 'Dieta de mantenimiento para vacas secas.',
+      detalles: [
+        ['Silo de Maiz', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 5, 5, null, null, null, false, null],
+        ['Rollo de Avena o Moha', TipoCalculoAlimentacion.ROLLOS_POR_GRUPO_DURACION, UnidadAlimento.ROLLO, null, null, 10, 1, 7, false, null],
+        ['Cascarilla de Soja', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 1, 1.5, null, null, null, false, null],
+      ],
+    },
+    {
+      nombre: 'Vaquillonas',
+      categoriaAnimal: CategoriaAnimal.VAQUILLONA,
+      observaciones: 'Dieta para recria de vaquillonas.',
+      detalles: [
+        ['Silo de Maiz', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 8, 10, null, null, null, false, null],
+        ['Rollo de Alfalfa', TipoCalculoAlimentacion.ROLLOS_POR_GRUPO_DURACION, UnidadAlimento.ROLLO, null, null, 10, 1, 4, false, null],
+        ['Cascarilla de Soja o Expeller de Soja', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 1.5, 2, null, null, null, false, null],
+        ['Balanceado Vaquillonas o Maiz Molido', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 2, 2, null, null, null, false, null],
+      ],
+    },
+    {
+      nombre: 'Escuelita',
+      categoriaAnimal: CategoriaAnimal.ESCUELITA,
+      observaciones: 'Dieta para terneros en escuelita.',
+      detalles: [
+        ['Balanceado Terneros', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 2.5, 3, null, null, null, false, null],
+        ['Cascarilla de Soja', TipoCalculoAlimentacion.KG_POR_ANIMAL_DIA, UnidadAlimento.KG, 0.5, 0.5, null, null, null, false, null],
+        ['Rollo de Alfalfa', TipoCalculoAlimentacion.ROLLOS_POR_GRUPO_DURACION, UnidadAlimento.ROLLO, null, null, 10, 1, 15, false, null],
+      ],
+    },
+    {
+      nombre: 'Estaca',
+      categoriaAnimal: CategoriaAnimal.GUACHERA,
+      observaciones: 'Dieta inicial progresiva.',
+      detalles: [
+        ['Balanceado Iniciador', TipoCalculoAlimentacion.OBLIGATORIO_SIN_CANTIDAD, UnidadAlimento.KG, null, null, null, null, null, true, 'A discrecion / progresivo.'],
+      ],
+    },
+  ] as const;
+
+  for (const regla of reglas) {
+    const existing = await prisma.reglaAlimentacion.findUnique({
+      where: { categoriaAnimal_nombre: { categoriaAnimal: regla.categoriaAnimal, nombre: regla.nombre } },
+    });
+    const data = {
+      nombre: regla.nombre,
+      categoriaAnimal: regla.categoriaAnimal,
+      activo: true,
+      observaciones: regla.observaciones,
+      detalles: {
+        create: regla.detalles.flatMap(([alimentoNombre, tipoCalculo, unidad, cantidadMinima, cantidadMaxima, animalesBase, rollosBase, duracionDias, obligatorio, observaciones]) => {
+          const alimentoId = alimentoByName.get(alimentoNombre);
+          if (!alimentoId) return [];
+          return [{
+            alimentoId,
+            tipoCalculo,
+            unidad,
+            cantidadMinima,
+            cantidadMaxima,
+            animalesBase,
+            rollosBase,
+            duracionDias,
+            obligatorio,
+            observaciones,
+          }];
+        }),
+      },
+    };
+    if (existing) {
+      await prisma.detalleReglaAlimentacion.deleteMany({ where: { reglaAlimentacionId: existing.id } });
+      await prisma.reglaAlimentacion.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.reglaAlimentacion.create({ data });
+    }
   }
 }
 
@@ -673,6 +837,7 @@ async function main() {
   const admin = await prisma.usuario.findUniqueOrThrow({ where: { username: 'admin' } });
 
   await seedAlimentacion(admin.id);
+  await seedReglasAlimentacion();
   await seedAgendaEventos(admin.id);
   await seedReglasSanitarias();
   await seedVacunacionSanitaria(admin.id);

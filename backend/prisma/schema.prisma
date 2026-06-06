@@ -82,6 +82,29 @@ enum TipoMovimientoStockAlimentacion {
   CONSUMO_ALIMENTACION
   BAJA_MANUAL
   AJUSTE
+  BAJA
+  MODIFICACION
+}
+
+enum TipoAlimento {
+  SILO
+  BALANCEADO
+  FIBRA
+  SUPLEMENTO
+  SALES
+  OTRO
+}
+
+enum UnidadAlimento {
+  KG
+  ROLLO
+  UNIDAD
+}
+
+enum TipoCalculoAlimentacion {
+  KG_POR_ANIMAL_DIA
+  ROLLOS_POR_GRUPO_DURACION
+  OBLIGATORIO_SIN_CANTIDAD
 }
 
 enum TurnoOrdene {
@@ -180,6 +203,7 @@ model InsumoAlimentacion {
   id           Int      @id @default(autoincrement())
   nombre       String   @unique
   descripcion  String?
+  tipoAlimento TipoAlimento @default(OTRO)
   unidadMedida String
   stockActual  Float    @default(0)
   stockMinimo  Float    @default(0)
@@ -189,8 +213,52 @@ model InsumoAlimentacion {
 
   movimientos MovimientoStockAlimentacion[]
   detallesAlimentacion DetalleAlimentacion[]
+  detallesReglasAlimentacion DetalleReglaAlimentacion[]
 
+  @@index([tipoAlimento])
   @@map("insumos_alimentacion")
+}
+
+model ReglaAlimentacion {
+  id              Int      @id @default(autoincrement())
+  nombre          String
+  categoriaAnimal CategoriaAnimal
+  activo          Boolean  @default(true)
+  observaciones   String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  detalles DetalleReglaAlimentacion[]
+
+  @@unique([categoriaAnimal, nombre])
+  @@index([categoriaAnimal])
+  @@index([activo])
+  @@map("reglas_alimentacion")
+}
+
+model DetalleReglaAlimentacion {
+  id                  Int                     @id @default(autoincrement())
+  reglaAlimentacionId Int
+  alimentoId          Int
+  tipoCalculo         TipoCalculoAlimentacion
+  unidad              UnidadAlimento
+  cantidadMinima      Float?
+  cantidadMaxima      Float?
+  animalesBase        Int?
+  rollosBase          Float?
+  duracionDias        Int?
+  obligatorio         Boolean                 @default(false)
+  observaciones       String?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  regla    ReglaAlimentacion @relation(fields: [reglaAlimentacionId], references: [id], onDelete: Cascade)
+  alimento InsumoAlimentacion @relation(fields: [alimentoId], references: [id], onDelete: Restrict)
+
+  @@unique([reglaAlimentacionId, alimentoId])
+  @@index([reglaAlimentacionId])
+  @@index([alimentoId])
+  @@map("detalles_reglas_alimentacion")
 }
 
 model LoteLeche {
@@ -308,6 +376,7 @@ model RegistroAlimentacion {
   fecha         DateTime
   loteId        Int?
   categoriaAnimal CategoriaAnimal
+  cantidadAnimales Int?
   racionId      Int?
   cantidadKg    Float
   observaciones String?
@@ -336,6 +405,8 @@ model DetalleAlimentacion {
   insumoId       Int
   cantidad       Float
   unidad         String
+  cantidadSugeridaMinima Float?
+  cantidadSugeridaMaxima Float?
   observaciones  String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

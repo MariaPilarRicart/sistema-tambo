@@ -1,69 +1,25 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Boxes, Edit2, Package, Plus, RefreshCcw, Trash2, Wheat, X } from 'lucide-react';
+import { AlertTriangle, Boxes, Eye, Package, RefreshCcw, Save, SlidersHorizontal, Wheat, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import {
-  createRacion,
-  createRegistroAlimentacion,
-  createInsumoAlimentacion,
-  createMovimientoStockAlimentacion,
-  deactivateInsumoAlimentacion,
-  deactivateRacion,
-  getInsumosAlimentacion,
-  getMovimientosStockAlimentacion,
-  getRaciones,
-  getRegistrosAlimentacion,
+  crearMovimientoStock,
+  getHistorialAlimentacion,
+  getMovimientosStock,
   getResumenAlimentacion,
-  getResumenStockAlimentacion,
-  updateInsumoAlimentacion,
-  updateRacion,
+  getStockAlimentacion,
+  getSugerenciaAlimentacion,
+  registrarAlimentacion,
 } from '../services/alimentacionService';
+import { getLotes } from '../services/lotesService';
 import type {
   AlimentacionResumen,
-  InsumoAlimentacion,
-  InsumoAlimentacionFormValues,
+  Alimento,
   MovimientoStockAlimentacion,
-  MovimientoStockAlimentacionFormValues,
-  Racion,
-  RacionFormValues,
   RegistroAlimentacion,
-  RegistroAlimentacionFormValues,
-  StockAlimentacionResumen,
+  SugerenciaAlimentacion,
 } from '../types/alimentacion';
-import type { CategoriaAnimal } from '../types/animales';
 import type { AuthUser } from '../types/auth';
-
-const categoriaOptions: CategoriaAnimal[] = ['GUACHERA', 'ESCUELITA', 'TERNERA', 'VAQUILLONA', 'VACA_PRODUCCION', 'VACA_SECA', 'PREPARTO'];
-
-const emptyRacionForm: RacionFormValues = {
-  nombre: '',
-  descripcion: '',
-  categoriaAnimal: '',
-  activa: true,
-};
-
-const emptyRegistroForm: RegistroAlimentacionFormValues = {
-  fecha: new Date().toISOString().slice(0, 10),
-  categoriaAnimal: '',
-  racionId: '',
-  cantidadKg: '',
-  observaciones: '',
-};
-
-const emptyInsumoForm: InsumoAlimentacionFormValues = {
-  nombre: '',
-  descripcion: '',
-  unidadMedida: 'KG',
-  stockMinimo: '0',
-  activo: true,
-};
-
-const emptyMovimientoStockForm: MovimientoStockAlimentacionFormValues = {
-  fecha: new Date().toISOString().slice(0, 10),
-  insumoId: '',
-  tipoMovimiento: 'ENTRADA',
-  cantidad: '',
-  observaciones: '',
-};
+import type { Lote } from '../types/lotes';
 
 interface FeedPageProps {
   authToken: string | null;
@@ -71,55 +27,66 @@ interface FeedPageProps {
   onUnauthorized: () => void;
 }
 
+type DetalleForm = SugerenciaAlimentacion['detalles'][number] & {
+  cantidadReal: string;
+  observaciones: string;
+};
+
+const today = new Date().toISOString().slice(0, 10);
+const tipoAlimentoOptions = ['', 'SILO', 'BALANCEADO', 'FIBRA', 'SUPLEMENTO', 'SALES', 'OTRO'] as const;
+const unidadOptions = ['', 'KG', 'ROLLO', 'UNIDAD'] as const;
+const estadoOptions = ['TODOS', 'NORMAL', 'BAJO', 'AGOTADO'] as const;
+const movimientoOptions = ['TODOS', 'ENTRADA', 'BAJA', 'CONSUMO', 'MODIFICACION'] as const;
+
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString();
 }
 
-function formatKg(value: number) {
-  return `${Number(value).toLocaleString()} kg`;
+function formatNumber(value: number | null | undefined) {
+  if (value === null || value === undefined) return '-';
+  return Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 
 function formatStock(value: number, unidad: string) {
-  return `${Number(value).toLocaleString()} ${unidad}`;
+  return `${formatNumber(value)} ${unidad}`;
+}
+
+function stockClass(alimento: Alimento) {
+  if (alimento.estado === 'AGOTADO') return 'status-inactive';
+  if (alimento.estado === 'BAJO') return 'status-warning';
+  return alimento.activo ? 'status-active' : 'status-inactive';
 }
 
 export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPageProps) {
-  const [raciones, setRaciones] = useState<Racion[]>([]);
-  const [registros, setRegistros] = useState<RegistroAlimentacion[]>([]);
   const [resumen, setResumen] = useState<AlimentacionResumen | null>(null);
-  const [insumos, setInsumos] = useState<InsumoAlimentacion[]>([]);
-  const [movimientosStock, setMovimientosStock] = useState<MovimientoStockAlimentacion[]>([]);
-  const [resumenStock, setResumenStock] = useState<StockAlimentacionResumen | null>(null);
-  const [racionForm, setRacionForm] = useState<RacionFormValues>(emptyRacionForm);
-  const [registroForm, setRegistroForm] = useState<RegistroAlimentacionFormValues>(emptyRegistroForm);
-  const [insumoForm, setInsumoForm] = useState<InsumoAlimentacionFormValues>(emptyInsumoForm);
-  const [movimientoStockForm, setMovimientoStockForm] =
-    useState<MovimientoStockAlimentacionFormValues>(emptyMovimientoStockForm);
-  const [editingRacion, setEditingRacion] = useState<Racion | null>(null);
-  const [editingInsumo, setEditingInsumo] = useState<InsumoAlimentacion | null>(null);
+  const [lotes, setLotes] = useState<Lote[]>([]);
+  const [stock, setStock] = useState<Alimento[]>([]);
+  const [movimientos, setMovimientos] = useState<MovimientoStockAlimentacion[]>([]);
+  const [historial, setHistorial] = useState<RegistroAlimentacion[]>([]);
+  const [sugerencia, setSugerencia] = useState<SugerenciaAlimentacion | null>(null);
+  const [detalles, setDetalles] = useState<DetalleForm[]>([]);
+  const [selectedDetalle, setSelectedDetalle] = useState<RegistroAlimentacion | null>(null);
+  const [managedAlimento, setManagedAlimento] = useState<Alimento | null>(null);
+  const [fecha, setFecha] = useState(today);
+  const [loteId, setLoteId] = useState('');
+  const [observaciones, setObservaciones] = useState('');
+  const [stockFilters, setStockFilters] = useState({ buscar: '', tipoAlimento: '', unidad: '', estado: 'TODOS', activo: true });
+  const [movFilters, setMovFilters] = useState({ fechaDesde: '', fechaHasta: '', alimentoId: '', tipoMovimiento: 'TODOS', usuarioId: '' });
+  const [histFilters, setHistFilters] = useState({ fechaDesde: '', fechaHasta: '', loteId: '', categoriaAnimal: '', usuarioId: '' });
+  const [movimientoForm, setMovimientoForm] = useState({ tipoMovimiento: 'ENTRADA' as 'ENTRADA' | 'BAJA', cantidad: '', fecha: today, observaciones: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   const isAdmin = currentUser?.role === 'ADMIN';
-  const activeRaciones = useMemo(() => raciones.filter((racion) => racion.activa), [raciones]);
-  const activeInsumos = useMemo(() => insumos.filter((insumo) => insumo.activo), [insumos]);
-  const maxKgByLote = useMemo(
-    () => Math.max(...(resumen?.alimentacionPorCategoria.map((item) => item.totalKg) ?? [1]), 1),
-    [resumen],
-  );
-  const stockTotalRegistrado = useMemo(
-    () => activeInsumos.reduce((total, insumo) => total + insumo.stockActual, 0),
-    [activeInsumos],
-  );
+  const activeLotes = useMemo(() => lotes.filter((lote) => lote.activo), [lotes]);
 
-  function handleRequestError(requestError: unknown, fallback: string) {
+  function handleRequestError(requestError: unknown, fallback = 'No se pudo completar la operación.') {
     if (requestError instanceof ApiError && requestError.statusCode === 401) {
       onUnauthorized();
       return;
     }
-
     setError(requestError instanceof Error ? requestError.message : fallback);
   }
 
@@ -127,31 +94,21 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
     if (!authToken) return;
     setIsLoading(true);
     setError('');
-
     try {
-      const [
-        nextRaciones,
-        nextRegistros,
-        nextResumen,
-        nextInsumos,
-        nextMovimientosStock,
-        nextResumenStock,
-      ] = await Promise.all([
-        getRaciones(authToken),
-        getRegistrosAlimentacion(authToken),
+      const [nextResumen, nextLotes, nextStock, nextMovimientos, nextHistorial] = await Promise.all([
         getResumenAlimentacion(authToken),
-        getInsumosAlimentacion(authToken),
-        getMovimientosStockAlimentacion(authToken),
-        getResumenStockAlimentacion(authToken),
+        getLotes(authToken),
+        getStockAlimentacion(authToken, stockFilters),
+        getMovimientosStock(authToken, movFilters),
+        getHistorialAlimentacion(authToken, histFilters),
       ]);
-      setRaciones(nextRaciones);
-      setRegistros(nextRegistros);
       setResumen(nextResumen);
-      setInsumos(nextInsumos);
-      setMovimientosStock(nextMovimientosStock);
-      setResumenStock(nextResumenStock);
+      setLotes(nextLotes);
+      setStock(nextStock);
+      setMovimientos(nextMovimientos);
+      setHistorial(nextHistorial);
     } catch (loadError) {
-      handleRequestError(loadError, 'No se pudo cargar alimentacion.');
+      handleRequestError(loadError, 'No se pudo cargar alimentación.');
     } finally {
       setIsLoading(false);
     }
@@ -162,156 +119,83 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
-  function resetRacionForm() {
-    setEditingRacion(null);
-    setRacionForm(emptyRacionForm);
-  }
-
-  function startEditingRacion(racion: Racion) {
-    setEditingRacion(racion);
-    setRacionForm({
-      nombre: racion.nombre,
-      descripcion: racion.descripcion ?? '',
-      categoriaAnimal: racion.categoriaAnimal ?? '',
-      activa: racion.activa,
-    });
+  async function loadSugerencia(nextLoteId = loteId, nextFecha = fecha) {
+    if (!authToken || !nextLoteId) {
+      setSugerencia(null);
+      setDetalles([]);
+      return;
+    }
     setError('');
-    setSuccess('');
+    try {
+      const next = await getSugerenciaAlimentacion(authToken, Number(nextLoteId), nextFecha);
+      setSugerencia(next);
+      setDetalles(next.detalles.map((detalle) => ({
+        ...detalle,
+        cantidadReal: detalle.cantidadSugeridaMaxima !== null ? String(Number(detalle.cantidadSugeridaMaxima.toFixed(2))) : '',
+        observaciones: '',
+      })));
+    } catch (sugerenciaError) {
+      handleRequestError(sugerenciaError, 'No se pudo calcular la sugerencia.');
+    }
   }
 
-  function resetInsumoForm() {
-    setEditingInsumo(null);
-    setInsumoForm(emptyInsumoForm);
-  }
-
-  function startEditingInsumo(insumo: InsumoAlimentacion) {
-    setEditingInsumo(insumo);
-    setInsumoForm({
-      nombre: insumo.nombre,
-      descripcion: insumo.descripcion ?? '',
-      unidadMedida: insumo.unidadMedida,
-      stockMinimo: String(insumo.stockMinimo),
-      activo: insumo.activo,
-    });
-    setError('');
-    setSuccess('');
-  }
-
-  async function handleRacionSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleRegistrar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!authToken) return onUnauthorized();
+    if (!sugerencia?.categoriaPredominante) {
+      setError('Seleccioná un lote con animales activos antes de guardar.');
+      return;
+    }
     setIsSaving(true);
     setError('');
     setSuccess('');
-
     try {
-      if (editingRacion) {
-        await updateRacion(authToken, editingRacion.id, racionForm);
-        setSuccess('Racion actualizada correctamente.');
-      } else {
-        await createRacion(authToken, racionForm);
-        setSuccess('Racion creada correctamente.');
-      }
-      resetRacionForm();
+      await registrarAlimentacion(authToken, {
+        fecha,
+        loteId: Number(loteId),
+        categoriaAnimal: sugerencia.categoriaPredominante,
+        cantidadAnimales: sugerencia.cantidadAnimales,
+        observaciones: observaciones.trim() || null,
+        detalles: detalles.map((detalle) => ({
+          alimentoId: detalle.alimentoId,
+          unidad: detalle.unidad,
+          cantidadSugeridaMinima: detalle.cantidadSugeridaMinima,
+          cantidadSugeridaMaxima: detalle.cantidadSugeridaMaxima,
+          cantidadReal: Number(detalle.cantidadReal || 0),
+          observaciones: detalle.observaciones.trim() || null,
+        })),
+      });
+      setSuccess('Alimentación registrada correctamente.');
+      setObservaciones('');
+      await loadSugerencia();
       await loadData();
     } catch (saveError) {
-      handleRequestError(saveError, 'No se pudo guardar la racion.');
+      handleRequestError(saveError, 'No se pudo registrar la alimentación.');
     } finally {
       setIsSaving(false);
     }
   }
 
-  async function handleDeactivateRacion(racion: Racion) {
-    if (!authToken) return onUnauthorized();
-    setIsSaving(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      await deactivateRacion(authToken, racion.id);
-      setSuccess('Racion dada de baja correctamente.');
-      await loadData();
-    } catch (deleteError) {
-      handleRequestError(deleteError, 'No se pudo dar de baja la racion.');
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleRegistroSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleMovimientoStock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!authToken) return onUnauthorized();
+    if (!managedAlimento) return;
     setIsSaving(true);
     setError('');
     setSuccess('');
-
     try {
-      await createRegistroAlimentacion(authToken, registroForm);
-      setRegistroForm(emptyRegistroForm);
-      setSuccess('Alimentacion registrada correctamente.');
-      await loadData();
-    } catch (saveError) {
-      handleRequestError(saveError, 'No se pudo registrar la alimentacion.');
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleInsumoSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!authToken) return onUnauthorized();
-    setIsSaving(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      if (editingInsumo) {
-        await updateInsumoAlimentacion(authToken, editingInsumo.id, insumoForm);
-        setSuccess('Insumo actualizado correctamente.');
-      } else {
-        await createInsumoAlimentacion(authToken, insumoForm);
-        setSuccess('Insumo creado correctamente.');
-      }
-      resetInsumoForm();
-      await loadData();
-    } catch (saveError) {
-      handleRequestError(saveError, 'No se pudo guardar el insumo.');
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleDeactivateInsumo(insumo: InsumoAlimentacion) {
-    if (!authToken) return onUnauthorized();
-    setIsSaving(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      await deactivateInsumoAlimentacion(authToken, insumo.id);
-      setSuccess('Insumo dado de baja correctamente.');
-      await loadData();
-    } catch (deleteError) {
-      handleRequestError(deleteError, 'No se pudo dar de baja el insumo.');
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleMovimientoStockSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!authToken) return onUnauthorized();
-    setIsSaving(true);
-    setError('');
-    setSuccess('');
-
-    try {
-      await createMovimientoStockAlimentacion(authToken, movimientoStockForm);
-      setMovimientoStockForm(emptyMovimientoStockForm);
+      await crearMovimientoStock(authToken, managedAlimento.id, {
+        tipoMovimiento: movimientoForm.tipoMovimiento,
+        cantidad: Number(movimientoForm.cantidad),
+        fecha: movimientoForm.fecha,
+        observaciones: movimientoForm.observaciones.trim() || null,
+      });
       setSuccess('Movimiento de stock registrado correctamente.');
+      setManagedAlimento(null);
+      setMovimientoForm({ tipoMovimiento: 'ENTRADA', cantidad: '', fecha: today, observaciones: '' });
       await loadData();
     } catch (saveError) {
-      handleRequestError(saveError, 'No se pudo registrar el movimiento de stock.');
+      handleRequestError(saveError, 'No se pudo registrar el movimiento.');
     } finally {
       setIsSaving(false);
     }
@@ -321,10 +205,10 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
     <div className="settings-page">
       <section className="settings-header">
         <div>
-          <h2>Alimentacion</h2>
-          <p>Raciones, entregas por categoría e historial operativo.</p>
+          <h2>Alimentación</h2>
+          <p>Registro diario por lote, stock e historial operativo.</p>
         </div>
-        <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar alimentacion">
+        <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar alimentación">
           <RefreshCcw size={18} />
         </button>
       </section>
@@ -333,487 +217,149 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
       {success && <div className="form-success">{success}</div>}
 
       <div className="operative-summary-grid">
-        <article className="metric-card operative-card">
-          <div className="metric-icon metric-icon-emerald"><Wheat size={20} /></div>
-          <p className="metric-title">Kg entregados</p>
-          <strong className="metric-value">{formatKg(resumen?.totalKgEntregados ?? 0)}</strong>
-        </article>
-        <article className="metric-card operative-card">
-          <div className="metric-icon metric-icon-blue"><Wheat size={20} /></div>
-          <p className="metric-title">Registros de hoy</p>
-          <strong className="metric-value">{resumen?.registrosHoy ?? 0}</strong>
-        </article>
-        <article className="metric-card operative-card">
-          <div className="metric-icon metric-icon-indigo"><Wheat size={20} /></div>
-          <p className="metric-title">Raciones activas</p>
-          <strong className="metric-value">{resumen?.racionesActivas ?? 0}</strong>
-        </article>
-        <article className="metric-card operative-card">
-          <div className="metric-icon metric-icon-amber"><Wheat size={20} /></div>
-          <p className="metric-title">Categorías alimentadas</p>
-          <strong className="metric-value">{resumen?.categoriasAlimentadas ?? 0}</strong>
-        </article>
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-blue"><Wheat size={20} /></div><p className="metric-title">Alimentaciones hoy</p><strong className="metric-value">{resumen?.alimentacionesRegistradasHoy ?? 0}</strong></article>
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-emerald"><Boxes size={20} /></div><p className="metric-title">Lotes alimentados</p><strong className="metric-value">{resumen?.lotesAlimentadosHoy ?? 0}</strong></article>
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-amber"><AlertTriangle size={20} /></div><p className="metric-title">Stock bajo</p><strong className="metric-value">{resumen?.insumosStockBajo ?? 0}</strong></article>
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-indigo"><Package size={20} /></div><p className="metric-title">Agotados</p><strong className="metric-value">{resumen?.insumosAgotados ?? 0}</strong></article>
       </div>
 
-      <div className="feed-grid">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Raciones</h2>
-              <p>{isAdmin ? 'Alta, edicion y baja logica.' : 'Consulta de raciones.'}</p>
-            </div>
-            {editingRacion && (
-              <button type="button" className="icon-button" onClick={resetRacionForm} aria-label="Cancelar edicion">
-                <X size={18} />
-              </button>
-            )}
-          </div>
-
-          {isAdmin && (
-            <form className="user-form" onSubmit={handleRacionSubmit}>
-              <label>
-                <span>Categoría animal</span>
-                <select value={racionForm.categoriaAnimal} onChange={(event) => setRacionForm({ ...racionForm, categoriaAnimal: event.target.value as RacionFormValues['categoriaAnimal'] })}>
-                  <option value="">Sin categoría fija</option>
-                  {categoriaOptions.map((categoriaAnimal) => <option key={categoriaAnimal} value={categoriaAnimal}>{categoriaAnimal}</option>)}
-                </select>
-              </label>
-              <label>
-                <span>Nombre</span>
-                <input
-                  value={racionForm.nombre}
-                  onChange={(event) => setRacionForm({ ...racionForm, nombre: event.target.value })}
-                  required
-                />
-              </label>
-              <label>
-                <span>Descripcion</span>
-                <input
-                  value={racionForm.descripcion}
-                  onChange={(event) => setRacionForm({ ...racionForm, descripcion: event.target.value })}
-                />
-              </label>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={racionForm.activa}
-                  onChange={(event) => setRacionForm({ ...racionForm, activa: event.target.checked })}
-                />
-                <span>Racion activa</span>
-              </label>
-              <button type="submit" className="primary-button" disabled={isSaving}>
-                <Plus size={18} />
-                {isSaving ? 'Guardando...' : editingRacion ? 'Guardar racion' : 'Crear racion'}
-              </button>
-            </form>
-          )}
-
-          <div className="table-wrap feed-table-wrap">
+      <section className="panel">
+        <div className="panel-header"><div><h2>Registrar alimentación</h2><p>Lote diario con sugerencia calculada desde reglas activas.</p></div></div>
+        <form className="user-form feed-registration-form" onSubmit={handleRegistrar}>
+          <label><span>Fecha</span><input type="date" value={fecha} onChange={(event) => { setFecha(event.target.value); void loadSugerencia(loteId, event.target.value); }} required /></label>
+          <label><span>Lote</span><select value={loteId} onChange={(event) => { setLoteId(event.target.value); void loadSugerencia(event.target.value, fecha); }} required><option value="">Seleccionar lote</option>{activeLotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}</select></label>
+          <label><span>Categoría predominante</span><input value={sugerencia?.categoriaPredominante ?? ''} readOnly /></label>
+          <label><span>Cantidad de animales</span><input value={sugerencia?.cantidadAnimales ?? ''} readOnly /></label>
+          <label><span>Responsable</span><input value={currentUser?.name ?? ''} readOnly /></label>
+          <label className="form-wide"><span>Observaciones generales</span><textarea rows={2} value={observaciones} onChange={(event) => setObservaciones(event.target.value)} /></label>
+          {sugerencia?.advertencia && <div className="form-error form-wide">{sugerencia.advertencia}</div>}
+          <div className="table-wrap form-wide">
             <table className="users-table">
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Alimento</th><th>Tipo</th><th>Unidad</th><th>Sug. mínima</th><th>Sug. máxima</th><th>Real entregada</th><th>Stock</th><th>Observaciones</th></tr></thead>
               <tbody>
-                {raciones.map((racion) => (
-                  <tr key={racion.id}>
-                    <td><strong>{racion.nombre}</strong><span>{racion.descripcion || 'Sin descripcion'}</span></td>
-                    <td><span className={`status-pill ${racion.activa ? 'status-active' : 'status-inactive'}`}>{racion.activa ? 'ACTIVA' : 'INACTIVA'}</span></td>
-                    <td>
-                      {isAdmin && (
-                        <div className="table-actions">
-                          <button type="button" onClick={() => startEditingRacion(racion)} aria-label={`Editar ${racion.nombre}`}><Edit2 size={16} /></button>
-                          <button type="button" onClick={() => void handleDeactivateRacion(racion)} disabled={!racion.activa} aria-label={`Dar de baja ${racion.nombre}`}><Trash2 size={16} /></button>
-                        </div>
-                      )}
-                    </td>
+                {detalles.map((detalle, index) => (
+                  <tr key={detalle.reglaId}>
+                    <td><strong>{detalle.alimento}</strong>{detalle.obligatorio && <span>Obligatorio</span>}</td>
+                    <td>{detalle.tipoAlimento}</td>
+                    <td>{detalle.unidad}</td>
+                    <td>{formatStock(detalle.cantidadSugeridaMinima ?? 0, detalle.unidad)}</td>
+                    <td>{formatStock(detalle.cantidadSugeridaMaxima ?? 0, detalle.unidad)}</td>
+                    <td><input className="table-input" type="number" min="0" step="0.01" value={detalle.cantidadReal} onChange={(event) => setDetalles((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, cantidadReal: event.target.value } : item))} /></td>
+                    <td>{formatStock(detalle.stockDisponible, detalle.unidad)}</td>
+                    <td><input className="table-input" value={detalle.observaciones} onChange={(event) => setDetalles((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, observaciones: event.target.value } : item))} /></td>
                   </tr>
                 ))}
-                {raciones.length === 0 && <tr><td colSpan={3}>Sin raciones cargadas.</td></tr>}
+                {detalles.length === 0 && <tr><td colSpan={8}>Seleccioná un lote para calcular la dieta sugerida.</td></tr>}
               </tbody>
             </table>
           </div>
-        </section>
-
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Registrar alimentacion</h2>
-              <p>Entrega de alimento por categoría productiva.</p>
-            </div>
-          </div>
-          <form className="user-form" onSubmit={handleRegistroSubmit}>
-            <label>
-              <span>Fecha</span>
-              <input type="date" value={registroForm.fecha} onChange={(event) => setRegistroForm({ ...registroForm, fecha: event.target.value })} required />
-            </label>
-            <label>
-              <span>Categoría animal</span>
-              <select value={registroForm.categoriaAnimal} onChange={(event) => setRegistroForm({ ...registroForm, categoriaAnimal: event.target.value as RegistroAlimentacionFormValues['categoriaAnimal'] })} required>
-                <option value="">Seleccionar categoría</option>
-                {categoriaOptions.map((categoriaAnimal) => <option key={categoriaAnimal} value={categoriaAnimal}>{categoriaAnimal}</option>)}
-              </select>
-            </label>
-            <label>
-              <span>Racion</span>
-              <select value={registroForm.racionId} onChange={(event) => setRegistroForm({ ...registroForm, racionId: event.target.value })} required>
-                <option value="">Seleccionar racion</option>
-                {activeRaciones.map((racion) => <option key={racion.id} value={racion.id}>{racion.nombre}</option>)}
-              </select>
-            </label>
-            <label>
-              <span>Cantidad kg</span>
-              <input type="number" min="0.01" step="0.01" value={registroForm.cantidadKg} onChange={(event) => setRegistroForm({ ...registroForm, cantidadKg: event.target.value })} required />
-            </label>
-            <label>
-              <span>Observaciones</span>
-              <textarea value={registroForm.observaciones} onChange={(event) => setRegistroForm({ ...registroForm, observaciones: event.target.value })} rows={4} />
-            </label>
-            <button type="submit" className="primary-button" disabled={isSaving || activeRaciones.length === 0}>
-              <Wheat size={18} />
-              {isSaving ? 'Registrando...' : 'Registrar alimentacion'}
-            </button>
-          </form>
-        </section>
-      </div>
-
-      <section className="settings-header stock-header">
-        <div>
-          <h2>Stock de alimentos</h2>
-          <p>Insumos, movimientos y alertas de bajo stock.</p>
-        </div>
-      </section>
-
-      <div className="operative-summary-grid">
-        <article className="metric-card operative-card">
-          <div className="metric-icon metric-icon-emerald"><Package size={20} /></div>
-          <p className="metric-title">Insumos activos</p>
-          <strong className="metric-value">{resumenStock?.totalInsumosActivos ?? 0}</strong>
-        </article>
-        <article className="metric-card operative-card">
-          <div className="metric-icon metric-icon-amber"><AlertTriangle size={20} /></div>
-          <p className="metric-title">Bajo stock</p>
-          <strong className="metric-value">{resumenStock?.insumosBajoStock.length ?? 0}</strong>
-        </article>
-        <article className="metric-card operative-card">
-          <div className="metric-icon metric-icon-blue"><Boxes size={20} /></div>
-          <p className="metric-title">Movimientos de hoy</p>
-          <strong className="metric-value">{resumenStock?.movimientosHoy ?? 0}</strong>
-        </article>
-        <article className="metric-card operative-card">
-          <div className="metric-icon metric-icon-indigo"><Package size={20} /></div>
-          <p className="metric-title">Stock total registrado</p>
-          <strong className="metric-value">{Number(stockTotalRegistrado).toLocaleString()}</strong>
-        </article>
-      </div>
-
-      <div className="feed-grid">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Insumos</h2>
-              <p>{isAdmin ? 'Alta, edicion y baja logica.' : 'Consulta de insumos.'}</p>
-            </div>
-            {editingInsumo && (
-              <button type="button" className="icon-button" onClick={resetInsumoForm} aria-label="Cancelar edicion de insumo">
-                <X size={18} />
-              </button>
-            )}
-          </div>
-
-          {isAdmin && (
-            <form className="user-form" onSubmit={handleInsumoSubmit}>
-              <label>
-                <span>Nombre</span>
-                <input
-                  value={insumoForm.nombre}
-                  onChange={(event) => setInsumoForm({ ...insumoForm, nombre: event.target.value })}
-                  required
-                />
-              </label>
-              <label>
-                <span>Descripcion</span>
-                <input
-                  value={insumoForm.descripcion}
-                  onChange={(event) => setInsumoForm({ ...insumoForm, descripcion: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Unidad de medida</span>
-                <select
-                  value={insumoForm.unidadMedida}
-                  onChange={(event) => setInsumoForm({ ...insumoForm, unidadMedida: event.target.value })}
-                  required
-                >
-                  <option value="KG">KG</option>
-                  <option value="BOLSA">BOLSA</option>
-                  <option value="LITRO">LITRO</option>
-                  <option value="UNIDAD">UNIDAD</option>
-                </select>
-              </label>
-              <label>
-                <span>Stock minimo</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={insumoForm.stockMinimo}
-                  onChange={(event) => setInsumoForm({ ...insumoForm, stockMinimo: event.target.value })}
-                  required
-                />
-              </label>
-              <label className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={insumoForm.activo}
-                  onChange={(event) => setInsumoForm({ ...insumoForm, activo: event.target.checked })}
-                />
-                <span>Insumo activo</span>
-              </label>
-              <button type="submit" className="primary-button" disabled={isSaving}>
-                <Plus size={18} />
-                {isSaving ? 'Guardando...' : editingInsumo ? 'Guardar insumo' : 'Crear insumo'}
-              </button>
-            </form>
-          )}
-        </section>
-
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Registrar movimiento de stock</h2>
-              <p>Entradas, consumos y ajustes de inventario.</p>
-            </div>
-          </div>
-          <form className="user-form" onSubmit={handleMovimientoStockSubmit}>
-            <label>
-              <span>Fecha</span>
-              <input
-                type="date"
-                value={movimientoStockForm.fecha}
-                onChange={(event) => setMovimientoStockForm({ ...movimientoStockForm, fecha: event.target.value })}
-                required
-              />
-            </label>
-            <label>
-              <span>Insumo</span>
-              <select
-                value={movimientoStockForm.insumoId}
-                onChange={(event) => setMovimientoStockForm({ ...movimientoStockForm, insumoId: event.target.value })}
-                required
-              >
-                <option value="">Seleccionar insumo</option>
-                {activeInsumos.map((insumo) => (
-                  <option key={insumo.id} value={insumo.id}>
-                    {insumo.nombre} ({formatStock(insumo.stockActual, insumo.unidadMedida)})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Tipo de movimiento</span>
-              <select
-                value={movimientoStockForm.tipoMovimiento}
-                onChange={(event) =>
-                  setMovimientoStockForm({
-                    ...movimientoStockForm,
-                    tipoMovimiento: event.target.value as MovimientoStockAlimentacionFormValues['tipoMovimiento'],
-                  })
-                }
-                required
-              >
-                <option value="ENTRADA">Entrada</option>
-                <option value="CONSUMO">Consumo</option>
-                <option value="AJUSTE">Ajuste de stock final</option>
-              </select>
-            </label>
-            <label>
-              <span>{movimientoStockForm.tipoMovimiento === 'AJUSTE' ? 'Stock final' : 'Cantidad'}</span>
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={movimientoStockForm.cantidad}
-                onChange={(event) => setMovimientoStockForm({ ...movimientoStockForm, cantidad: event.target.value })}
-                required
-              />
-            </label>
-            <label>
-              <span>Observaciones</span>
-              <textarea
-                value={movimientoStockForm.observaciones}
-                onChange={(event) =>
-                  setMovimientoStockForm({ ...movimientoStockForm, observaciones: event.target.value })
-                }
-                rows={4}
-              />
-            </label>
-            <button type="submit" className="primary-button" disabled={isSaving || activeInsumos.length === 0}>
-              <Boxes size={18} />
-              {isSaving ? 'Registrando...' : 'Registrar movimiento'}
-            </button>
-          </form>
-        </section>
-      </div>
-
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Stock actual</h2>
-            <p>{insumos.length} insumos cargados.</p>
-          </div>
-        </div>
-        <div className="table-wrap">
-          <table className="users-table">
-            <thead>
-              <tr>
-                <th>Insumo</th>
-                <th>Unidad</th>
-                <th>Stock actual</th>
-                <th>Stock minimo</th>
-                <th>Estado</th>
-                <th>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {insumos.map((insumo) => {
-                const bajoStock = insumo.activo && insumo.stockActual <= insumo.stockMinimo;
-                return (
-                  <tr key={insumo.id} className={bajoStock ? 'stock-low-row' : undefined}>
-                    <td><strong>{insumo.nombre}</strong><span>{insumo.descripcion || 'Sin descripcion'}</span></td>
-                    <td>{insumo.unidadMedida}</td>
-                    <td>{formatStock(insumo.stockActual, insumo.unidadMedida)}</td>
-                    <td>{formatStock(insumo.stockMinimo, insumo.unidadMedida)}</td>
-                    <td>
-                      <span className={`status-pill ${bajoStock ? 'status-warning' : insumo.activo ? 'status-active' : 'status-inactive'}`}>
-                        {!insumo.activo ? 'INACTIVO' : bajoStock ? 'BAJO STOCK' : 'NORMAL'}
-                      </span>
-                    </td>
-                    <td>
-                      {isAdmin && (
-                        <div className="table-actions">
-                          <button type="button" onClick={() => startEditingInsumo(insumo)} aria-label={`Editar ${insumo.nombre}`}>
-                            <Edit2 size={16} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleDeactivateInsumo(insumo)}
-                            disabled={!insumo.activo}
-                            aria-label={`Dar de baja ${insumo.nombre}`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-              {insumos.length === 0 && <tr><td colSpan={6}>Sin insumos cargados.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+          <button type="submit" className="primary-button" disabled={isSaving || detalles.length === 0}><Save size={18} />{isSaving ? 'Guardando...' : 'Registrar alimentación'}</button>
+        </form>
       </section>
 
       <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Movimientos de stock</h2>
-            <p>{movimientosStock.length} movimientos registrados.</p>
-          </div>
+        <div className="panel-header"><div><h2>Stock actual de alimentos</h2><p>{stock.length} alimentos listados.</p></div><SlidersHorizontal size={18} /></div>
+        <div className="filters-grid">
+          <input placeholder="Buscar alimento" value={stockFilters.buscar} onChange={(event) => setStockFilters({ ...stockFilters, buscar: event.target.value })} />
+          <select value={stockFilters.tipoAlimento} onChange={(event) => setStockFilters({ ...stockFilters, tipoAlimento: event.target.value })}>{tipoAlimentoOptions.map((option) => <option key={option} value={option}>{option || 'Tipo'}</option>)}</select>
+          <select value={stockFilters.unidad} onChange={(event) => setStockFilters({ ...stockFilters, unidad: event.target.value })}>{unidadOptions.map((option) => <option key={option} value={option}>{option || 'Unidad'}</option>)}</select>
+          <select value={stockFilters.estado} onChange={(event) => setStockFilters({ ...stockFilters, estado: event.target.value })}>{estadoOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+          <label className="checkbox-row"><input type="checkbox" checked={stockFilters.activo} onChange={(event) => setStockFilters({ ...stockFilters, activo: event.target.checked })} /><span>Solo activos</span></label>
+          <button type="button" className="secondary-button" onClick={() => void loadData()}>Filtrar</button>
         </div>
         <div className="table-wrap">
           <table className="users-table">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Insumo</th>
-                <th>Tipo</th>
-                <th>Cantidad</th>
-                <th>Usuario</th>
-                <th>Observaciones</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Tipo</th><th>Insumo</th><th>Unidad</th><th>Stock actual</th><th>Punto mínimo</th><th>Estado</th><th>Acciones</th></tr></thead>
             <tbody>
-              {movimientosStock.map((movimiento) => (
-                <tr key={movimiento.id}>
-                  <td>{formatDate(movimiento.fecha)}</td>
-                  <td>{movimiento.insumo.nombre}</td>
-                  <td>{movimiento.tipoMovimiento}</td>
-                  <td>{formatStock(movimiento.cantidad, movimiento.insumo.unidadMedida)}</td>
-                  <td>{movimiento.usuario?.nombre ?? '-'}</td>
-                  <td>{movimiento.observaciones || '-'}</td>
+              {stock.map((alimento) => (
+                <tr key={alimento.id}>
+                  <td>{alimento.tipoAlimento}</td>
+                  <td><strong>{alimento.nombre}</strong><span>{alimento.descripcion || '-'}</span></td>
+                  <td>{alimento.unidadMedida}</td>
+                  <td>{formatStock(alimento.stockActual, alimento.unidadMedida)}</td>
+                  <td>{formatStock(alimento.stockMinimo, alimento.unidadMedida)}</td>
+                  <td><span className={`status-pill ${stockClass(alimento)}`}>{alimento.estado ?? 'NORMAL'}</span></td>
+                  <td>{isAdmin ? <button type="button" className="secondary-button" onClick={() => setManagedAlimento(alimento)}>Gestionar</button> : '-'}</td>
                 </tr>
               ))}
-              {movimientosStock.length === 0 && <tr><td colSpan={6}>Sin movimientos de stock.</td></tr>}
+              {stock.length === 0 && <tr><td colSpan={7}>Sin alimentos para mostrar.</td></tr>}
             </tbody>
           </table>
         </div>
       </section>
 
       <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Resumen por categoría</h2>
-            <p>Kg entregados acumulados.</p>
-          </div>
+        <div className="panel-header"><div><h2>Movimientos de stock</h2><p>{movimientos.length} movimientos encontrados.</p></div></div>
+        <div className="filters-grid">
+          <input type="date" value={movFilters.fechaDesde} onChange={(event) => setMovFilters({ ...movFilters, fechaDesde: event.target.value })} />
+          <input type="date" value={movFilters.fechaHasta} onChange={(event) => setMovFilters({ ...movFilters, fechaHasta: event.target.value })} />
+          <select value={movFilters.alimentoId} onChange={(event) => setMovFilters({ ...movFilters, alimentoId: event.target.value })}><option value="">Alimento</option>{stock.map((alimento) => <option key={alimento.id} value={alimento.id}>{alimento.nombre}</option>)}</select>
+          <select value={movFilters.tipoMovimiento} onChange={(event) => setMovFilters({ ...movFilters, tipoMovimiento: event.target.value })}>{movimientoOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+          <input placeholder="Usuario ID" value={movFilters.usuarioId} onChange={(event) => setMovFilters({ ...movFilters, usuarioId: event.target.value })} />
+          <button type="button" className="secondary-button" onClick={() => void loadData()}>Filtrar</button>
         </div>
-        <div className="compact-bars">
-          {(resumen?.alimentacionPorCategoria ?? []).map((item) => (
-            <div className="compact-bar-row" key={item.categoriaAnimal}>
-              <div className="compact-bar-label">
-                <strong>{item.nombre}</strong>
-                <span>{formatKg(item.totalKg)}</span>
-              </div>
-              <div className="compact-bar-track" aria-hidden="true">
-                <span style={{ width: `${(item.totalKg / Math.max(maxKgByLote, 1)) * 100}%` }} />
-              </div>
-            </div>
-          ))}
-          {(!resumen || resumen.alimentacionPorCategoria.length === 0) && <p className="table-empty">Sin datos para mostrar.</p>}
+        <div className="table-wrap">
+          <table className="users-table">
+            <thead><tr><th>Fecha</th><th>Insumo</th><th>Tipo</th><th>Cantidad</th><th>Unidad</th><th>Usuario</th><th>Observaciones</th></tr></thead>
+            <tbody>
+              {movimientos.map((movimiento) => <tr key={movimiento.id}><td>{formatDate(movimiento.fecha)}</td><td>{movimiento.insumo.nombre}</td><td>{movimiento.tipoMovimiento}</td><td>{formatNumber(movimiento.cantidad)}</td><td>{movimiento.insumo.unidadMedida}</td><td>{movimiento.usuario?.nombre ?? '-'}</td><td>{movimiento.observaciones || '-'}</td></tr>)}
+              {movimientos.length === 0 && <tr><td colSpan={7}>Sin movimientos.</td></tr>}
+            </tbody>
+          </table>
         </div>
       </section>
 
       <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Historial de alimentacion</h2>
-            <p>{registros.length} registros cargados.</p>
-          </div>
+        <div className="panel-header"><div><h2>Historial de alimentación</h2><p>{historial.length} alimentaciones registradas.</p></div></div>
+        <div className="filters-grid">
+          <input type="date" value={histFilters.fechaDesde} onChange={(event) => setHistFilters({ ...histFilters, fechaDesde: event.target.value })} />
+          <input type="date" value={histFilters.fechaHasta} onChange={(event) => setHistFilters({ ...histFilters, fechaHasta: event.target.value })} />
+          <select value={histFilters.loteId} onChange={(event) => setHistFilters({ ...histFilters, loteId: event.target.value })}><option value="">Lote</option>{lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}</select>
+          <input placeholder="Categoría" value={histFilters.categoriaAnimal} onChange={(event) => setHistFilters({ ...histFilters, categoriaAnimal: event.target.value })} />
+          <input placeholder="Usuario ID" value={histFilters.usuarioId} onChange={(event) => setHistFilters({ ...histFilters, usuarioId: event.target.value })} />
+          <button type="button" className="secondary-button" onClick={() => void loadData()}>Filtrar</button>
         </div>
-        {isLoading ? <p className="table-empty">Cargando alimentacion...</p> : (
+        {isLoading ? <p className="table-empty">Cargando alimentación...</p> : (
           <div className="table-wrap">
             <table className="users-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Categoría</th>
-                  <th>Racion</th>
-                  <th>Kg</th>
-                  <th>Usuario</th>
-                  <th>Observaciones</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Fecha</th><th>Lote</th><th>Categoría</th><th>Animales</th><th>Usuario</th><th>Total</th><th>Acciones</th></tr></thead>
               <tbody>
-                {registros.map((registro) => (
-                  <tr key={registro.id}>
-                    <td>{formatDate(registro.fecha)}</td>
-                    <td>{registro.categoriaAnimal}</td>
-                    <td>{registro.racion.nombre}</td>
-                    <td>{formatKg(registro.cantidadKg)}</td>
-                    <td>{registro.usuario?.nombre ?? '-'}</td>
-                    <td>{registro.observaciones || '-'}</td>
-                  </tr>
-                ))}
-                {registros.length === 0 && <tr><td colSpan={6}>Sin registros de alimentacion.</td></tr>}
+                {historial.map((registro) => <tr key={registro.id}><td>{formatDate(registro.fecha)}</td><td>{registro.lote?.nombre ?? '-'}</td><td>{registro.categoriaAnimal}</td><td>{registro.cantidadAnimales ?? '-'}</td><td>{registro.usuario?.nombre ?? '-'}</td><td>{registro.detalles.length} insumos</td><td><button type="button" className="icon-button" onClick={() => setSelectedDetalle(registro)} aria-label="Ver detalle"><Eye size={16} /></button></td></tr>)}
+                {historial.length === 0 && <tr><td colSpan={7}>Sin registros de alimentación.</td></tr>}
               </tbody>
             </table>
           </div>
         )}
       </section>
+
+      {managedAlimento && (
+        <div className="modal-backdrop">
+          <section className="panel modal-panel">
+            <div className="panel-header"><div><h2>Gestionar alimento / insumo</h2><p>{managedAlimento.nombre}</p></div><button type="button" className="icon-button" onClick={() => setManagedAlimento(null)}><X size={18} /></button></div>
+            <form className="user-form" onSubmit={handleMovimientoStock}>
+              <label><span>Acción</span><select value={movimientoForm.tipoMovimiento} onChange={(event) => setMovimientoForm({ ...movimientoForm, tipoMovimiento: event.target.value as 'ENTRADA' | 'BAJA' })}><option value="ENTRADA">Alta de stock</option><option value="BAJA">Baja de stock</option></select></label>
+              <label><span>Cantidad</span><input type="number" min="0.01" step="0.01" value={movimientoForm.cantidad} onChange={(event) => setMovimientoForm({ ...movimientoForm, cantidad: event.target.value })} required /></label>
+              <label><span>Fecha</span><input type="date" value={movimientoForm.fecha} onChange={(event) => setMovimientoForm({ ...movimientoForm, fecha: event.target.value })} required /></label>
+              <label><span>Observaciones</span><textarea rows={3} value={movimientoForm.observaciones} onChange={(event) => setMovimientoForm({ ...movimientoForm, observaciones: event.target.value })} /></label>
+              <button type="submit" className="primary-button" disabled={isSaving}><Save size={18} />Guardar movimiento</button>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {selectedDetalle && (
+        <div className="modal-backdrop">
+          <section className="panel modal-panel modal-panel-wide">
+            <div className="panel-header"><div><h2>Detalle de alimentación</h2><p>{formatDate(selectedDetalle.fecha)} · {selectedDetalle.lote?.nombre ?? '-'}</p></div><button type="button" className="icon-button" onClick={() => setSelectedDetalle(null)}><X size={18} /></button></div>
+            <div className="table-wrap">
+              <table className="users-table">
+                <thead><tr><th>Alimento</th><th>Sug. mínima</th><th>Sug. máxima</th><th>Real entregada</th><th>Unidad</th><th>Observaciones</th></tr></thead>
+                <tbody>{selectedDetalle.detalles.map((detalle) => <tr key={detalle.id}><td>{detalle.insumo.nombre}</td><td>{formatNumber(detalle.cantidadSugeridaMinima)}</td><td>{formatNumber(detalle.cantidadSugeridaMaxima)}</td><td>{formatNumber(detalle.cantidad)}</td><td>{detalle.unidad}</td><td>{detalle.observaciones || '-'}</td></tr>)}</tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

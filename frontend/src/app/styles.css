@@ -1194,6 +1194,56 @@ a {
   margin-top: 18px;
 }
 
+.feed-registration-form {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.form-wide {
+  grid-column: 1 / -1;
+}
+
+.filters-grid {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
+  margin-bottom: 16px;
+}
+
+.filters-grid input,
+.filters-grid select {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  color: var(--slate-800);
+  outline: none;
+  padding: 10px 12px;
+}
+
+.table-input {
+  background: #ffffff;
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  color: var(--slate-800);
+  min-width: 110px;
+  padding: 8px 10px;
+  width: 100%;
+}
+
+.modal-panel-wide {
+  max-width: 900px;
+}
+
+.panel-header-spaced {
+  border-top: 1px solid var(--slate-100);
+  margin-top: 24px;
+  padding-top: 24px;
+}
+
+.settings-secondary-table {
+  margin-top: 20px;
+}
+
 .vaccination-mode-selector,
 .animal-selector,
 .vaccination-selection-panel,
@@ -1853,11 +1903,13 @@ a {
   .dashboard-distribution-grid,
   .dashboard-bottom-grid,
   .feed-grid,
+  .feed-registration-form,
   .settings-grid {
     grid-template-columns: 1fr;
   }
 
-  .filters-form {
+  .filters-form,
+  .filters-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -1893,7 +1945,8 @@ a {
     grid-template-columns: 1fr;
   }
 
-  .filters-form {
+  .filters-form,
+  .filters-grid {
     grid-template-columns: 1fr;
   }
 
