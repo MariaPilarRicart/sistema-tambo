@@ -14,6 +14,7 @@ import {
   TipoTarea,
   TurnoOrdene,
 } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -50,6 +51,13 @@ const raciones = [
 function daysFromToday(days: number) {
   const date = new Date();
   date.setDate(date.getDate() + days);
+  date.setHours(9, 0, 0, 0);
+  return date;
+}
+
+function monthsFromToday(months: number) {
+  const date = new Date();
+  date.setMonth(date.getMonth() + months);
   date.setHours(9, 0, 0, 0);
   return date;
 }
@@ -248,6 +256,100 @@ async function seedAgendaEventos(usuarioId: number) {
   }
 }
 
+type SeedSanitaryStatus = 'PENDIENTE' | 'VENCIDA' | 'REALIZADA' | 'PROGRAMADA';
+type SeedSanitaryType = 'AFTOSA' | 'BRUCELOSIS' | 'ANALISIS_TUBERCULINA' | 'ANALISIS_BRUCELOSIS';
+type SeedSanitaryScope = 'ANIMAL' | 'LOTE' | 'CATEGORIA';
+
+async function seedVacunacionSanitaria(usuarioId: number) {
+  await prisma.agendaTarea.deleteMany({
+    where: {
+      tipo: TipoTarea.VACUNACION,
+      descripcion: { startsWith: 'Seed sanitario' },
+    },
+  });
+  await prisma.evento.deleteMany({
+    where: {
+      tipo: TipoEvento.VACUNACION,
+      observaciones: { startsWith: 'Seed sanitario' },
+    },
+  });
+
+  const activeAnimals = await prisma.animal.findMany({
+    where: { activo: true, estadoAnimal: EstadoAnimal.ACTIVO },
+    orderBy: { id: 'asc' },
+    include: { lote: true },
+  });
+  const lotes = await prisma.lote.findMany({ where: { activo: true }, orderBy: { id: 'asc' } });
+  if (activeAnimals.length === 0) return;
+
+  const dateByStatus: Record<SeedSanitaryStatus, Date[]> = {
+    PENDIENTE: [daysFromToday(0), daysFromToday(0), daysFromToday(0), daysFromToday(0), daysFromToday(0)],
+    VENCIDA: [daysFromToday(-15), daysFromToday(-45), monthsFromToday(-3), monthsFromToday(-8), monthsFromToday(-13)],
+    REALIZADA: [daysFromToday(-7), daysFromToday(-30), monthsFromToday(-2), monthsFromToday(-6), monthsFromToday(-12)],
+    PROGRAMADA: [daysFromToday(10), daysFromToday(30), monthsFromToday(1), monthsFromToday(3), monthsFromToday(8)],
+  };
+  const types: SeedSanitaryType[] = ['AFTOSA', 'BRUCELOSIS', 'ANALISIS_TUBERCULINA', 'ANALISIS_BRUCELOSIS'];
+  const statuses: SeedSanitaryStatus[] = ['PENDIENTE', 'VENCIDA', 'REALIZADA', 'PROGRAMADA'];
+  const scopes: SeedSanitaryScope[] = ['ANIMAL', 'LOTE', 'CATEGORIA'];
+
+  let cursor = 0;
+  for (const status of statuses) {
+    for (let index = 0; index < 5; index += 1) {
+      const tipoSanitario = types[(index + statuses.indexOf(status)) % types.length];
+      const scope = scopes[(index + statuses.indexOf(status)) % scopes.length];
+      const grupoSanitarioId = randomUUID();
+      const fechaProgramada = dateByStatus[status][index];
+      const categoria = activeAnimals[(cursor + index) % activeAnimals.length].categoriaAnimal;
+      const lote = lotes[(cursor + index) % Math.max(lotes.length, 1)];
+      const animalsForScope =
+        scope === 'LOTE' && lote
+          ? activeAnimals.filter((animal) => animal.loteId === lote.id).slice(0, 3)
+          : scope === 'CATEGORIA'
+            ? activeAnimals.filter((animal) => animal.categoriaAnimal === categoria).slice(0, 3)
+            : [activeAnimals[(cursor + index) % activeAnimals.length]];
+      const selectedAnimals = animalsForScope.length > 0 ? animalsForScope : [activeAnimals[(cursor + index) % activeAnimals.length]];
+      const descripcion = `Seed sanitario ${status} ${tipoSanitario} ${index + 1}`;
+
+      for (const animal of selectedAnimals) {
+        let eventoCierreId: number | null = null;
+        if (status === 'REALIZADA') {
+          const evento = await prisma.evento.create({
+            data: {
+              animalId: animal.id,
+              usuarioId,
+              tipo: TipoEvento.VACUNACION,
+              fecha: fechaProgramada,
+              observaciones: descripcion,
+              datosJson: { tipoSanitario },
+            },
+          });
+          eventoCierreId = evento.id;
+        }
+
+        await prisma.agendaTarea.create({
+          data: {
+            animalId: animal.id,
+            usuarioId,
+            tipo: TipoTarea.VACUNACION,
+            fechaProgramada,
+            fechaRealizacion: status === 'REALIZADA' ? fechaProgramada : null,
+            estado: status === 'REALIZADA' ? 'REALIZADA' : 'PENDIENTE',
+            descripcion,
+            tipoSanitario,
+            alcanceTipo: scope,
+            alcanceLoteId: scope === 'LOTE' ? animal.loteId : null,
+            alcanceCategoria: scope === 'CATEGORIA' ? categoria : null,
+            grupoSanitarioId,
+            cantidadAnimalesAlcanzados: selectedAnimals.length,
+            eventoCierreId,
+          },
+        });
+      }
+      cursor += 1;
+    }
+  }
+}
+
 async function seedProduccion(usuarioId: number) {
   const lotesLeche = [
     ['LT-0001', daysFromToday(-1), daysFromToday(3), 'Calidad normal'],
@@ -354,6 +456,7 @@ async function main() {
   const admin = await prisma.usuario.findUniqueOrThrow({ where: { username: 'admin' } });
   await seedAlimentacion(admin.id);
   await seedAgendaEventos(admin.id);
+  await seedVacunacionSanitaria(admin.id);
   await seedProduccion(admin.id);
 
   console.log('Seed completed: users, physical lotes, animals, feed, agenda, vaccination and production data are ready.');

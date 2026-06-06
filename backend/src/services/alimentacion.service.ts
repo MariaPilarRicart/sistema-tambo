@@ -209,7 +209,7 @@ export async function getResumenAlimentacion() {
     findUltimosRegistrosAlimentacion(),
   ]);
 
-  const raciones = await findRacionesByIds(porRacion.map((item) => item.racionId));
+  const raciones = await findRacionesByIds(porRacion.map((item) => item.racionId).filter((id): id is number => Boolean(id)));
 
   return {
     totalKgEntregados: totalKg._sum.cantidadKg ?? 0,

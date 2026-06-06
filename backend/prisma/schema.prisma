@@ -74,6 +74,8 @@ enum EstadoTarea {
 enum TipoMovimientoStockAlimentacion {
   ENTRADA
   CONSUMO
+  CONSUMO_ALIMENTACION
+  BAJA_MANUAL
   AJUSTE
 }
 
@@ -117,6 +119,7 @@ model Usuario {
   movimientosStock      MovimientoStockAlimentacion[]
   producciones          ProduccionAnimal[]
   ventas                Venta[]
+  tareasAgenda          AgendaTarea[]
 
   @@map("usuarios")
 }
@@ -130,6 +133,8 @@ model Lote {
   updatedAt   DateTime @updatedAt
 
   animales              Animal[]
+  registrosAlimentacion RegistroAlimentacion[]
+  tareasSanitarias      AgendaTarea[] @relation("AlcanceLoteSanitario")
 
   @@map("lotes")
 }
@@ -160,6 +165,7 @@ model InsumoAlimentacion {
   updatedAt    DateTime @updatedAt
 
   movimientos MovimientoStockAlimentacion[]
+  detallesAlimentacion DetalleAlimentacion[]
 
   @@map("insumos_alimentacion")
 }
@@ -253,6 +259,7 @@ model VentaDetalle {
 model MovimientoStockAlimentacion {
   id             Int                             @id @default(autoincrement())
   insumoId       Int
+  alimentacionId Int?
   tipoMovimiento TipoMovimientoStockAlimentacion
   fecha          DateTime
   cantidad       Float
@@ -261,10 +268,12 @@ model MovimientoStockAlimentacion {
   createdAt      DateTime                        @default(now())
   updatedAt      DateTime                        @updatedAt
 
-  insumo  InsumoAlimentacion @relation(fields: [insumoId], references: [id], onDelete: Restrict)
-  usuario Usuario?           @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  insumo       InsumoAlimentacion   @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+  alimentacion RegistroAlimentacion? @relation(fields: [alimentacionId], references: [id], onDelete: SetNull)
+  usuario      Usuario?             @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
 
   @@index([insumoId])
+  @@index([alimentacionId])
   @@index([usuarioId])
   @@index([tipoMovimiento])
   @@index([fecha])
@@ -274,22 +283,46 @@ model MovimientoStockAlimentacion {
 model RegistroAlimentacion {
   id            Int      @id @default(autoincrement())
   fecha         DateTime
+  loteId        Int?
   categoriaAnimal CategoriaAnimal
-  racionId      Int
+  racionId      Int?
   cantidadKg    Float
   observaciones String?
   usuarioId     Int?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  racion  Racion   @relation(fields: [racionId], references: [id], onDelete: Restrict)
+  lote    Lote?    @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  racion  Racion?  @relation(fields: [racionId], references: [id], onDelete: Restrict)
   usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  detalles DetalleAlimentacion[]
+  movimientosStock MovimientoStockAlimentacion[]
 
   @@index([fecha])
+  @@index([loteId])
   @@index([categoriaAnimal])
   @@index([racionId])
   @@index([usuarioId])
+  @@unique([loteId, fecha])
   @@map("registros_alimentacion")
+}
+
+model DetalleAlimentacion {
+  id             Int      @id @default(autoincrement())
+  alimentacionId Int
+  insumoId       Int
+  cantidad       Float
+  unidad         String
+  observaciones  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  alimentacion RegistroAlimentacion @relation(fields: [alimentacionId], references: [id], onDelete: Cascade)
+  insumo       InsumoAlimentacion   @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+
+  @@index([alimentacionId])
+  @@index([insumoId])
+  @@map("detalles_alimentacion")
 }
 
 model Animal {
@@ -355,20 +388,33 @@ model AgendaTarea {
   estado           EstadoTarea @default(PENDIENTE)
   descripcion      String?
   animalId         Int
+  usuarioId        Int?
   eventoOrigenId   Int?
   eventoCierreId   Int?
+  tipoSanitario    String?
+  alcanceTipo      String?
+  alcanceLoteId    Int?
+  alcanceCategoria CategoriaAnimal?
+  grupoSanitarioId String?
+  cantidadAnimalesAlcanzados Int?
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
 
   animal       Animal  @relation(fields: [animalId], references: [id], onDelete: Restrict)
+  usuario      Usuario? @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  alcanceLote  Lote?   @relation("AlcanceLoteSanitario", fields: [alcanceLoteId], references: [id], onDelete: SetNull)
   eventoOrigen Evento? @relation("EventoOrigenTarea", fields: [eventoOrigenId], references: [id], onDelete: SetNull)
   eventoCierre Evento? @relation("EventoCierreTarea", fields: [eventoCierreId], references: [id], onDelete: SetNull)
 
   @@index([animalId])
+  @@index([usuarioId])
+  @@index([alcanceLoteId])
   @@index([eventoOrigenId])
   @@index([eventoCierreId])
   @@index([estado])
   @@index([tipo])
+  @@index([tipoSanitario])
+  @@index([grupoSanitarioId])
   @@index([fechaProgramada])
   @@map("agenda_tareas")
 }

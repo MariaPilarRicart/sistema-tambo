@@ -1,5 +1,12 @@
-import type { CategoriaAnimal } from '@prisma/client';
+import type { CategoriaAnimal, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
+
+const usuarioSelect = {
+  id: true,
+  nombre: true,
+  username: true,
+  rol: true,
+};
 
 const vaccinationTaskInclude = {
   animal: {
@@ -10,12 +17,20 @@ const vaccinationTaskInclude = {
       estadoReproductivo: true,
       estadoAnimal: true,
       activo: true,
+      loteId: true,
       lote: {
         select: {
           id: true,
           nombre: true,
         },
       },
+    },
+  },
+  usuario: { select: usuarioSelect },
+  alcanceLote: {
+    select: {
+      id: true,
+      nombre: true,
     },
   },
   eventoOrigen: {
@@ -30,34 +45,31 @@ const vaccinationTaskInclude = {
       id: true,
       tipo: true,
       fecha: true,
+      usuario: { select: usuarioSelect },
     },
   },
 };
 
-const vaccinationEventInclude = {
-  animal: {
-    select: {
-      id: true,
-      caravana: true,
-      categoriaAnimal: true,
-      estadoReproductivo: true,
-      lote: {
-        select: {
-          id: true,
-          nombre: true,
-        },
+export type VaccinationTaskWithRelations = Prisma.AgendaTareaGetPayload<{ include: typeof vaccinationTaskInclude }>;
+
+export function findVaccinationTasks(filters: {
+  tipoSanitario?: string;
+  fechaDesde?: Date;
+  fechaHasta?: Date;
+}) {
+  return prisma.agendaTarea.findMany({
+    where: {
+      tipo: 'VACUNACION',
+      tipoSanitario: filters.tipoSanitario,
+      fechaProgramada: {
+        gte: filters.fechaDesde,
+        lte: filters.fechaHasta,
       },
     },
-  },
-  usuario: {
-    select: {
-      id: true,
-      nombre: true,
-      username: true,
-      rol: true,
-    },
-  },
-};
+    orderBy: [{ fechaProgramada: 'desc' }, { id: 'desc' }],
+    include: vaccinationTaskInclude,
+  });
+}
 
 export function findPendingVaccinationTasks() {
   return prisma.agendaTarea.findMany({
@@ -67,14 +79,6 @@ export function findPendingVaccinationTasks() {
     },
     orderBy: { fechaProgramada: 'asc' },
     include: vaccinationTaskInclude,
-  });
-}
-
-export function findVaccinationEvents() {
-  return prisma.evento.findMany({
-    where: { tipo: 'VACUNACION' },
-    orderBy: { fecha: 'desc' },
-    include: vaccinationEventInclude,
   });
 }
 
@@ -107,6 +111,12 @@ export function createVaccinationTasks(data: {
   animalIds: number[];
   fechaProgramada: Date;
   descripcion?: string | null;
+  tipoSanitario: string;
+  alcanceTipo: string;
+  alcanceLoteId?: number | null;
+  alcanceCategoria?: CategoriaAnimal | null;
+  grupoSanitarioId: string;
+  usuarioId?: number | null;
 }) {
   return prisma.agendaTarea.createMany({
     data: data.animalIds.map((animalId) => ({
@@ -115,6 +125,13 @@ export function createVaccinationTasks(data: {
       fechaProgramada: data.fechaProgramada,
       estado: 'PENDIENTE',
       descripcion: data.descripcion ?? null,
+      tipoSanitario: data.tipoSanitario,
+      alcanceTipo: data.alcanceTipo,
+      alcanceLoteId: data.alcanceLoteId ?? null,
+      alcanceCategoria: data.alcanceCategoria ?? null,
+      grupoSanitarioId: data.grupoSanitarioId,
+      cantidadAnimalesAlcanzados: data.animalIds.length,
+      usuarioId: data.usuarioId ?? null,
     })),
   });
 }

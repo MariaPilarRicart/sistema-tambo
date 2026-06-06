@@ -6,14 +6,25 @@ import {
   TipoEvento,
   TipoTarea,
 } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { prisma } from '../config/prisma';
 import { AppError } from '../errors/AppError';
 import { findEventoById, findEventos } from '../repositories/eventos.repository';
+import { getNextSanitaryDate, parseTipoSanitario, type TipoSanitario } from './vacunacion.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function addDays(date: Date, days: number) {
   return new Date(date.getTime() + days * DAY_MS);
+}
+
+function inferTipoSanitario(value?: string | null): TipoSanitario {
+  const source = (value ?? '').toUpperCase();
+  if (source.includes('AFTOSA')) return 'AFTOSA';
+  if (source.includes('TUBERCULINA')) return 'ANALISIS_TUBERCULINA';
+  if (source.includes('BRUCELOSIS') && source.includes('ANALISIS')) return 'ANALISIS_BRUCELOSIS';
+  if (source.includes('BRUCELOSIS')) return 'BRUCELOSIS';
+  return 'OTRA';
 }
 
 function parseId(value: unknown, fieldName: string) {
@@ -202,6 +213,28 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
               eventoCierreId: evento.id,
             },
           });
+          const tipoSanitario = pendingVaccination.tipoSanitario
+            ? parseTipoSanitario(pendingVaccination.tipoSanitario)
+            : inferTipoSanitario(pendingVaccination.descripcion);
+          if (tipoSanitario !== 'OTRA') {
+            await tx.agendaTarea.create({
+              data: {
+                animalId,
+                tipo: 'VACUNACION',
+                fechaProgramada: getNextSanitaryDate(tipoSanitario, fecha),
+                estado: 'PENDIENTE',
+                descripcion: pendingVaccination.descripcion,
+                tipoSanitario,
+                alcanceTipo: pendingVaccination.alcanceTipo ?? 'ANIMAL',
+                alcanceLoteId: pendingVaccination.alcanceLoteId,
+                alcanceCategoria: pendingVaccination.alcanceCategoria,
+                grupoSanitarioId: randomUUID(),
+                cantidadAnimalesAlcanzados: pendingVaccination.cantidadAnimalesAlcanzados,
+                usuarioId,
+                eventoOrigenId: evento.id,
+              },
+            });
+          }
         }
         break;
       }
