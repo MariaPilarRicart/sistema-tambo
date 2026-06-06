@@ -2,12 +2,13 @@ import type { CategoriaAnimal, EstadoAnimal, EstadoReproductivo } from './animal
 
 export type TipoTarea = 'TACTO' | 'SECADO' | 'PARTO' | 'ALTA_POST_PARTO' | 'VACUNACION' | 'CONTROL_CLINICO';
 export type EstadoTarea = 'PENDIENTE' | 'REALIZADA' | 'CANCELADA';
-export type TipoSanitario = 'AFTOSA' | 'BRUCELOSIS' | 'ANALISIS_TUBERCULINA' | 'ANALISIS_BRUCELOSIS' | 'OTRA';
+export type TipoSanitario = string;
 
 export interface AgendaTarea {
   id: number;
   tipo: TipoTarea;
   fechaProgramada: string;
+  fechaObjetivo: string | null;
   fechaRealizacion: string | null;
   estado: EstadoTarea;
   descripcion: string | null;
@@ -24,6 +25,8 @@ export interface AgendaTarea {
   animal: {
     id: number;
     caravana: string;
+    nombre: string | null;
+    fechaNacimiento: string;
     loteId: number;
     categoriaAnimal: CategoriaAnimal;
     estadoReproductivo: EstadoReproductivo;

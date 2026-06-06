@@ -11,6 +11,7 @@ export interface VaccinationHistoryItem {
   id: string;
   tareaIds: number[];
   fechaProgramada: string;
+  fechaObjetivo: string;
   fechaRealizada: string | null;
   tipoSanitario: TipoSanitario;
   estado: EstadoSanitario;
@@ -20,6 +21,7 @@ export interface VaccinationHistoryItem {
     categoriaAnimal: CategoriaAnimal | null;
   };
   cantidadAnimales: number;
+  animal: AgendaTarea['animal'];
   usuario: {
     id: number;
     nombre: string;
@@ -41,12 +43,22 @@ export interface VaccinationSummary {
 export interface VaccinationFilters {
   estado: EstadoSanitario | '';
   tipo: TipoSanitario | '';
-  fechaDesde: string;
-  fechaHasta: string;
+  fechaProgramadaDesde: string;
+  fechaProgramadaHasta: string;
+  fechaObjetivoDesde: string;
+  fechaObjetivoHasta: string;
+  fechaRealizadaDesde: string;
+  fechaRealizadaHasta: string;
+  loteId: string;
+  categoria: CategoriaAnimal | '';
 }
 
 interface VaccinationTasksResponse {
   tareas: AgendaTarea[];
+}
+
+interface VaccinationTaskResponse {
+  tarea: AgendaTarea;
 }
 
 interface VaccinationHistoryResponse {
@@ -64,6 +76,7 @@ interface ScheduleVaccinationResponse {
 
 export interface ScheduleVaccinationValues {
   fechaProgramada: string;
+  fechaObjetivo: string;
   tipoSanitario: TipoSanitario | '';
   descripcion: string;
   animalIds: number[];
@@ -71,12 +84,32 @@ export interface ScheduleVaccinationValues {
   categoria: string;
 }
 
+export interface PerformVaccinationValues {
+  fechaRealizada: string;
+  observaciones: string;
+}
+
+export interface PerformVaccinationsBulkValues extends PerformVaccinationValues {
+  vacunacionIds: number[];
+}
+
+interface PerformVaccinationsBulkResponse {
+  tareasActualizadas: number;
+  proximasTareasCreadas: number;
+}
+
 function buildQuery(filters: Partial<VaccinationFilters>) {
   const params = new URLSearchParams();
   if (filters.estado) params.set('estado', filters.estado);
   if (filters.tipo) params.set('tipo', filters.tipo);
-  if (filters.fechaDesde) params.set('fechaDesde', filters.fechaDesde);
-  if (filters.fechaHasta) params.set('fechaHasta', filters.fechaHasta);
+  if (filters.fechaProgramadaDesde) params.set('fechaProgramadaDesde', filters.fechaProgramadaDesde);
+  if (filters.fechaProgramadaHasta) params.set('fechaProgramadaHasta', filters.fechaProgramadaHasta);
+  if (filters.fechaObjetivoDesde) params.set('fechaObjetivoDesde', filters.fechaObjetivoDesde);
+  if (filters.fechaObjetivoHasta) params.set('fechaObjetivoHasta', filters.fechaObjetivoHasta);
+  if (filters.fechaRealizadaDesde) params.set('fechaRealizadaDesde', filters.fechaRealizadaDesde);
+  if (filters.fechaRealizadaHasta) params.set('fechaRealizadaHasta', filters.fechaRealizadaHasta);
+  if (filters.loteId) params.set('loteId', filters.loteId);
+  if (filters.categoria) params.set('categoria', filters.categoria);
   const query = params.toString();
   return query ? `?${query}` : '';
 }
@@ -101,6 +134,7 @@ export async function scheduleVaccination(token: string, values: ScheduleVaccina
     token,
     body: JSON.stringify({
       fechaProgramada: values.fechaProgramada,
+      fechaObjetivo: values.fechaObjetivo || values.fechaProgramada,
       tipoSanitario: values.tipoSanitario,
       descripcion: values.descripcion.trim() || null,
       animalIds: values.animalIds,
@@ -110,4 +144,27 @@ export async function scheduleVaccination(token: string, values: ScheduleVaccina
   });
 
   return response;
+}
+
+export async function performVaccination(token: string, taskId: number, values: PerformVaccinationValues) {
+  return apiRequest<VaccinationTaskResponse>(`/api/vacunacion/${taskId}/realizar`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify({
+      fechaRealizada: values.fechaRealizada,
+      observaciones: values.observaciones.trim() || null,
+    }),
+  });
+}
+
+export async function performVaccinationsBulk(token: string, values: PerformVaccinationsBulkValues) {
+  return apiRequest<PerformVaccinationsBulkResponse>('/api/vacunacion/realizar-masivo', {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify({
+      vacunacionIds: values.vacunacionIds,
+      fechaRealizada: values.fechaRealizada,
+      observaciones: values.observaciones.trim() || null,
+    }),
+  });
 }

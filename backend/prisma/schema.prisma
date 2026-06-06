@@ -71,6 +71,11 @@ enum EstadoTarea {
   CANCELADA
 }
 
+enum TipoReglaSanitaria {
+  VACUNA
+  ANALISIS
+}
+
 enum TipoMovimientoStockAlimentacion {
   ENTRADA
   CONSUMO
@@ -122,6 +127,24 @@ model Usuario {
   tareasAgenda          AgendaTarea[]
 
   @@map("usuarios")
+}
+
+model ReglaSanitaria {
+  id                Int               @id @default(autoincrement())
+  nombre            String
+  codigo            String            @unique
+  tipo              TipoReglaSanitaria
+  mesFijo           Int?
+  frecuenciaMeses   Int               @default(12)
+  anticipacionMeses Int               @default(1)
+  activo            Boolean           @default(true)
+  observaciones     String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([activo])
+  @@index([tipo])
+  @@map("reglas_sanitarias")
 }
 
 model Lote {
@@ -384,6 +407,7 @@ model AgendaTarea {
   id               Int         @id @default(autoincrement())
   tipo             TipoTarea
   fechaProgramada  DateTime
+  fechaObjetivo    DateTime?
   fechaRealizacion DateTime?
   estado           EstadoTarea @default(PENDIENTE)
   descripcion      String?
@@ -416,6 +440,7 @@ model AgendaTarea {
   @@index([tipoSanitario])
   @@index([grupoSanitarioId])
   @@index([fechaProgramada])
+  @@index([fechaObjetivo])
   @@map("agenda_tareas")
 }
 

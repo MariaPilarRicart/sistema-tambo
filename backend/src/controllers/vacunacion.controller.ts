@@ -4,6 +4,8 @@ import {
   listPendingVaccinations,
   listVaccinationHistory,
   listVaccinationEvents,
+  markVaccinationAsPerformed,
+  markVaccinationsAsPerformedBulk,
   scheduleVaccination,
 } from '../services/vacunacion.service';
 
@@ -35,4 +37,16 @@ export async function scheduleVaccinationController(request: Request, response: 
   const result = await scheduleVaccination(request.body ?? {}, request.user?.id);
 
   response.status(201).json(result);
+}
+
+export async function markVaccinationAsPerformedController(request: Request, response: Response) {
+  const tarea = await markVaccinationAsPerformed(String(request.params.id), request.body ?? {}, request.user?.id);
+
+  response.status(200).json({ tarea });
+}
+
+export async function markVaccinationsAsPerformedBulkController(request: Request, response: Response) {
+  const result = await markVaccinationsAsPerformedBulk(request.body ?? {}, request.user?.id);
+
+  response.status(200).json(result);
 }

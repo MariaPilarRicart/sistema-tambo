@@ -11,6 +11,7 @@ import {
   RolUsuario,
   TipoEvento,
   TipoMovimientoStockAlimentacion,
+  TipoReglaSanitaria,
   TipoTarea,
   TurnoOrdene,
 } from '@prisma/client';
@@ -256,6 +257,23 @@ async function seedAgendaEventos(usuarioId: number) {
   }
 }
 
+async function seedReglasSanitarias() {
+  const reglas = [
+    ['Aftosa', 'AFTOSA', TipoReglaSanitaria.VACUNA, 3, 12, 1, 'Campaña anual de marzo.'],
+    ['Brucelosis', 'BRUCELOSIS', TipoReglaSanitaria.VACUNA, 3, 12, 1, 'Campaña anual de marzo.'],
+    ['Análisis de tuberculina', 'ANALISIS_TUBERCULINA', TipoReglaSanitaria.ANALISIS, null, 12, 1, 'Control anual desde la última realización.'],
+    ['Análisis de brucelosis', 'ANALISIS_BRUCELOSIS', TipoReglaSanitaria.ANALISIS, null, 12, 1, 'Control anual desde la última realización.'],
+  ] as const;
+
+  for (const [nombre, codigo, tipo, mesFijo, frecuenciaMeses, anticipacionMeses, observaciones] of reglas) {
+    await prisma.reglaSanitaria.upsert({
+      where: { codigo },
+      update: { nombre, tipo, mesFijo, frecuenciaMeses, anticipacionMeses, activo: true, observaciones },
+      create: { nombre, codigo, tipo, mesFijo, frecuenciaMeses, anticipacionMeses, activo: true, observaciones },
+    });
+  }
+}
+
 type SeedSanitaryStatus = 'PENDIENTE' | 'VENCIDA' | 'REALIZADA' | 'PROGRAMADA';
 type SeedSanitaryType = 'AFTOSA' | 'BRUCELOSIS' | 'ANALISIS_TUBERCULINA' | 'ANALISIS_BRUCELOSIS';
 type SeedSanitaryScope = 'ANIMAL' | 'LOTE' | 'CATEGORIA';
@@ -264,7 +282,10 @@ async function seedVacunacionSanitaria(usuarioId: number) {
   await prisma.agendaTarea.deleteMany({
     where: {
       tipo: TipoTarea.VACUNACION,
-      descripcion: { startsWith: 'Seed sanitario' },
+      OR: [
+        { descripcion: { startsWith: 'Seed sanitario' } },
+        { descripcion: { startsWith: 'Tarea sanitaria automática' } },
+      ],
     },
   });
   await prisma.evento.deleteMany({
@@ -282,31 +303,27 @@ async function seedVacunacionSanitaria(usuarioId: number) {
   const lotes = await prisma.lote.findMany({ where: { activo: true }, orderBy: { id: 'asc' } });
   if (activeAnimals.length === 0) return;
 
-  const dateByStatus: Record<SeedSanitaryStatus, Date[]> = {
-    PENDIENTE: [daysFromToday(0), daysFromToday(0), daysFromToday(0), daysFromToday(0), daysFromToday(0)],
+  const targetByStatus: Record<SeedSanitaryStatus, Date[]> = {
+    PENDIENTE: [daysFromToday(10), daysFromToday(12), daysFromToday(14), daysFromToday(16), daysFromToday(18)],
     VENCIDA: [daysFromToday(-15), daysFromToday(-45), monthsFromToday(-3), monthsFromToday(-8), monthsFromToday(-13)],
     REALIZADA: [daysFromToday(-7), daysFromToday(-30), monthsFromToday(-2), monthsFromToday(-6), monthsFromToday(-12)],
-    PROGRAMADA: [daysFromToday(10), daysFromToday(30), monthsFromToday(1), monthsFromToday(3), monthsFromToday(8)],
+    PROGRAMADA: [daysFromToday(45), daysFromToday(60), monthsFromToday(3), monthsFromToday(6), monthsFromToday(8)],
   };
   const types: SeedSanitaryType[] = ['AFTOSA', 'BRUCELOSIS', 'ANALISIS_TUBERCULINA', 'ANALISIS_BRUCELOSIS'];
-  const statuses: SeedSanitaryStatus[] = ['PENDIENTE', 'VENCIDA', 'REALIZADA', 'PROGRAMADA'];
+  const statuses: SeedSanitaryStatus[] = ['PENDIENTE', 'VENCIDA', 'REALIZADA'];
   const scopes: SeedSanitaryScope[] = ['ANIMAL', 'LOTE', 'CATEGORIA'];
 
   let cursor = 0;
   for (const status of statuses) {
     for (let index = 0; index < 5; index += 1) {
-      const tipoSanitario = types[(index + statuses.indexOf(status)) % types.length];
-      const scope = scopes[(index + statuses.indexOf(status)) % scopes.length];
+      const tipoSanitario = types[index % types.length];
+      const scope = scopes[index % scopes.length];
       const grupoSanitarioId = randomUUID();
-      const fechaProgramada = dateByStatus[status][index];
+      const fechaObjetivo = targetByStatus[status][index];
+      const fechaProgramada = status === 'PROGRAMADA' ? daysFromToday(20 + index) : monthsFromToday(-1);
       const categoria = activeAnimals[(cursor + index) % activeAnimals.length].categoriaAnimal;
       const lote = lotes[(cursor + index) % Math.max(lotes.length, 1)];
-      const animalsForScope =
-        scope === 'LOTE' && lote
-          ? activeAnimals.filter((animal) => animal.loteId === lote.id).slice(0, 3)
-          : scope === 'CATEGORIA'
-            ? activeAnimals.filter((animal) => animal.categoriaAnimal === categoria).slice(0, 3)
-            : [activeAnimals[(cursor + index) % activeAnimals.length]];
+      const animalsForScope = [activeAnimals[(cursor + index) % activeAnimals.length]];
       const selectedAnimals = animalsForScope.length > 0 ? animalsForScope : [activeAnimals[(cursor + index) % activeAnimals.length]];
       const descripcion = `Seed sanitario ${status} ${tipoSanitario} ${index + 1}`;
 
@@ -332,6 +349,7 @@ async function seedVacunacionSanitaria(usuarioId: number) {
             usuarioId,
             tipo: TipoTarea.VACUNACION,
             fechaProgramada,
+            fechaObjetivo,
             fechaRealizacion: status === 'REALIZADA' ? fechaProgramada : null,
             estado: status === 'REALIZADA' ? 'REALIZADA' : 'PENDIENTE',
             descripcion,
@@ -456,6 +474,7 @@ async function main() {
   const admin = await prisma.usuario.findUniqueOrThrow({ where: { username: 'admin' } });
   await seedAlimentacion(admin.id);
   await seedAgendaEventos(admin.id);
+  await seedReglasSanitarias();
   await seedVacunacionSanitaria(admin.id);
   await seedProduccion(admin.id);
 
