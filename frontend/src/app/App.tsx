@@ -5,7 +5,6 @@ import { MainLayout } from '../components/layout/MainLayout';
 import { DashboardPage } from '../pages/DashboardPage';
 import { AgendaPage } from '../pages/AgendaPage';
 import { AnimalFichaPage } from '../pages/AnimalFichaPage';
-import { ClientsPage } from '../pages/ClientsPage';
 import { EventsPage } from '../pages/EventsPage';
 import { FeedPage } from '../pages/FeedPage';
 import { HerdPage } from '../pages/HerdPage';
@@ -118,7 +117,7 @@ export function App() {
           />
           <Route
             path={paths.clients}
-            element={<ClientsPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
+            element={<Navigate to={paths.sales} replace />}
           />
           <Route
             path={paths.sales}
