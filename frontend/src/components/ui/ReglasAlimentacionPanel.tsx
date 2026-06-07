@@ -47,6 +47,7 @@ interface ReglasAlimentacionPanelProps {
   authToken: string | null;
   onUnauthorized: () => void;
   onChanged?: () => void | Promise<void>;
+  isAdmin?: boolean;
 }
 
 function textIncludes(value: string | null | undefined, query: string) {
@@ -61,7 +62,7 @@ function renderStatus(active: boolean) {
   return <span className={`status-pill ${active ? 'status-active' : 'status-inactive'}`}>{active ? 'ACTIVA' : 'INACTIVA'}</span>;
 }
 
-export function ReglasAlimentacionPanel({ authToken, onUnauthorized, onChanged }: ReglasAlimentacionPanelProps) {
+export function ReglasAlimentacionPanel({ authToken, onUnauthorized, onChanged, isAdmin = true }: ReglasAlimentacionPanelProps) {
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [reglas, setReglas] = useState<ReglaAlimentacion[]>([]);
   const [formValues, setFormValues] = useState<ReglaAlimentacionFormValues>(emptyReglaForm);
@@ -244,7 +245,7 @@ export function ReglasAlimentacionPanel({ authToken, onUnauthorized, onChanged }
         <div className="panel-header">
           <div><h2>Reglas de alimentación</h2><p>{visibleReglas.length} de {reglas.length} reglas configuradas.</p></div>
           <div className="header-actions">
-            <button type="button" className="secondary-button" onClick={openNewModal}><Plus size={16} /> Nueva regla</button>
+            {isAdmin && <button type="button" className="secondary-button" onClick={openNewModal}><Plus size={16} /> Nueva regla</button>}
             <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar reglas de alimentación"><RefreshCcw size={18} /></button>
           </div>
         </div>
@@ -256,7 +257,7 @@ export function ReglasAlimentacionPanel({ authToken, onUnauthorized, onChanged }
         {isLoading ? <p className="table-empty">Cargando reglas...</p> : (
           <div className="table-wrap settings-secondary-table">
             <table className="users-table">
-              <thead><tr><th>Regla</th><th>Categoría</th><th>Alimentos incluidos</th><th>Resumen</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <thead><tr><th>Regla</th><th>Categoría</th><th>Alimentos incluidos</th><th>Resumen</th><th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>
               <tbody>
                 {visibleReglas.map((regla) => (
                   <tr key={regla.id}>
@@ -265,10 +266,10 @@ export function ReglasAlimentacionPanel({ authToken, onUnauthorized, onChanged }
                     <td>{regla.detalles.length}</td>
                     <td>{regla.detalles.map((detalle) => detalle.alimento.nombre).join(', ') || '-'}</td>
                     <td>{renderStatus(regla.activo)}</td>
-                    <td><div className="table-actions"><button type="button" onClick={() => startEditing(regla)} aria-label={`Editar ${regla.nombre}`}><Edit2 size={16} /></button>{regla.activo ? <button type="button" onClick={() => void setReglaActive(regla, false)} aria-label={`Dar de baja ${regla.nombre}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setReglaActive(regla, true)} aria-label={`Reactivar ${regla.nombre}`}><RotateCcw size={16} /></button>}</div></td>
+                    {isAdmin && <td><div className="table-actions"><button type="button" onClick={() => startEditing(regla)} aria-label={`Editar ${regla.nombre}`}><Edit2 size={16} /></button>{regla.activo ? <button type="button" onClick={() => void setReglaActive(regla, false)} aria-label={`Dar de baja ${regla.nombre}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setReglaActive(regla, true)} aria-label={`Reactivar ${regla.nombre}`}><RotateCcw size={16} /></button>}</div></td>}
                   </tr>
                 ))}
-                {visibleReglas.length === 0 && <tr><td colSpan={6}>Sin reglas para mostrar.</td></tr>}
+                {visibleReglas.length === 0 && <tr><td colSpan={isAdmin ? 6 : 5}>Sin reglas para mostrar.</td></tr>}
               </tbody>
             </table>
           </div>

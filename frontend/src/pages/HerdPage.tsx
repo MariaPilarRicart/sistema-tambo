@@ -118,6 +118,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
   const [isSaving, setIsSaving] = useState(false);
 
   const isAdmin = currentUser?.role === 'ADMIN';
+  const canCreateAnimal = currentUser?.role === 'ADMIN' || currentUser?.role === 'EMPLEADO';
   const activeLotes = useMemo(() => lotes.filter((lote) => lote.activo), [lotes]);
 
   function handleRequestError(requestError: unknown) {
@@ -362,7 +363,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
           <p>Alta, consulta y baja logica de animales.</p>
         </div>
         <div className="header-actions">
-          {isAdmin && (
+          {canCreateAnimal && (
             <button type="button" className="primary-button compact-button" onClick={openCreateAnimalModal}>
               <Plus size={18} />
               Nuevo animal
@@ -417,7 +418,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
           <div className="panel-header">
             <div>
               <h2>Animales</h2>
-              <p>{isAdmin ? 'Gestion completa del rodeo.' : 'Consulta del rodeo.'}</p>
+              <p>{isAdmin ? 'Gestion completa del rodeo.' : 'Alta y consulta de animales.'}</p>
             </div>
             <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar animales">
               <RefreshCcw size={18} />
@@ -481,9 +482,9 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
           )}
       </section>
 
-      <LotesPanel authToken={authToken} onUnauthorized={onUnauthorized} onLotesChanged={() => loadData(filters)} />
+      <LotesPanel authToken={authToken} onUnauthorized={onUnauthorized} onLotesChanged={() => loadData(filters)} isAdmin={isAdmin} />
 
-      {isAnimalModalOpen && isAdmin && (
+      {isAnimalModalOpen && (isAdmin || !editingAnimal) && (
         <div className="modal-backdrop">
           <section className="modal-panel animal-form-modal">
             <div className="panel-header">

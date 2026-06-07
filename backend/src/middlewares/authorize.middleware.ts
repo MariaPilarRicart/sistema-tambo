@@ -10,7 +10,7 @@ export function authorizeRoles(...roles: RolUsuario[]): RequestHandler {
     }
 
     if (!roles.includes(request.user.rol)) {
-      next(new AppError('No tenes permisos para realizar esta accion.', 403));
+      next(new AppError('No tenés permisos para acceder a esta sección.', 403));
       return;
     }
 

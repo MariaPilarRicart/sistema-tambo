@@ -30,7 +30,7 @@ export async function createUser(token: string, values: UserFormValues) {
   const response = await apiRequest<UserResponse>('/users', {
     method: 'POST',
     token,
-    body: JSON.stringify(buildUserPayload(values, true)),
+    body: JSON.stringify(buildUserPayload(values, Boolean(values.password))),
   });
 
   return response.user;
@@ -41,6 +41,15 @@ export async function updateUser(token: string, id: number, values: UserFormValu
     method: 'PUT',
     token,
     body: JSON.stringify(buildUserPayload(values, Boolean(values.password))),
+  });
+
+  return response.user;
+}
+
+export async function resetUserPassword(token: string, id: number) {
+  const response = await apiRequest<UserResponse>(`/users/${id}/reset-password`, {
+    method: 'POST',
+    token,
   });
 
   return response.user;

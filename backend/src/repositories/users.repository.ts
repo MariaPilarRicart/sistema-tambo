@@ -8,6 +8,8 @@ const userSelect = {
   email: true,
   rol: true,
   activo: true,
+  debeCambiarPassword: true,
+  fotoPerfil: true,
   createdAt: true,
   updatedAt: true,
 } as const;
@@ -39,6 +41,8 @@ export function createUser(data: {
   passwordHash: string;
   rol: RolUsuario;
   activo?: boolean;
+  debeCambiarPassword?: boolean;
+  fotoPerfil?: string | null;
 }) {
   return prisma.usuario.create({
     data,
@@ -55,6 +59,8 @@ export function updateUser(
     passwordHash: string;
     rol: RolUsuario;
     activo: boolean;
+    debeCambiarPassword: boolean;
+    fotoPerfil: string | null;
   }>,
 ) {
   return prisma.usuario.update({
@@ -68,6 +74,17 @@ export function deactivateUser(id: number) {
   return prisma.usuario.update({
     where: { id },
     data: { activo: false },
+    select: userSelect,
+  });
+}
+
+export function resetUserPassword(id: number, passwordHash: string) {
+  return prisma.usuario.update({
+    where: { id },
+    data: {
+      passwordHash,
+      debeCambiarPassword: true,
+    },
     select: userSelect,
   });
 }

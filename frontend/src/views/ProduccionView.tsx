@@ -643,7 +643,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         )}
       </section>
 
-      <section className="panel production-stats-panel">
+      {isAdmin && <section className="panel production-stats-panel">
         <div className="panel-header"><div><h2>Estadísticas</h2><p>Elegí un tipo y buscá por coincidencia de caracteres.</p></div></div>
         <div className="production-stats-controls">
           <label className="filter-field">
@@ -715,7 +715,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
           </div>
           <div className="table-wrap feed-table-wrap"><table className="users-table"><thead><tr><th>Animal</th><th>Lote</th><th>Total</th><th>Descartado</th><th>Neto aportado</th></tr></thead><tbody>{loteLecheStats.litrosPorAnimal.map((item) => <tr key={item.animal.id}><td><strong>{item.animal.caravana}</strong><span>{categoriaLabels[item.animal.categoriaAnimal]}</span></td><td>{item.animal.lote.nombre}</td><td>{formatLiters(item.litrosTotales)}</td><td>{formatLiters(item.litrosDescartados)}</td><td>{formatLiters(item.litrosNetos)}</td></tr>)}</tbody></table></div>
         </> : <p className="table-empty">Seleccioná un lote de producción para ver estadísticas.</p>)}
-      </section>
+      </section>}
 
       {showLoteLecheModal && isAdmin && (
         <div className="modal-backdrop">

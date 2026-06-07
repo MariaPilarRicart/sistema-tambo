@@ -17,6 +17,6 @@ export const animalesRouter = Router();
 animalesRouter.get('/animales', authenticate, asyncHandler(listAnimalesController));
 animalesRouter.get('/animales/:id/ficha', authenticate, asyncHandler(getAnimalFichaController));
 animalesRouter.get('/animales/:id', authenticate, asyncHandler(getAnimalController));
-animalesRouter.post('/animales', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(createAnimalController));
+animalesRouter.post('/animales', authenticate, authorizeRoles(RolUsuario.ADMIN, RolUsuario.EMPLEADO), asyncHandler(createAnimalController));
 animalesRouter.put('/animales/:id', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(updateAnimalController));
 animalesRouter.delete('/animales/:id', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(deleteAnimalController));

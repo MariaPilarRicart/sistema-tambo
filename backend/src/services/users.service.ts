@@ -7,6 +7,7 @@ import {
   findUserById,
   findUserByUsername,
   findUsers,
+  resetUserPassword,
   updateUser,
 } from '../repositories/users.repository';
 
@@ -64,11 +65,12 @@ export async function createNewUser(input: {
 }) {
   const nombre = input.nombre?.trim();
   const username = input.username?.trim();
-  const password = input.password;
 
-  if (!nombre || !username || !password || !input.rol) {
-    throw new AppError('Nombre, username, password y rol son obligatorios.', 400);
+  if (!nombre || !username || !input.rol) {
+    throw new AppError('Nombre, username y rol son obligatorios.', 400);
   }
+
+  const password = username;
 
   const existingUser = await findUserByUsername(username);
 
@@ -79,14 +81,20 @@ export async function createNewUser(input: {
   const passwordHash = await bcrypt.hash(password, 10);
 
   try {
-    return await createUser({
+    const user = await createUser({
       nombre,
       username,
       email: normalizeOptionalEmail(input.email),
       passwordHash,
       rol: parseRole(input.rol),
       activo: input.activo ?? true,
+      debeCambiarPassword: true,
     });
+
+    return {
+      ...user,
+      contrasenaTemporal: password,
+    };
   } catch (error) {
     handlePrismaUniqueError(error);
   }
@@ -153,6 +161,24 @@ export async function updateExistingUser(
   } catch (error) {
     handlePrismaUniqueError(error);
   }
+}
+
+export async function resetExistingUserPassword(idParam: string) {
+  const id = parseUserId(idParam);
+  const existingUser = await findUserById(id);
+
+  if (!existingUser) {
+    throw new AppError('Usuario no encontrado.', 404);
+  }
+
+  const temporaryPassword = existingUser.username;
+  const passwordHash = await bcrypt.hash(temporaryPassword, 10);
+  const user = await resetUserPassword(id, passwordHash);
+
+  return {
+    ...user,
+    contrasenaTemporal: temporaryPassword,
+  };
 }
 
 export async function deactivateExistingUser(idParam: string) {

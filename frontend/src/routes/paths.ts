@@ -10,5 +10,8 @@ export const paths = {
   production: '/produccion',
   vaccination: '/vacunacion',
   settings: '/configuracion',
+  users: '/usuarios',
+  profile: '/perfil',
+  changePassword: '/cambiar-password',
   login: '/login',
 } as const;

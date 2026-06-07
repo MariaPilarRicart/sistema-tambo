@@ -16,6 +16,7 @@ interface LotesPanelProps {
   authToken: string | null;
   onUnauthorized: () => void;
   onLotesChanged?: () => void | Promise<void>;
+  isAdmin?: boolean;
 }
 
 function textIncludes(value: string | null | undefined, query: string) {
@@ -38,7 +39,7 @@ function renderStatus(isActive: boolean) {
   );
 }
 
-export function LotesPanel({ authToken, onUnauthorized, onLotesChanged }: LotesPanelProps) {
+export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin = true }: LotesPanelProps) {
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [loteFormValues, setLoteFormValues] = useState<LoteFormValues>(emptyLoteForm);
   const [editingLote, setEditingLote] = useState<Lote | null>(null);
@@ -185,9 +186,9 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged }: LotesP
             <p>{visibleLotes.length} de {lotes.length} lotes registrados.</p>
           </div>
           <div className="header-actions">
-            <button type="button" className="secondary-button" onClick={openNewLoteModal}>
+            {isAdmin && <button type="button" className="secondary-button" onClick={openNewLoteModal}>
               <Plus size={16} /> Nuevo lote
-            </button>
+            </button>}
             <button type="button" className="icon-button" onClick={() => void loadLotes()} aria-label="Actualizar lotes">
               <RefreshCcw size={18} />
             </button>
@@ -244,7 +245,7 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged }: LotesP
                   <th>Lote</th>
                   <th>Animales</th>
                   <th>Estado</th>
-                  <th>Acciones</th>
+                  {isAdmin && <th>Acciones</th>}
                 </tr>
               </thead>
               <tbody>
@@ -256,7 +257,7 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged }: LotesP
                     </td>
                     <td>{lote.cantidadAnimales}</td>
                     <td>{renderStatus(lote.activo)}</td>
-                    <td>
+                    {isAdmin && <td>
                       <div className="table-actions">
                         <button type="button" onClick={() => startEditingLote(lote)} aria-label={`Editar ${lote.nombre}`}>
                           <Edit2 size={16} />
@@ -271,7 +272,7 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged }: LotesP
                           </button>
                         )}
                       </div>
-                    </td>
+                    </td>}
                   </tr>
                 ))}
               </tbody>

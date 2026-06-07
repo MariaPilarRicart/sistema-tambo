@@ -33,9 +33,9 @@ produccionRouter.delete(
 
 produccionRouter.get('/api/produccion', authenticate, asyncHandler(listProduccionesController));
 produccionRouter.get('/api/produccion/resumen', authenticate, asyncHandler(getResumenProduccionController));
-produccionRouter.get('/api/produccion/por-animal/:animalId', authenticate, asyncHandler(getProduccionPorAnimalController));
-produccionRouter.get('/api/produccion/por-lote/:loteId', authenticate, asyncHandler(getProduccionPorLoteController));
-produccionRouter.get('/api/produccion/por-lote-leche/:loteLecheId', authenticate, asyncHandler(getProduccionPorLoteLecheController));
+produccionRouter.get('/api/produccion/por-animal/:animalId', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(getProduccionPorAnimalController));
+produccionRouter.get('/api/produccion/por-lote/:loteId', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(getProduccionPorLoteController));
+produccionRouter.get('/api/produccion/por-lote-leche/:loteLecheId', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(getProduccionPorLoteLecheController));
 produccionRouter.post('/api/produccion', authenticate, asyncHandler(createProduccionController));
 produccionRouter.delete(
   '/api/produccion/:id',

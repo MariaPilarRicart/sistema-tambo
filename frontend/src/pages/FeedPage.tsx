@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Boxes, Eye, Package, Plus, RefreshCcw, Save, Search, Wheat, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import {
@@ -51,6 +52,7 @@ function formatStock(value: number, unidad: string) {
 }
 
 export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPageProps) {
+  const [searchParams] = useSearchParams();
   const [resumen, setResumen] = useState<AlimentacionResumen | null>(null);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
@@ -76,6 +78,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
 
   const activeLotes = useMemo(() => lotes.filter((lote) => lote.activo), [lotes]);
   const activeAlimentos = useMemo(() => alimentos.filter((alimento) => alimento.activo), [alimentos]);
+  const isAdmin = currentUser?.role === 'ADMIN';
   const matchingAlimentos = useMemo(() => {
     const query = alimentoSearch.trim().toLowerCase();
     if (query.length < 2) return [];
@@ -99,7 +102,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
         getResumenAlimentacion(authToken),
         getLotes(authToken),
         getAlimentos(authToken),
-        getMovimientosStock(authToken, movFilters),
+        isAdmin ? getMovimientosStock(authToken, movFilters) : Promise.resolve([]),
         getHistorialAlimentacion(authToken, histFilters),
       ]);
       setResumen(nextResumen);
@@ -273,9 +276,15 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
         )}
       </section>
 
-      <AlimentosStockPanel authToken={authToken} onUnauthorized={onUnauthorized} onChanged={() => loadData()} />
+      <AlimentosStockPanel
+        authToken={authToken}
+        onUnauthorized={onUnauthorized}
+        onChanged={() => loadData()}
+        isAdmin={isAdmin}
+        initialStockFilter={searchParams.get('estadoStock') === 'AGOTADO' ? 'AGOTADO' : searchParams.get('estadoStock') === 'BAJO' ? 'BAJO' : ''}
+      />
 
-      <section className="panel">
+      {isAdmin && <section className="panel">
         <div className="panel-header">
           <div><h2>Movimientos de stock</h2><p>{movimientos.length} movimientos encontrados.</p></div>
           <button type="button" className="secondary-button" onClick={() => setShowMovimientoModal(true)}><Plus size={16} /> Registrar movimiento</button>
@@ -297,9 +306,9 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
             </tbody>
           </table>
         </div>
-      </section>
+      </section>}
 
-      <ReglasAlimentacionPanel authToken={authToken} onUnauthorized={onUnauthorized} onChanged={() => loadData()} />
+      <ReglasAlimentacionPanel authToken={authToken} onUnauthorized={onUnauthorized} onChanged={() => loadData()} isAdmin={isAdmin} />
 
       {showRegistrarModal && (
         <div className="modal-backdrop">

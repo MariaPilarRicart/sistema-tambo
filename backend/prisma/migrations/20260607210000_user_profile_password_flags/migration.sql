@@ -1,0 +1,3 @@
+ALTER TABLE "usuarios"
+ADD COLUMN IF NOT EXISTS "debeCambiarPassword" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "fotoPerfil" TEXT;

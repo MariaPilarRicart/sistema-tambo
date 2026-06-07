@@ -7,6 +7,9 @@ export interface User {
   email: string | null;
   rol: UserRole;
   activo: boolean;
+  debeCambiarPassword: boolean;
+  fotoPerfil: string | null;
+  contrasenaTemporal?: string;
   createdAt: string;
   updatedAt: string;
 }

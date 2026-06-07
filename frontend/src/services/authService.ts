@@ -15,7 +15,12 @@ function mapBackendUser(user: BackendAuthUser): AuthUser {
     id: user.id,
     name: user.nombre,
     username: user.username,
+    email: user.email,
     role: user.rol,
+    active: user.activo ?? true,
+    createdAt: user.createdAt ?? null,
+    mustChangePassword: user.debeCambiarPassword,
+    profilePhoto: user.fotoPerfil,
   };
 }
 
@@ -35,6 +40,42 @@ export async function getCurrentUser(token: string): Promise<AuthUser> {
   const response = await apiRequest<BackendMeResponse>('/auth/me', {
     method: 'GET',
     token,
+  });
+
+  return mapBackendUser(response.user);
+}
+
+export async function updateProfile(token: string, values: { nombre: string; email?: string | null; fotoPerfil?: string | null }) {
+  const response = await apiRequest<BackendMeResponse>('/auth/profile', {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(values),
+  });
+
+  return mapBackendUser(response.user);
+}
+
+export async function changePassword(
+  token: string,
+  values: { currentPassword?: string; newPassword: string; confirmPassword: string },
+) {
+  const response = await apiRequest<BackendMeResponse>('/auth/change-password', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(values),
+  });
+
+  return mapBackendUser(response.user);
+}
+
+export async function changeRequiredPassword(
+  token: string,
+  values: { newPassword: string; confirmPassword: string },
+) {
+  const response = await apiRequest<BackendMeResponse>('/auth/change-required-password', {
+    method: 'POST',
+    token,
+    body: JSON.stringify(values),
   });
 
   return mapBackendUser(response.user);

@@ -58,7 +58,7 @@ alimentacionRouter.patch(
   authorizeRoles(RolUsuario.ADMIN),
   asyncHandler(createMovimientoStockController),
 );
-alimentacionRouter.get('/api/alimentacion/movimientos-stock', authenticate, asyncHandler(listMovimientosStockController));
+alimentacionRouter.get('/api/alimentacion/movimientos-stock', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(listMovimientosStockController));
 alimentacionRouter.get('/api/alimentacion/sugerencia', authenticate, asyncHandler(getSugerenciaAlimentacionController));
 alimentacionRouter.post('/api/alimentacion/registrar', authenticate, asyncHandler(registrarAlimentacionController));
 alimentacionRouter.get('/api/alimentacion/historial', authenticate, asyncHandler(listHistorialAlimentacionController));
@@ -67,5 +67,5 @@ alimentacionRouter.get('/api/alimentacion/historial', authenticate, asyncHandler
 alimentacionRouter.get('/alimentacion/resumen', authenticate, asyncHandler(getResumenAlimentacionController));
 alimentacionRouter.get('/alimentacion/insumos', authenticate, asyncHandler(listAlimentosController));
 alimentacionRouter.get('/alimentacion/stock/resumen', authenticate, asyncHandler(getResumenAlimentacionController));
-alimentacionRouter.get('/alimentacion/stock/movimientos', authenticate, asyncHandler(listMovimientosStockController));
+alimentacionRouter.get('/alimentacion/stock/movimientos', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(listMovimientosStockController));
 alimentacionRouter.get('/alimentacion/registros', authenticate, asyncHandler(listHistorialAlimentacionController));

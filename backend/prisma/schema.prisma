@@ -139,6 +139,8 @@ model Usuario {
   passwordHash String
   rol          RolUsuario
   activo       Boolean    @default(true)
+  debeCambiarPassword Boolean @default(false)
+  fotoPerfil   String?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
@@ -148,8 +150,26 @@ model Usuario {
   producciones          ProduccionAnimal[]
   ventas                Venta[]
   tareasAgenda          AgendaTarea[]
+  notificacionesAtendidas NotificacionUsuarioAtendida[]
 
   @@map("usuarios")
+}
+
+model NotificacionUsuarioAtendida {
+  id        Int      @id @default(autoincrement())
+  usuarioId Int
+  clave     String
+  firma     String
+  estado    String   @default("ATENDIDA")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, clave, firma])
+  @@index([usuarioId])
+  @@index([clave])
+  @@map("notificaciones_usuario_atendidas")
 }
 
 model ReglaSanitaria {

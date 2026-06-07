@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { CalendarClock, CheckCircle2, Clock3, FilterX, ListChecks, Plus, RefreshCcw, Syringe, X } from 'lucide-react';
 import { SanitaryRulesPanel } from '../components/ui/SanitaryRulesPanel';
 import { ApiError } from '../services/apiClient';
@@ -125,7 +125,8 @@ function animalLink(animal: VaccinationHistoryItem['animal']) {
   );
 }
 
-export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPageProps) {
+export function VaccinationPage({ authToken, currentUser, onUnauthorized }: VaccinationPageProps) {
+  const [searchParams] = useSearchParams();
   const [pendingHistory, setPendingHistory] = useState<VaccinationHistoryItem[]>([]);
   const [history, setHistory] = useState<VaccinationHistoryItem[]>([]);
   const [summary, setSummary] = useState<VaccinationSummary>({ pendientes: 0, vencidas: 0, realizadas: 0, programadas: 0, todas: 0 });
@@ -145,6 +146,8 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const isAdmin = currentUser?.role === 'ADMIN';
+  const canRegisterPerformedVaccinations = currentUser?.role === 'ADMIN' || currentUser?.role === 'EMPLEADO';
 
   const activeAnimals = useMemo(() => animals.filter((animal) => animal.activo && animal.estadoAnimal === 'ACTIVO'), [animals]);
   const activeSanitaryRules = useMemo(() => reglas.filter((regla) => regla.activo), [reglas]);
@@ -257,6 +260,15 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
+
+  useEffect(() => {
+    const estado = searchParams.get('estado');
+    if (!estadoOptions.includes(estado as EstadoSanitario)) return;
+    const nextFilters = { ...emptyFilters, estado: estado as EstadoSanitario };
+    setFilters(nextFilters);
+    void loadData(nextFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   useEffect(() => {
     setSelectedTaskIds((current) => current.filter((id) => visibleTaskIds.includes(id)));
@@ -468,7 +480,7 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
                       <tr key={item.id}>
                         <td>
                           <label className="checkbox-row">
-                            <input type="checkbox" checked={selectedTaskIds.includes(taskId)} onChange={() => togglePendingSelection(taskId)} />
+                            <input type="checkbox" checked={selectedTaskIds.includes(taskId)} onChange={() => togglePendingSelection(taskId)} disabled={!canRegisterPerformedVaccinations} />
                             <span>#{item.animal.caravana}</span>
                           </label>
                         </td>
@@ -488,25 +500,25 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
                 </tbody>
               </table>
             </div>
-            <div className="modal-actions">
+            {canRegisterPerformedVaccinations && <div className="modal-actions">
               <button type="button" className="primary-button" onClick={openBulkModal} disabled={selectedTaskIds.length === 0}>
                 <CheckCircle2 size={18} />
                 Registrar seleccionadas como realizadas
               </button>
-            </div>
+            </div>}
           </>
         )}
       </section>
 
       <div className="vaccination-rules-section">
-        <SanitaryRulesPanel authToken={authToken} onUnauthorized={onUnauthorized} onRulesChanged={() => loadData(filters)} />
+        <SanitaryRulesPanel authToken={authToken} onUnauthorized={onUnauthorized} onRulesChanged={() => loadData(filters)} isAdmin={isAdmin} />
       </div>
 
       <section className="panel vaccination-history-section">
         <div className="panel-header">
           <div><h2>Historial sanitario</h2><p>{history.length} registros encontrados.</p></div>
           <div className="header-actions">
-            <button type="button" className="primary-button" onClick={openScheduleModal}><Plus size={16} />Programar vacunación</button>
+            {isAdmin && <button type="button" className="primary-button" onClick={openScheduleModal}><Plus size={16} />Programar vacunación</button>}
             <button type="button" className="secondary-button" onClick={() => applyStatusFilter('')}><FilterX size={16} />Todas</button>
           </div>
         </div>
@@ -571,7 +583,7 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
         </div>
       </section>
 
-      {isScheduleModalOpen && (
+      {isScheduleModalOpen && isAdmin && (
         <div className="modal-backdrop">
           <section className="modal-panel vaccination-schedule-modal">
             <div className="panel-header">

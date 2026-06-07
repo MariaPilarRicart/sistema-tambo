@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Edit2, Plus, RefreshCcw, RotateCcw, Trash2, X } from 'lucide-react';
+import { Edit2, KeyRound, Plus, RefreshCcw, RotateCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
-import { createUser, deactivateUser, getUsers, updateUser } from '../services/usersService';
+import { createUser, deactivateUser, getUsers, resetUserPassword, updateUser } from '../services/usersService';
 import type { AuthUser, UserRole } from '../types/auth';
 import type { User, UserFormValues } from '../types/users';
 
@@ -130,9 +130,9 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
         resetUserForm();
         setSuccess('Usuario actualizado correctamente.');
       } else {
-        await createUser(authToken, { ...userFormValues, activo: true });
+        const createdUser = await createUser(authToken, { ...userFormValues, activo: true });
         resetUserForm();
-        setSuccess('Usuario creado correctamente.');
+        setSuccess(createdUser.contrasenaTemporal ? `Usuario creado correctamente. Contraseña inicial: ${createdUser.contrasenaTemporal}` : 'Usuario creado correctamente.');
       }
       await loadUsers();
     } catch (saveError) {
@@ -159,11 +159,28 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     }
   }
 
+  async function handleResetPassword() {
+    if (!authToken) return onUnauthorized();
+    if (!editingUser) return;
+    setIsSaving(true);
+    clearMessages();
+    try {
+      const user = await resetUserPassword(authToken, editingUser.id);
+      resetUserForm();
+      setSuccess(`Contraseña restablecida correctamente.\nUsuario: ${user.username}\nContraseña temporal: ${user.contrasenaTemporal}\nEl usuario deberá cambiarla en el próximo ingreso.`);
+      await loadUsers();
+    } catch (resetError) {
+      handleRequestError(resetError);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   if (!isAdmin) {
     return (
       <div className="placeholder-page">
-        <h2>Configuración</h2>
-        <p>No tenés permisos para administrar configuración.</p>
+        <h2>Usuarios</h2>
+        <p>No tenés permisos para acceder a esta sección.</p>
       </div>
     );
   }
@@ -172,7 +189,7 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     <div className="settings-page">
       <section className="settings-header">
         <div>
-          <h2>Configuración</h2>
+          <h2>Usuarios</h2>
           <p>Usuarios del sistema.</p>
         </div>
         <div className="settings-summary">
@@ -203,8 +220,8 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
         {isLoading ? <p className="table-empty">Cargando usuarios...</p> : (
           <div className="table-wrap">
             <table className="users-table">
-              <thead><tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
-              <tbody>{visibleUsers.map((user) => <tr key={user.id}><td><strong>{user.nombre}</strong><span>{user.username}</span></td><td>{user.email ?? '-'}</td><td>{user.rol}</td><td>{renderStatus(user.activo)}</td><td><div className="table-actions"><button type="button" onClick={() => startEditingUser(user)} aria-label={`Editar ${user.username}`}><Edit2 size={16} /></button>{user.activo ? <button type="button" onClick={() => void setUserActive(user, false)} aria-label={`Dar de baja ${user.username}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setUserActive(user, true)} aria-label={`Reactivar ${user.username}`}><RotateCcw size={16} /></button>}</div></td></tr>)}</tbody>
+              <thead><tr><th>Usuario</th><th>Email</th><th>Rol</th><th>Estado</th><th>Password</th><th>Acciones</th></tr></thead>
+              <tbody>{visibleUsers.map((user) => <tr key={user.id}><td><strong>{user.nombre}</strong><span>{user.username}</span></td><td>{user.email ?? '-'}</td><td>{user.rol}</td><td>{renderStatus(user.activo)}</td><td>{user.debeCambiarPassword ? 'Debe cambiar' : 'Actualizada'}</td><td><div className="table-actions"><button type="button" onClick={() => startEditingUser(user)} aria-label={`Editar ${user.username}`}><Edit2 size={16} /></button>{user.activo ? <button type="button" onClick={() => void setUserActive(user, false)} aria-label={`Dar de baja ${user.username}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setUserActive(user, true)} aria-label={`Reactivar ${user.username}`}><RotateCcw size={16} /></button>}</div></td></tr>)}</tbody>
             </table>
           </div>
         )}
@@ -214,17 +231,20 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
         <div className="modal-backdrop">
           <section className="panel modal-panel animal-form-modal">
             <div className="panel-header">
-              <div><h2>{editingUser ? 'Editar usuario' : 'Nuevo usuario'}</h2><p>{editingUser ? 'La password solo cambia si completás el campo.' : 'El usuario se crea activo automáticamente.'}</p></div>
+              <div><h2>{editingUser ? 'Editar usuario' : 'Nuevo usuario'}</h2><p>{editingUser ? 'Podés restablecer la contraseña si el usuario perdió acceso.' : 'La contraseña inicial será igual al username y deberá cambiarla en el primer ingreso.'}</p></div>
               <button type="button" className="icon-button" onClick={resetUserForm} aria-label="Cerrar"><X size={18} /></button>
             </div>
             <form className="user-form animal-modal-form" onSubmit={handleUserSubmit}>
               <label><span>Nombre</span><input value={userFormValues.nombre} onChange={(event) => setUserFormValues({ ...userFormValues, nombre: event.target.value })} required /></label>
               <label><span>Username</span><input value={userFormValues.username} onChange={(event) => setUserFormValues({ ...userFormValues, username: event.target.value })} required /></label>
               <label><span>Email</span><input type="email" value={userFormValues.email} onChange={(event) => setUserFormValues({ ...userFormValues, email: event.target.value })} /></label>
-              <label><span>Password</span><input type="password" value={userFormValues.password} onChange={(event) => setUserFormValues({ ...userFormValues, password: event.target.value })} required={!editingUser} placeholder={editingUser ? 'Dejar vacío para no cambiar' : ''} /></label>
               <label><span>Rol</span><select value={userFormValues.rol} onChange={(event) => setUserFormValues({ ...userFormValues, rol: event.target.value as UserRole })}><option value="ADMIN">ADMIN</option><option value="EMPLEADO">EMPLEADO</option></select></label>
               {editingUser && <label><span>Estado</span><select value={userFormValues.activo ? 'true' : 'false'} onChange={(event) => setUserFormValues({ ...userFormValues, activo: event.target.value === 'true' })}><option value="true">ACTIVO</option><option value="false">INACTIVO</option></select></label>}
-              <div className="modal-actions animal-form-actions"><button type="button" className="secondary-button" onClick={resetUserForm}>Cancelar</button><button type="submit" className="primary-button" disabled={isSaving}><Plus size={18} />{isSaving ? 'Guardando...' : 'Guardar'}</button></div>
+              <div className="modal-actions animal-form-actions">
+                {editingUser && <button type="button" className="secondary-button" onClick={() => void handleResetPassword()} disabled={isSaving}><KeyRound size={18} />Restablecer contraseña</button>}
+                <button type="button" className="secondary-button" onClick={resetUserForm}>Cancelar</button>
+                <button type="submit" className="primary-button" disabled={isSaving}><Plus size={18} />{isSaving ? 'Guardando...' : 'Guardar'}</button>
+              </div>
             </form>
           </section>
         </div>

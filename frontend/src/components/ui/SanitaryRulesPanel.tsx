@@ -27,6 +27,7 @@ interface SanitaryRulesPanelProps {
   authToken: string | null;
   onUnauthorized: () => void;
   onRulesChanged?: () => void | Promise<void>;
+  isAdmin?: boolean;
 }
 
 function textIncludes(value: string | null | undefined, query: string) {
@@ -45,7 +46,7 @@ function renderStatus(active: boolean, activeLabel = 'ACTIVA', inactiveLabel = '
   return <span className={`status-pill ${active ? 'status-active' : 'status-inactive'}`}>{active ? activeLabel : inactiveLabel}</span>;
 }
 
-export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged }: SanitaryRulesPanelProps) {
+export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, isAdmin = true }: SanitaryRulesPanelProps) {
   const [reglas, setReglas] = useState<ReglaSanitaria[]>([]);
   const [reglaFormValues, setReglaFormValues] = useState<ReglaSanitariaFormValues>(emptyReglaForm);
   const [editingRegla, setEditingRegla] = useState<ReglaSanitaria | null>(null);
@@ -187,7 +188,7 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged }
         <div className="panel-header">
           <div><h2>Vacunas / Reglas Sanitarias</h2><p>{visibleReglas.length} de {reglas.length} reglas registradas.</p></div>
           <div className="header-actions">
-            <button type="button" className="secondary-button" onClick={openNewReglaModal}><Plus size={16} /> Nueva vacuna / regla sanitaria</button>
+            {isAdmin && <button type="button" className="secondary-button" onClick={openNewReglaModal}><Plus size={16} /> Nueva vacuna / regla sanitaria</button>}
             <button type="button" className="icon-button" onClick={() => void loadReglas()} aria-label="Actualizar reglas sanitarias"><RefreshCcw size={18} /></button>
           </div>
         </div>
@@ -202,8 +203,8 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged }
         {isLoading ? <p className="table-empty">Cargando reglas...</p> : (
           <div className="table-wrap">
             <table className="users-table">
-              <thead><tr><th>Regla</th><th>Tipo</th><th>Frecuencia</th><th>Estado</th><th>Acciones</th></tr></thead>
-              <tbody>{visibleReglas.map((regla) => <tr key={regla.id}><td><strong>{regla.nombre}</strong><span>{regla.codigo}</span></td><td>{regla.tipo}</td><td>{regla.mesFijo ? `Mes ${regla.mesFijo}` : `Cada ${regla.frecuenciaMeses} meses`} · anticipa {regla.anticipacionMeses}</td><td>{renderStatus(regla.activo)}</td><td><div className="table-actions"><button type="button" onClick={() => startEditingRegla(regla)} aria-label={`Editar ${regla.codigo}`}><Edit2 size={16} /></button>{regla.activo ? <button type="button" onClick={() => void setReglaActive(regla, false)} aria-label={`Dar de baja ${regla.codigo}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setReglaActive(regla, true)} aria-label={`Reactivar ${regla.codigo}`}><RotateCcw size={16} /></button>}</div></td></tr>)}</tbody>
+              <thead><tr><th>Regla</th><th>Tipo</th><th>Frecuencia</th><th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>
+              <tbody>{visibleReglas.map((regla) => <tr key={regla.id}><td><strong>{regla.nombre}</strong><span>{regla.codigo}</span></td><td>{regla.tipo}</td><td>{regla.mesFijo ? `Mes ${regla.mesFijo}` : `Cada ${regla.frecuenciaMeses} meses`} · anticipa {regla.anticipacionMeses}</td><td>{renderStatus(regla.activo)}</td>{isAdmin && <td><div className="table-actions"><button type="button" onClick={() => startEditingRegla(regla)} aria-label={`Editar ${regla.codigo}`}><Edit2 size={16} /></button>{regla.activo ? <button type="button" onClick={() => void setReglaActive(regla, false)} aria-label={`Dar de baja ${regla.codigo}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setReglaActive(regla, true)} aria-label={`Reactivar ${regla.codigo}`}><RotateCcw size={16} /></button>}</div></td>}</tr>)}</tbody>
             </table>
           </div>
         )}

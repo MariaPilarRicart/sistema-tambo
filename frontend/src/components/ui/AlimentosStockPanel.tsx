@@ -5,6 +5,7 @@ import { createAlimento, getAlimentos, updateAlimento } from '../../services/ali
 import type { Alimento, AlimentoFormValues, TipoAlimento } from '../../types/alimentacion';
 
 type EstadoFilter = '' | 'true' | 'false';
+type StockEstadoFilter = '' | 'BAJO' | 'AGOTADO';
 
 const tipoAlimentoOptions: TipoAlimento[] = ['SILO', 'BALANCEADO', 'FIBRA', 'SUPLEMENTO', 'SALES', 'OTRO'];
 
@@ -22,6 +23,8 @@ interface AlimentosStockPanelProps {
   authToken: string | null;
   onUnauthorized: () => void;
   onChanged?: () => void | Promise<void>;
+  isAdmin?: boolean;
+  initialStockFilter?: StockEstadoFilter;
 }
 
 function textIncludes(value: string | null | undefined, query: string) {
@@ -36,12 +39,18 @@ function renderStatus(active: boolean) {
   return <span className={`status-pill ${active ? 'status-active' : 'status-inactive'}`}>{active ? 'ACTIVO' : 'INACTIVO'}</span>;
 }
 
-export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged }: AlimentosStockPanelProps) {
+function matchesStock(alimento: Alimento, filter: StockEstadoFilter) {
+  if (filter === 'AGOTADO') return alimento.stockActual <= 0;
+  if (filter === 'BAJO') return alimento.stockActual > 0 && alimento.stockActual <= alimento.stockMinimo;
+  return true;
+}
+
+export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAdmin = true, initialStockFilter = '' }: AlimentosStockPanelProps) {
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [formValues, setFormValues] = useState<AlimentoFormValues>(emptyAlimentoForm);
   const [editingAlimento, setEditingAlimento] = useState<Alimento | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [filters, setFilters] = useState({ buscar: '', estado: '' as EstadoFilter, tipoAlimento: '' });
+  const [filters, setFilters] = useState({ buscar: '', estado: '' as EstadoFilter, tipoAlimento: '', stock: initialStockFilter });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +65,10 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged }: Al
     const query = filters.buscar.trim().toLowerCase();
     return alimentos.filter((alimento) => {
       const searchMatch = !query || textIncludes(alimento.nombre, query);
-      return searchMatch && matchesEstado(alimento.activo, filters.estado) && (!filters.tipoAlimento || alimento.tipoAlimento === filters.tipoAlimento);
+      return searchMatch
+        && matchesEstado(alimento.activo, filters.estado)
+        && matchesStock(alimento, filters.stock)
+        && (!filters.tipoAlimento || alimento.tipoAlimento === filters.tipoAlimento);
     });
   }, [alimentos, filters]);
 
@@ -172,6 +184,10 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged }: Al
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
+  useEffect(() => {
+    setFilters((current) => ({ ...current, stock: initialStockFilter }));
+  }, [initialStockFilter]);
+
   return (
     <>
       {error && <div className="form-error">{error}</div>}
@@ -181,19 +197,20 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged }: Al
         <div className="panel-header">
           <div><h2>Stock de alimentos</h2><p>{visibleAlimentos.length} de {alimentos.length} alimentos cargados.</p></div>
           <div className="header-actions">
-            <button type="button" className="secondary-button" onClick={openNewModal}><Plus size={16} /> Nuevo alimento</button>
+            {isAdmin && <button type="button" className="secondary-button" onClick={openNewModal}><Plus size={16} /> Nuevo alimento</button>}
             <button type="button" className="icon-button" onClick={() => void loadAlimentos()} aria-label="Actualizar alimentos"><RefreshCcw size={18} /></button>
           </div>
         </div>
         <form className="filters-form events-filters production-filters">
           <label className="filter-field"><span>Buscar</span><input value={filters.buscar} onChange={(event) => setFilters({ ...filters, buscar: event.target.value })} placeholder="Nombre" /></label>
           <label className="filter-field"><span>Estado</span><select value={filters.estado} onChange={(event) => setFilters({ ...filters, estado: event.target.value as EstadoFilter })}><option value="">Todos</option><option value="true">Activo</option><option value="false">Inactivo</option></select></label>
+          <label className="filter-field"><span>Stock</span><select value={filters.stock} onChange={(event) => setFilters({ ...filters, stock: event.target.value as StockEstadoFilter })}><option value="">Todos</option><option value="BAJO">Bajo</option><option value="AGOTADO">Agotado</option></select></label>
           <label className="filter-field"><span>Tipo</span><select value={filters.tipoAlimento} onChange={(event) => setFilters({ ...filters, tipoAlimento: event.target.value })}><option value="">Todos</option>{availableTypes.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}</select></label>
         </form>
         {isLoading ? <p className="table-empty">Cargando alimentos...</p> : (
           <div className="table-wrap">
             <table className="users-table">
-              <thead><tr><th>Alimento</th><th>Tipo</th><th>Unidad</th><th>Stock actual</th><th>Punto mínimo</th><th>Estado</th><th>Acciones</th></tr></thead>
+              <thead><tr><th>Alimento</th><th>Tipo</th><th>Unidad</th><th>Stock actual</th><th>Punto mínimo</th><th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>
               <tbody>
                 {visibleAlimentos.map((alimento) => (
                   <tr key={alimento.id}>
@@ -203,10 +220,10 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged }: Al
                     <td>{alimento.stockActual}</td>
                     <td>{alimento.stockMinimo}</td>
                     <td>{renderStatus(alimento.activo)}</td>
-                    <td><div className="table-actions"><button type="button" onClick={() => startEditing(alimento)} aria-label={`Editar ${alimento.nombre}`}><Edit2 size={16} /></button>{alimento.activo ? <button type="button" onClick={() => void setAlimentoActive(alimento, false)} aria-label={`Dar de baja ${alimento.nombre}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setAlimentoActive(alimento, true)} aria-label={`Reactivar ${alimento.nombre}`}><RotateCcw size={16} /></button>}</div></td>
+                    {isAdmin && <td><div className="table-actions"><button type="button" onClick={() => startEditing(alimento)} aria-label={`Editar ${alimento.nombre}`}><Edit2 size={16} /></button>{alimento.activo ? <button type="button" onClick={() => void setAlimentoActive(alimento, false)} aria-label={`Dar de baja ${alimento.nombre}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setAlimentoActive(alimento, true)} aria-label={`Reactivar ${alimento.nombre}`}><RotateCcw size={16} /></button>}</div></td>}
                   </tr>
                 ))}
-                {visibleAlimentos.length === 0 && <tr><td colSpan={7}>Sin alimentos para mostrar.</td></tr>}
+                {visibleAlimentos.length === 0 && <tr><td colSpan={isAdmin ? 7 : 6}>Sin alimentos para mostrar.</td></tr>}
               </tbody>
             </table>
           </div>

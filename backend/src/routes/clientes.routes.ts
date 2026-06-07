@@ -13,14 +13,14 @@ import { authorizeRoles } from '../middlewares/authorize.middleware';
 
 export const clientesRouter = Router();
 
-clientesRouter.get('/api/clientes', authenticate, asyncHandler(listClientesController));
-clientesRouter.get('/api/clientes/:id', authenticate, asyncHandler(getClienteController));
-clientesRouter.post('/api/clientes', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(createClienteController));
-clientesRouter.patch('/api/clientes/:id', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(updateClienteController));
+clientesRouter.use('/api/clientes', authenticate, authorizeRoles(RolUsuario.ADMIN));
+
+clientesRouter.get('/api/clientes', asyncHandler(listClientesController));
+clientesRouter.get('/api/clientes/:id', asyncHandler(getClienteController));
+clientesRouter.post('/api/clientes', asyncHandler(createClienteController));
+clientesRouter.patch('/api/clientes/:id', asyncHandler(updateClienteController));
 clientesRouter.patch(
   '/api/clientes/:id/estado',
-  authenticate,
-  authorizeRoles(RolUsuario.ADMIN),
   asyncHandler(updateClienteEstadoController),
 );
 

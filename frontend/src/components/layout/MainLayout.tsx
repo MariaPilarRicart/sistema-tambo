@@ -6,20 +6,23 @@ import { Sidebar } from './Sidebar';
 
 const pageTitles: Record<string, string> = {
   [paths.dashboard]: 'Resumen General',
-  [paths.herd]: 'Gestion del Rodeo',
+  [paths.herd]: 'Gestión del Rodeo',
   [paths.events]: 'Historial de Eventos',
   [paths.agenda]: 'Agenda Pendiente',
-  [paths.feed]: 'Alimentacion',
-  [paths.vaccination]: 'Control de Vacunacion',
-  [paths.settings]: 'Configuracion del Sistema',
+  [paths.feed]: 'Alimentación',
+  [paths.vaccination]: 'Control de Vacunación',
+  [paths.settings]: 'Usuarios',
+  [paths.users]: 'Usuarios',
+  [paths.profile]: 'Mi perfil',
 };
 
 interface MainLayoutProps {
   user: AuthUser;
+  authToken: string | null;
   onLogout: () => void;
 }
 
-export function MainLayout({ user, onLogout }: MainLayoutProps) {
+export function MainLayout({ user, authToken, onLogout }: MainLayoutProps) {
   const location = useLocation();
   const title = pageTitles[location.pathname] ?? 'AgriDairy Pro';
 
@@ -27,7 +30,7 @@ export function MainLayout({ user, onLogout }: MainLayoutProps) {
     <div className="app-shell">
       <Sidebar user={user} onLogout={onLogout} />
       <main className="main-content">
-        <Header title={title} user={user} />
+        <Header title={title} user={user} authToken={authToken} onUnauthorized={onLogout} />
         <section className="page-content">
           <Outlet />
         </section>

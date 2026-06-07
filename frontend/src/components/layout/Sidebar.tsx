@@ -1,4 +1,4 @@
-import { CalendarCheck, History, LayoutDashboard, Milk, ReceiptText, Settings, Syringe, Wheat } from 'lucide-react';
+import { CalendarCheck, History, LayoutDashboard, Milk, ReceiptText, Syringe, Users, Wheat } from 'lucide-react';
 import { paths } from '../../routes/paths';
 import type { AuthUser } from '../../types/auth';
 import type { NavigationItem } from '../../types/navigation';
@@ -7,17 +7,17 @@ import { SidebarItem } from './SidebarItem';
 
 const primaryNavigation: NavigationItem[] = [
   { label: 'Tablero', path: paths.dashboard, icon: LayoutDashboard },
-  { label: 'Rodeo', path: paths.herd, icon: CowIcon },
   { label: 'Eventos', path: paths.events, icon: History },
   { label: 'Agenda', path: paths.agenda, icon: CalendarCheck },
+  { label: 'Rodeo', path: paths.herd, icon: CowIcon },
+  { label: 'Producción', path: paths.production, icon: Milk },
+  { label: 'Alimentación', path: paths.feed, icon: Wheat },
+  { label: 'Vacunación', path: paths.vaccination, icon: Syringe },
   { label: 'Ventas', path: paths.sales, icon: ReceiptText },
-  { label: 'Alimentacion', path: paths.feed, icon: Wheat },
-  { label: 'Produccion', path: paths.production, icon: Milk },
-  { label: 'Vacunacion', path: paths.vaccination, icon: Syringe },
 ];
 
 const settingsNavigation: NavigationItem[] = [
-  { label: 'Configuracion', path: paths.settings, icon: Settings },
+  { label: 'Usuarios', path: paths.users, icon: Users },
 ];
 
 interface SidebarProps {
@@ -27,6 +27,7 @@ interface SidebarProps {
 
 export function Sidebar({ user, onLogout }: SidebarProps) {
   const canAccessSettings = user.role === 'ADMIN';
+  const visibleNavigation = primaryNavigation.filter((item) => user.role === 'ADMIN' || item.path !== paths.sales);
 
   return (
     <aside className="sidebar">
@@ -39,12 +40,10 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
         </span>
       </div>
 
-      <nav className="sidebar-nav" aria-label="Navegacion principal">
-        {primaryNavigation.map((item) => (
+      <nav className="sidebar-nav" aria-label="Navegación principal">
+        {visibleNavigation.map((item) => (
           <SidebarItem key={item.path} item={item} />
         ))}
-
-        {canAccessSettings && <div className="sidebar-section-title">Ajustes</div>}
 
         {canAccessSettings &&
           settingsNavigation.map((item) => (
@@ -53,7 +52,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
       </nav>
 
       <button type="button" className="logout-button" onClick={onLogout}>
-        Cerrar sesion
+        Cerrar sesión
       </button>
     </aside>
   );

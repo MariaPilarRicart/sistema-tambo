@@ -16,7 +16,12 @@ export function findActiveUserById(id: number) {
       id: true,
       nombre: true,
       username: true,
+      email: true,
       rol: true,
+      activo: true,
+      createdAt: true,
+      debeCambiarPassword: true,
+      fotoPerfil: true,
     },
   });
 }
