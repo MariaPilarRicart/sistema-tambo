@@ -641,6 +641,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
   const { fechaDesde, fechaHasta } = resolvePeriodRange(periodo, customRange);
   const nextSanitaryLimit = addDays(todayEnd, 30);
   const nextSevenDaysEnd = endOfDay(addDays(todayStart, 7));
+  const agendaTaskTypes = [TipoTarea.TACTO, TipoTarea.SECADO, TipoTarea.PARTO, TipoTarea.ALTA_POST_PARTO];
 
   const [
     totalAnimales,
@@ -702,9 +703,9 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     countSanitaryTasks({ estado: EstadoTarea.PENDIENTE, tipoSanitario: { not: null }, fechaObjetivo: { lt: todayStart } }),
     countSanitaryTasks({ estado: EstadoTarea.PENDIENTE, tipoSanitario: { not: null }, fechaObjetivo: { gte: todayStart, lte: nextSanitaryLimit } }),
     findUltimosEventosSanitarios(),
-    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipoSanitario: null, fechaProgramada: { lt: todayStart } }),
-    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipoSanitario: null, fechaProgramada: { gte: todayStart, lte: todayEnd } }),
-    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipoSanitario: null, fechaProgramada: { gt: todayEnd, lte: nextSevenDaysEnd } }),
+    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipo: { in: agendaTaskTypes }, tipoSanitario: null, fechaProgramada: { lt: todayStart } }),
+    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipo: { in: agendaTaskTypes }, tipoSanitario: null, fechaProgramada: { gte: todayStart, lte: todayEnd } }),
+    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipo: { in: agendaTaskTypes }, tipoSanitario: null, fechaProgramada: { gt: todayEnd, lte: nextSevenDaysEnd } }),
     countProduccionesForDashboard(todayStart, todayEnd),
     countRegistrosAlimentacionForDashboard(todayStart, todayEnd),
     countEventosForDashboard(todayStart, todayEnd),

@@ -42,20 +42,39 @@ function taskBadge(task: DashboardTareaDetalle) {
   return 'Agenda';
 }
 
-function sanitaryStatus(fechaObjetivo: string) {
+function isAgendaTask(task: DashboardTareaDetalle) {
+  return taskBadge(task) === 'Agenda';
+}
+
+function startOfToday() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function addDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function sanitaryStatus(fechaObjetivo: string) {
+  const today = startOfToday();
   const dueDate = new Date(fechaObjetivo);
   dueDate.setHours(0, 0, 0, 0);
   return dueDate < today ? 'Vencida' : 'Próxima a vencer';
 }
 
 function SanitaryList({ tasks }: { tasks: DashboardResumenSanidad['tareas'] }) {
+  const today = startOfToday();
+  const nextFifteenDays = addDays(today, 15);
   const visibleTasks = [...tasks]
+    .filter((task) => {
+      const dueDate = new Date(task.fechaObjetivo);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate >= today && dueDate <= nextFifteenDays;
+    })
     .sort((a, b) => {
-      const statusA = sanitaryStatus(a.fechaObjetivo) === 'Vencida' ? 0 : 1;
-      const statusB = sanitaryStatus(b.fechaObjetivo) === 'Vencida' ? 0 : 1;
-      if (statusA !== statusB) return statusA - statusB;
       return new Date(a.fechaObjetivo).getTime() - new Date(b.fechaObjetivo).getTime();
     });
   const hasMore = visibleTasks.length > 5;
@@ -135,14 +154,17 @@ function SummaryCard({
 
 export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
   const [activeModal, setActiveModal] = useState<SummaryModalKey | null>(null);
-  const priority = resumen.tareasVencidasDetalle.length > 0
+  const agendaOverdueTasks = resumen.tareasVencidasDetalle.filter(isAgendaTask);
+  const agendaTodayTasks = resumen.tareasHoyDetalle.filter(isAgendaTask);
+  const agendaNextSevenDaysTasks = resumen.tareasProximos7Dias.filter(isAgendaTask);
+  const priority = agendaOverdueTasks.length > 0
     ? {
         title: 'Hay tareas vencidas',
         message: 'Revisa el detalle desde el resumen operativo.',
         severity: 'Critica',
         className: 'employee-priority-critical',
       }
-    : resumen.tareasHoyDetalle.length > 0
+    : agendaTodayTasks.length > 0
       ? {
           title: 'Hay tareas para hoy',
           message: 'Revisa las tareas del dia desde el resumen operativo.',
@@ -157,9 +179,9 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
         };
 
   const summary: Array<{ key: SummaryModalKey; title: string; value: number; tasks: DashboardTareaDetalle[] }> = [
-    { key: 'overdue', title: 'Tareas vencidas', value: resumen.tareasVencidasDetalle.length, tasks: resumen.tareasVencidasDetalle },
-    { key: 'today', title: 'Tareas para hoy', value: resumen.tareasHoyDetalle.length, tasks: resumen.tareasHoyDetalle },
-    { key: 'next7', title: 'Proximos 7 dias', value: resumen.tareasProximos7Dias.length, tasks: resumen.tareasProximos7Dias },
+    { key: 'overdue', title: 'Tareas vencidas', value: agendaOverdueTasks.length, tasks: agendaOverdueTasks },
+    { key: 'today', title: 'Tareas para hoy', value: agendaTodayTasks.length, tasks: agendaTodayTasks },
+    { key: 'next7', title: 'Proximos 7 dias', value: agendaNextSevenDaysTasks.length, tasks: agendaNextSevenDaysTasks },
   ];
   const modalSummary = summary.find((item) => item.key === activeModal);
   const sanitaryTasks = resumen.resumenSanidad.tareas;
