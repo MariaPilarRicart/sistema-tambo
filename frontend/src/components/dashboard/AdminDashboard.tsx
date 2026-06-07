@@ -35,7 +35,7 @@ const periodOptions: Array<{ value: DashboardPeriodo; label: string }> = [
   { value: 'personalizado', label: 'Personalizado' },
 ];
 
-type AdminModalType = 'stock' | 'tareas' | 'sanidad';
+type AdminModalType = 'tareas' | 'sanidad';
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('es-AR', {
@@ -166,9 +166,9 @@ function KpiCard({
   );
 }
 
-function SectionCard({ children, description, title, action }: { children: ReactNode; description: string; title: string; action?: ReactNode }) {
+function SectionCard({ action, children, description, id, title }: { action?: ReactNode; children: ReactNode; description: string; id?: string; title: string }) {
   return (
-    <section className="panel dashboard-chart-card">
+    <section className="panel dashboard-chart-card" id={id}>
       <div className="dashboard-card-heading">
         <div>
           <h2>{title}</h2>
@@ -252,13 +252,17 @@ export function AdminDashboard({
 }: AdminDashboardProps) {
   const [activeModal, setActiveModal] = useState<AdminModalType | null>(null);
   const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad, resumenRodeo } = resumen;
-  const stockBajo = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual < insumo.stockMinimo);
+  const stockBajo = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual > 0 && insumo.stockActual < insumo.stockMinimo);
   const agotados = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual === 0);
+  const totalAlertasStock = stockBajo.length + agotados.length;
   const stockCardClass = agotados.length > 0
     ? 'dashboard-stock-critical'
     : stockBajo.length > 0
       ? 'dashboard-stock-warning'
       : 'dashboard-stock-ok';
+  function scrollToStockSection() {
+    document.getElementById('admin-alimentacion-stock')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
   const commercialReading = resumenVentas.cantidadVentas === 0
     ? 'No se registraron ventas en el período seleccionado.'
     : `Durante el período se vendieron ${formatNumber(resumenVentas.litrosVendidos, ' L')} por un total de ${formatCurrency(resumenVentas.facturacion)}.`;
@@ -280,12 +284,12 @@ export function AdminDashboard({
     { title: 'Litros vendidos', description: `${resumenVentas.cantidadVentas} ventas`, value: formatNumber(resumenVentas.litrosVendidos, ' L'), icon: BarChart3, tone: 'pink' as const },
     { title: 'Facturación', description: `Promedio ${formatNullable(resumenVentas.precioPromedioLitro, ' $/L')}`, value: formatCurrency(resumenVentas.facturacion), icon: DollarSign, tone: 'emerald' as const },
     {
-      title: 'Stock de alimentos',
-      description: stockBajo.length > 0 ? `Stock bajo: ${stockBajo.length} | Agotados: ${agotados.length}` : `Sin alertas críticas | Agotados: ${agotados.length}`,
-      value: stockBajo.length > 0 ? `Stock bajo: ${stockBajo.length}` : 'Sin alertas',
+      title: 'Stock',
+      description: totalAlertasStock > 0 ? 'Stock crítico' : 'Sin alertas críticas',
+      value: String(totalAlertasStock),
       icon: Utensils,
       tone: agotados.length > 0 ? 'rose' as const : stockBajo.length > 0 ? 'amber' as const : 'emerald' as const,
-      onClick: () => setActiveModal('stock'),
+      onClick: scrollToStockSection,
       className: stockCardClass,
     },
     { title: 'Tareas vencidas', description: 'Agenda pendiente', value: String(resumen.tareasVencidas), icon: ClipboardList, tone: 'amber' as const },
@@ -351,7 +355,13 @@ export function AdminDashboard({
                     <button
                       className="dashboard-alert-action"
                       type="button"
-                      onClick={() => setActiveModal(alerta.codigo === 'TAREAS_VENCIDAS' ? 'tareas' : alerta.codigo === 'STOCK_CRITICO' ? 'stock' : 'sanidad')}
+                      onClick={() => {
+                        if (alerta.codigo === 'STOCK_CRITICO') {
+                          scrollToStockSection();
+                          return;
+                        }
+                        setActiveModal(alerta.codigo === 'TAREAS_VENCIDAS' ? 'tareas' : 'sanidad');
+                      }}
                     >
                       Ver detalle
                     </button>
@@ -449,25 +459,27 @@ export function AdminDashboard({
 
       <div className="dashboard-two-column">
         <SectionCard
+          id="admin-alimentacion-stock"
           title="Alimentación y stock"
           description="Resumen de riesgo, no listado completo de insumos."
           action={<Link className="panel-chip" to={paths.feed}>Ver alimentación</Link>}
         >
           <div className="dashboard-detail-grid">
             <span>Insumos activos <strong>{resumenAlimentacion.insumosActivos}</strong></span>
-            <span>Bajo mínimo <strong>{resumenAlimentacion.insumosBajoMinimo}</strong></span>
+            <span>Bajo mínimo <strong>{stockBajo.length}</strong></span>
+            <span>Agotados <strong>{agotados.length}</strong></span>
             <span>Estado general <strong>{resumenAlimentacion.estadoGeneral}</strong></span>
           </div>
-          {resumenAlimentacion.insumosConRiesgo.length === 0 ? (
+          {totalAlertasStock === 0 ? (
             <p className="dashboard-conclusion">El stock de alimentación se encuentra dentro de los mínimos definidos.</p>
           ) : (
             <div className="dashboard-urgent-list">
-              {resumenAlimentacion.insumosConRiesgo.map((insumo) => (
+              {[...agotados, ...stockBajo].map((insumo) => (
                 <div className="dashboard-urgent-row" key={insumo.id}>
                   <strong>{insumo.alimento}</strong>
                   <span>{formatNumber(insumo.stockActual)} {insumo.unidad}</span>
                   <span>Mínimo {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
-                  <span className={`badge ${badgeClass(insumo.estado)}`}>{insumo.estado}</span>
+                  <span className={`badge ${insumo.stockActual === 0 ? 'badge-critical' : badgeClass(insumo.estado)}`}>{insumo.stockActual === 0 ? 'AGOTADO' : insumo.estado}</span>
                 </div>
               ))}
             </div>
@@ -528,7 +540,7 @@ export function AdminDashboard({
             <div className="dashboard-card-heading">
               <div>
                 <h2 id="admin-dashboard-modal-title">
-                  {activeModal === 'stock' ? 'Stock de alimentos' : activeModal === 'tareas' ? 'Tareas vencidas' : 'Controles sanitarios pendientes'}
+                  {activeModal === 'tareas' ? 'Tareas vencidas' : 'Controles sanitarios pendientes'}
                 </h2>
                 <p>Detalle para seguimiento y acción desde el módulo correspondiente.</p>
               </div>
@@ -536,46 +548,6 @@ export function AdminDashboard({
                 X
               </button>
             </div>
-
-            {activeModal === 'stock' && (
-              <div className="admin-modal-sections">
-                <section>
-                  <h3>Alimentos bajo mínimo</h3>
-                  {stockBajo.length === 0 ? (
-                    <p className="table-empty">No hay alimentos bajo mínimo.</p>
-                  ) : (
-                    <div className="dashboard-urgent-list">
-                      {stockBajo.map((insumo) => (
-                        <div className="dashboard-urgent-row" key={insumo.id}>
-                          <strong>{insumo.alimento}</strong>
-                          <span>Stock actual: {formatNumber(insumo.stockActual)} {insumo.unidad}</span>
-                          <span>Punto mínimo: {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
-                          <span className={`badge ${badgeClass(insumo.estado)}`}>{friendlyEnum(insumo.estado)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-                <section>
-                  <h3>Alimentos agotados</h3>
-                  {agotados.length === 0 ? (
-                    <p className="table-empty">No hay alimentos agotados.</p>
-                  ) : (
-                    <div className="dashboard-urgent-list">
-                      {agotados.map((insumo) => (
-                        <div className="dashboard-urgent-row" key={insumo.id}>
-                          <strong>{insumo.alimento}</strong>
-                          <span>Stock actual: {formatNumber(insumo.stockActual)} {insumo.unidad}</span>
-                          <span>Punto mínimo: {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
-                          <span className="badge badge-critical">Agotado</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-                <Link className="secondary-button dashboard-inline-action" to={paths.feed}>Ver alimentación</Link>
-              </div>
-            )}
 
             {activeModal === 'tareas' && (
               resumen.tareasVencidasDetalle.length === 0 ? (

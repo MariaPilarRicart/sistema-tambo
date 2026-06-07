@@ -324,7 +324,7 @@ function buildFeedingSummary(
   const insumosMapped = insumos.map((insumo) => {
     const stockActual = toNumber(insumo.stockActual);
     const stockMinimo = toNumber(insumo.stockMinimo);
-    const estado = stockActual <= 0 ? 'CRITICO' : stockActual <= stockMinimo ? 'BAJO' : 'OK';
+    const estado = stockActual === 0 ? 'CRITICO' : stockActual < stockMinimo ? 'BAJO' : 'OK';
 
     return {
       id: insumo.id,
@@ -338,7 +338,7 @@ function buildFeedingSummary(
 
   return {
     insumosActivos: insumos.length,
-    insumosBajoMinimo: insumosMapped.filter((insumo) => insumo.estado !== 'OK').length,
+    insumosBajoMinimo: insumosMapped.filter((insumo) => insumo.estado === 'BAJO').length,
     estadoGeneral: insumosMapped.some((insumo) => insumo.estado === 'CRITICO')
       ? 'Stock crítico'
       : insumosMapped.some((insumo) => insumo.estado === 'BAJO')
@@ -408,11 +408,12 @@ function buildSanitarySummary(
 }
 
 function buildManagementAlerts(input: {
-    tareasVencidas: number;
+  tareasVencidas: number;
   litrosDisponibles: number;
   lotesProximosAVencer: number;
   porcentajeDescarte: number;
   insumosBajoMinimo: number;
+  insumosAgotados: number;
   controlesPendientes: number;
   litrosProducidos: number;
   cantidadVentas: number;
@@ -422,21 +423,26 @@ function buildManagementAlerts(input: {
   if (input.tareasVencidas > 0) {
     alerts.push({
       codigo: 'TAREAS_VENCIDAS',
-      titulo: 'Tareas vencidas',
-      detalle: `Hay ${input.tareasVencidas} tareas vencidas pendientes.`,
+      titulo: 'Agenda pendiente',
+      detalle: `Hay ${input.tareasVencidas} tareas de agenda vencidas.`,
       severidad: 'CRITICA',
       accionSugerida: 'Revisar agenda y resolver pendientes hoy.',
       accionLabel: 'Ver agenda',
       accionRuta: '/agenda',
     });
   }
-  if (input.insumosBajoMinimo > 0) {
+  if (input.insumosBajoMinimo > 0 || input.insumosAgotados > 0) {
+    const detalleStock = input.insumosBajoMinimo > 0 && input.insumosAgotados > 0
+      ? `${input.insumosBajoMinimo} insumos bajo mínimo y ${input.insumosAgotados} agotado${input.insumosAgotados === 1 ? '' : 's'}.`
+      : input.insumosBajoMinimo > 0
+        ? `${input.insumosBajoMinimo} insumo${input.insumosBajoMinimo === 1 ? '' : 's'} bajo mínimo.`
+        : `${input.insumosAgotados} insumo${input.insumosAgotados === 1 ? '' : 's'} agotado${input.insumosAgotados === 1 ? '' : 's'}.`;
     alerts.push({
       codigo: 'STOCK_CRITICO',
-      titulo: 'Stock critico de alimentos',
-      detalle: `${input.insumosBajoMinimo} insumos estan en minimo o por debajo.`,
+      titulo: 'Stock de alimentos',
+      detalle: detalleStock,
       severidad: 'CRITICA',
-      accionSugerida: 'Planificar reposicion de alimento.',
+      accionSugerida: input.insumosAgotados > 0 ? 'Reponer alimento de forma urgente.' : 'Planificar reposicion de alimento.',
       accionLabel: 'Ver alimentación',
       accionRuta: '/alimentacion',
     });
@@ -444,7 +450,7 @@ function buildManagementAlerts(input: {
   if (input.controlesPendientes > 0) {
     alerts.push({
       codigo: 'SANIDAD_PENDIENTE',
-      titulo: 'Controles sanitarios pendientes',
+      titulo: 'Controles sanitarios',
       detalle: `${input.controlesPendientes} controles sanitarios requieren atencion.`,
       severidad: 'MEDIA',
       accionSugerida: 'Programar o registrar los controles sanitarios.',
@@ -715,12 +721,17 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
   const resumenLeche = buildMilkSummary(lotesDisponibles, todayStart);
   const resumenAlimentacion = buildFeedingSummary(insumos, ultimosMovimientosStock, ultimosRegistrosAlimentacion);
   const resumenSanidad = buildSanitarySummary(tareasSanitarias, ultimosEventosSanitarios, tareasSanitariasVencidas, tareasSanitariasProximas);
+  const agendaTareasVencidas = tareasVencidasDetalle.length;
+  const agendaTareasHoy = tareasHoyDetalle.length;
+  const agendaTareasFuturas = tareasProximos7Dias.length;
+  const insumosAgotados = resumenAlimentacion.insumos.filter((insumo) => insumo.estado === 'CRITICO').length;
   const alertasGestion = buildManagementAlerts({
-    tareasVencidas,
+    tareasVencidas: agendaTareasVencidas,
     litrosDisponibles: resumenLeche.litrosDisponibles,
     lotesProximosAVencer: resumenLeche.lotesProximosAVencer,
     porcentajeDescarte: resumenProduccion.porcentajeDescarte,
     insumosBajoMinimo: resumenAlimentacion.insumosBajoMinimo,
+    insumosAgotados,
     controlesPendientes: resumenSanidad.controlesPendientes,
     litrosProducidos: resumenProduccion.litrosProducidos,
     cantidadVentas: resumenVentas.cantidadVentas,
@@ -757,9 +768,9 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
       nombre: lote.nombre,
       total: lote._count.animales,
     })),
-    tareasVencidas,
-    tareasHoy,
-    tareasFuturas,
+    tareasVencidas: agendaTareasVencidas,
+    tareasHoy: agendaTareasHoy,
+    tareasFuturas: agendaTareasFuturas,
     tactosPendientes,
     secadosPendientes,
     partosPendientes,

@@ -58,17 +58,7 @@ export function groupAnimalesByLote() {
   });
 }
 
-export function countTareas(where: {
-  estado?: EstadoTarea;
-  tipo?: TipoTarea;
-  tipoSanitario?: Prisma.StringNullableFilter | string | null;
-  fechaProgramada?: {
-    lt?: Date;
-    lte?: Date;
-    gt?: Date;
-    gte?: Date;
-  };
-}) {
+export function countTareas(where: Prisma.AgendaTareaWhereInput) {
   return prisma.agendaTarea.count({ where });
 }
 
