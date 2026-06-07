@@ -94,30 +94,30 @@ function SummaryCard({
 
 export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
   const [activeModal, setActiveModal] = useState<SummaryModalKey | null>(null);
-  const priority = resumen.tareasVencidas > 0
+  const priority = resumen.tareasVencidasDetalle.length > 0
     ? {
-        message: 'Hay tareas vencidas. Revisa primero la agenda.',
+        title: 'Hay tareas vencidas',
+        message: 'Revisa el detalle desde el resumen operativo.',
         severity: 'Critica',
-        action: 'Ver tareas vencidas',
         className: 'employee-priority-critical',
       }
-    : resumen.tareasHoy > 0
+    : resumen.tareasHoyDetalle.length > 0
       ? {
-          message: 'Tenes tareas programadas para hoy.',
+          title: 'Hay tareas para hoy',
+          message: 'Revisa las tareas del dia desde el resumen operativo.',
           severity: 'Media',
-          action: 'Ver tareas de hoy',
           className: 'employee-priority-warning',
         }
       : {
+          title: 'Estas al dia',
           message: 'No hay tareas urgentes para hoy.',
           severity: 'Normal',
-          action: 'Ver agenda',
           className: 'employee-priority-ok',
         };
 
   const summary: Array<{ key: SummaryModalKey; title: string; value: number; tasks: DashboardTareaDetalle[] }> = [
-    { key: 'overdue', title: 'Tareas vencidas', value: resumen.tareasVencidas, tasks: resumen.tareasPrioritarias.filter((task) => new Date(task.fechaProyectada) < new Date(resumen.fechaDesde)) },
-    { key: 'today', title: 'Tareas para hoy', value: resumen.tareasHoy, tasks: resumen.tareasHoyDetalle },
+    { key: 'overdue', title: 'Tareas vencidas', value: resumen.tareasVencidasDetalle.length, tasks: resumen.tareasVencidasDetalle },
+    { key: 'today', title: 'Tareas para hoy', value: resumen.tareasHoyDetalle.length, tasks: resumen.tareasHoyDetalle },
     { key: 'next7', title: 'Proximos 7 dias', value: resumen.tareasProximos7Dias.length, tasks: resumen.tareasProximos7Dias },
   ];
   const modalSummary = summary.find((item) => item.key === activeModal);
@@ -136,9 +136,9 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
             <h2>Prioridad del dia</h2>
             <p>{priority.severity}</p>
           </div>
-          <Link className="primary-button" to={paths.agenda}>{priority.action}</Link>
         </div>
-        <p className="employee-priority-message">{priority.message}</p>
+        <p className="employee-priority-message">{priority.title}</p>
+        <p className="employee-priority-subtext">{priority.message}</p>
       </section>
 
       <section className="panel">
@@ -250,7 +250,7 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
             </div>
             <TaskList
               emptyMessage="No hay tareas para mostrar."
-              limit={20}
+              limit={modalSummary.tasks.length}
               tasks={modalSummary.tasks}
             />
           </section>

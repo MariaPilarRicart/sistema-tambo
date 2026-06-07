@@ -934,6 +934,13 @@ a {
   margin: 0;
 }
 
+.employee-priority-subtext {
+  color: var(--slate-500);
+  font-size: 13px;
+  font-weight: 800;
+  margin: 6px 0 0;
+}
+
 .employee-kpi-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }

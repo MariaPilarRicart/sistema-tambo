@@ -72,10 +72,10 @@ export function countTareas(where: {
   return prisma.agendaTarea.count({ where });
 }
 
-export function findAgendaTasksForDashboard(where: Prisma.AgendaTareaWhereInput, take = 5) {
+export function findAgendaTasksForDashboard(where: Prisma.AgendaTareaWhereInput, take?: number) {
   return prisma.agendaTarea.findMany({
     where,
-    take,
+    ...(take ? { take } : {}),
     orderBy: [{ fechaProgramada: 'asc' }, { id: 'asc' }],
     select: {
       id: true,
