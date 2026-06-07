@@ -493,7 +493,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
 
       {showVentaModal && (
         <div className="modal-backdrop">
-          <section className="panel modal-panel modal-panel-wide animal-form-modal">
+          <section className="panel modal-panel sale-modal">
             <div className="panel-header">
               <div>
                 <h2>Nueva venta</h2>
@@ -501,25 +501,33 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
               </div>
               <button type="button" className="icon-button" onClick={closeVentaModal} aria-label="Cerrar nueva venta"><X size={18} /></button>
             </div>
-            <form className="user-form production-form" onSubmit={handleVentaSubmit}>
+            <form className="user-form production-form sale-form" onSubmit={handleVentaSubmit}>
               <label className="client-search-field">
                 <span>Cliente</span>
-                <input
-                  placeholder="Buscar cliente por CUIT o razón social..."
-                  value={clienteSearch}
-                  onChange={(event) => {
-                    setClienteSearch(event.target.value);
-                    setSelectedCliente(null);
-                    setVentaForm((current) => ({ ...current, clienteId: '' }));
-                  }}
-                  autoComplete="off"
-                />
-                {selectedCliente ? (
-                  <div className="client-selection">
-                    <strong>{clienteLabel(selectedCliente)}</strong>
-                    <button type="button" className="secondary-button" onClick={clearCliente}>Limpiar</button>
-                  </div>
-                ) : showClienteDropdown ? (
+                <div className="client-input-wrap">
+                  <input
+                    placeholder="Buscar cliente por CUIT o razón social..."
+                    value={clienteSearch}
+                    onChange={(event) => {
+                      setClienteSearch(event.target.value);
+                      setSelectedCliente(null);
+                      setVentaForm((current) => ({ ...current, clienteId: '' }));
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' && showClienteDropdown && ventaClientes.length > 0) {
+                        event.preventDefault();
+                        selectCliente(ventaClientes[0]);
+                      }
+                    }}
+                    autoComplete="off"
+                  />
+                  {selectedCliente && (
+                    <button type="button" className="client-clear-button" onClick={clearCliente} aria-label="Quitar cliente seleccionado">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                {showClienteDropdown ? (
                   <div className="client-results">
                     {ventaClientes.map((cliente) => (
                       <button type="button" key={cliente.id} onClick={() => selectCliente(cliente)}>

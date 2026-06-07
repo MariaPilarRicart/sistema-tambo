@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarClock, CheckCircle2, Clock3, FilterX, ListChecks, RefreshCcw, Syringe, X } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Clock3, FilterX, ListChecks, Plus, RefreshCcw, Syringe, X } from 'lucide-react';
 import { SanitaryRulesPanel } from '../components/ui/SanitaryRulesPanel';
 import { ApiError } from '../services/apiClient';
 import { getAnimales } from '../services/animalesService';
@@ -138,6 +138,7 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
   const [formValues, setFormValues] = useState<ScheduleVaccinationValues>(emptyScheduleForm);
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('individual');
   const [animalSearch, setAnimalSearch] = useState('');
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [bulkValues, setBulkValues] = useState({ fechaRealizada: todayIso(), observaciones: '' });
   const [error, setError] = useState('');
@@ -288,6 +289,19 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
     setError('');
   }
 
+  function openScheduleModal() {
+    setIsScheduleModalOpen(true);
+    setError('');
+    setSuccess('');
+  }
+
+  function closeScheduleModal() {
+    setIsScheduleModalOpen(false);
+    setFormValues(emptyScheduleForm);
+    setScheduleMode('individual');
+    setAnimalSearch('');
+  }
+
   function applyStatusFilter(estado: EstadoSanitario | '') {
     const nextFilters = estado ? { ...filters, estado } : emptyFilters;
     setFilters(nextFilters);
@@ -321,6 +335,7 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
       const result = await scheduleVaccination(authToken, payload);
       setFormValues(emptyScheduleForm);
       setAnimalSearch('');
+      setIsScheduleModalOpen(false);
       setSuccess(`Vacunación programada: ${result.tareasCreadas} tareas individuales creadas.`);
       await loadData();
     } catch (saveError) {
@@ -483,75 +498,6 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
         )}
       </section>
 
-      <section className="panel vaccination-schedule-section">
-        <div className="panel-header"><div><h2>Programar vacunación</h2><p>Crear campañas extraordinarias o controles especiales.</p></div></div>
-        <form className="user-form vaccination-form" onSubmit={handleScheduleSubmit}>
-          <div className="vaccination-mode-selector">
-            {scheduleModes.map((mode) => (
-              <button type="button" key={mode.value} className={scheduleMode === mode.value ? 'vaccination-mode-active' : ''} onClick={() => changeScheduleMode(mode.value)}>
-                {mode.label}
-              </button>
-            ))}
-          </div>
-          <label><span>Fecha programada</span><input type="date" value={formValues.fechaProgramada} onChange={(event) => setFormValues({ ...formValues, fechaProgramada: event.target.value })} required /></label>
-          <label><span>Fecha objetivo</span><input type="date" value={formValues.fechaObjetivo} onChange={(event) => setFormValues({ ...formValues, fechaObjetivo: event.target.value })} /></label>
-          <label>
-            <span>Tipo sanitario</span>
-            <select value={formValues.tipoSanitario} onChange={(event) => setFormValues({ ...formValues, tipoSanitario: event.target.value })} required>
-              <option value="">Seleccionar tipo</option>
-              {activeSanitaryRules.map((regla) => <option key={regla.id} value={regla.codigo}>{regla.nombre}</option>)}
-            </select>
-          </label>
-          <label><span>Observaciones</span><input value={formValues.descripcion} onChange={(event) => setFormValues({ ...formValues, descripcion: event.target.value })} placeholder="Ej. Campaña marzo" /></label>
-
-          <div className="vaccination-selection-panel">
-            {scheduleMode !== 'individual' && <p className="selection-helper">{selectedMode.helper}</p>}
-            {scheduleMode === 'lote' && (
-              <label>
-                <span>Lote</span>
-                <select value={formValues.loteId} onChange={(event) => setFormValues({ ...formValues, loteId: event.target.value })} required>
-                  <option value="">Seleccionar lote</option>
-                  {lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
-                </select>
-              </label>
-            )}
-            {scheduleMode === 'categoria' && (
-              <label>
-                <span>Categoría</span>
-                <select value={formValues.categoria} onChange={(event) => setFormValues({ ...formValues, categoria: event.target.value })} required>
-                  <option value="">Seleccionar categoría</option>
-                  {categoriaOptions.map((categoria) => <option key={categoria} value={categoria}>{formatCategoria(categoria)}</option>)}
-                </select>
-              </label>
-            )}
-            {scheduleMode === 'individual' && (
-              <div className="animal-selector">
-                <label><span>Buscar animal activo</span><input value={animalSearch} onChange={(event) => setAnimalSearch(event.target.value)} placeholder="Ingrese caravana o nombre" /></label>
-                <p className="field-help">Escribí al menos 2 caracteres para buscar animales activos.</p>
-                {shouldSearchAnimals && (
-                  <div>
-                    {filteredAnimals.map((animal) => (
-                      <label key={animal.id} className="checkbox-row animal-selector-option">
-                        <input type="checkbox" checked={formValues.animalIds.includes(animal.id)} onChange={() => toggleAnimalSelection(animal.id)} />
-                        <span>#{animal.caravana} {animal.nombre ? `- ${animal.nombre}` : ''}</span>
-                      </label>
-                    ))}
-                    {filteredAnimals.length === 0 && <p className="table-empty">No se encontraron animales activos con ese criterio.</p>}
-                  </div>
-                )}
-                {selectedAnimals.length > 0 && <div className="selected-animals-summary">{selectedAnimals.map((animal) => <button type="button" key={animal.id} onClick={() => toggleAnimalSelection(animal.id)}>#{animal.caravana} x</button>)}</div>}
-              </div>
-            )}
-            {(scheduleMode !== 'individual' || selectedAnimals.length > 0) && (
-              <div className={`selection-count ${matchingActiveAnimalsCount > 0 ? 'selection-count-ok' : 'selection-count-empty'}`}>
-                {matchingActiveAnimalsCount > 0 ? `${matchingActiveAnimalsCount} animales activos incluidos.` : 'No hay animales activos para la selección actual.'}
-              </div>
-            )}
-          </div>
-          <button type="submit" className="primary-button vaccination-submit" disabled={!canSubmitSchedule}><Syringe size={18} />{isSaving ? 'Programando...' : 'Programar vacunación'}</button>
-        </form>
-      </section>
-
       <div className="vaccination-rules-section">
         <SanitaryRulesPanel authToken={authToken} onUnauthorized={onUnauthorized} onRulesChanged={() => loadData(filters)} />
       </div>
@@ -559,7 +505,10 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
       <section className="panel vaccination-history-section">
         <div className="panel-header">
           <div><h2>Historial sanitario</h2><p>{history.length} registros encontrados.</p></div>
-          <button type="button" className="secondary-button" onClick={() => applyStatusFilter('')}><FilterX size={16} />Todas</button>
+          <div className="header-actions">
+            <button type="button" className="primary-button" onClick={openScheduleModal}><Plus size={16} />Programar vacunación</button>
+            <button type="button" className="secondary-button" onClick={() => applyStatusFilter('')}><FilterX size={16} />Todas</button>
+          </div>
         </div>
         <form className="filters-form events-filters production-filters" onSubmit={handleFilters}>
           <label className="filter-field"><span>Fecha programada desde</span><input type="date" value={filters.fechaProgramadaDesde} onChange={(event) => setFilters({ ...filters, fechaProgramadaDesde: event.target.value })} /></label>
@@ -621,6 +570,109 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
           </table>
         </div>
       </section>
+
+      {isScheduleModalOpen && (
+        <div className="modal-backdrop">
+          <section className="modal-panel vaccination-schedule-modal">
+            <div className="panel-header">
+              <div>
+                <h2>Programar vacunación</h2>
+                <p>Crear campañas extraordinarias o controles especiales.</p>
+              </div>
+              <button type="button" className="icon-button" onClick={closeScheduleModal} aria-label="Cerrar modal">
+                <X size={18} />
+              </button>
+            </div>
+            <form className="user-form vaccination-form vaccination-schedule-form" onSubmit={handleScheduleSubmit}>
+              <div className="vaccination-modal-section vaccination-campaign-fields">
+                <div className="vaccination-section-title">
+                  <h3>Datos de la campaña</h3>
+                </div>
+                <label><span>Fecha programada</span><input type="date" value={formValues.fechaProgramada} onChange={(event) => setFormValues({ ...formValues, fechaProgramada: event.target.value })} required /></label>
+                <label><span>Fecha objetivo</span><input type="date" value={formValues.fechaObjetivo} onChange={(event) => setFormValues({ ...formValues, fechaObjetivo: event.target.value })} /></label>
+                <label>
+                  <span>Tipo sanitario</span>
+                  <select value={formValues.tipoSanitario} onChange={(event) => setFormValues({ ...formValues, tipoSanitario: event.target.value })} required>
+                    <option value="">Seleccionar tipo</option>
+                    {activeSanitaryRules.map((regla) => <option key={regla.id} value={regla.codigo}>{regla.nombre}</option>)}
+                  </select>
+                </label>
+                <label><span>Observaciones</span><input value={formValues.descripcion} onChange={(event) => setFormValues({ ...formValues, descripcion: event.target.value })} placeholder="Ej. Campaña marzo" /></label>
+              </div>
+
+              <div className="vaccination-modal-section vaccination-scope-section">
+                <div className="vaccination-section-title">
+                  <h3>Alcance</h3>
+                </div>
+                <div className="vaccination-mode-selector">
+                  {scheduleModes.map((mode) => (
+                    <button type="button" key={mode.value} className={scheduleMode === mode.value ? 'vaccination-mode-active' : ''} onClick={() => changeScheduleMode(mode.value)}>
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="vaccination-selection-panel">
+                  {scheduleMode !== 'individual' && <p className="selection-helper">{selectedMode.helper}</p>}
+                  {scheduleMode === 'lote' && (
+                    <label>
+                      <span>Lote</span>
+                      <select value={formValues.loteId} onChange={(event) => setFormValues({ ...formValues, loteId: event.target.value })} required>
+                        <option value="">Seleccionar lote</option>
+                        {lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {scheduleMode === 'categoria' && (
+                    <label>
+                      <span>Categoría</span>
+                      <select value={formValues.categoria} onChange={(event) => setFormValues({ ...formValues, categoria: event.target.value })} required>
+                        <option value="">Seleccionar categoría</option>
+                        {categoriaOptions.map((categoria) => <option key={categoria} value={categoria}>{formatCategoria(categoria)}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {scheduleMode === 'individual' && (
+                    <div className="animal-selector">
+                      <label><span>Buscar animal activo</span><input value={animalSearch} onChange={(event) => setAnimalSearch(event.target.value)} placeholder="Ingrese caravana o nombre" /></label>
+                      <p className="field-help">Escribí al menos 2 caracteres para buscar animales activos.</p>
+                      {shouldSearchAnimals && (
+                        <div>
+                          {filteredAnimals.map((animal) => (
+                            <label key={animal.id} className="checkbox-row animal-selector-option">
+                              <input type="checkbox" checked={formValues.animalIds.includes(animal.id)} onChange={() => toggleAnimalSelection(animal.id)} />
+                              <span>#{animal.caravana} {animal.nombre ? `- ${animal.nombre}` : ''}</span>
+                            </label>
+                          ))}
+                          {filteredAnimals.length === 0 && <p className="table-empty">No se encontraron animales activos con ese criterio.</p>}
+                        </div>
+                      )}
+                      {selectedAnimals.length > 0 && <div className="selected-animals-summary">{selectedAnimals.map((animal) => <button type="button" key={animal.id} onClick={() => toggleAnimalSelection(animal.id)}>#{animal.caravana} x</button>)}</div>}
+                    </div>
+                  )}
+                  {(scheduleMode !== 'individual' || selectedAnimals.length > 0) && (
+                    <div className={`selection-count ${matchingActiveAnimalsCount > 0 ? 'selection-count-ok' : 'selection-count-empty'}`}>
+                      {matchingActiveAnimalsCount > 0 ? `${matchingActiveAnimalsCount} animales activos incluidos.` : 'No hay animales activos para la selección actual.'}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="vaccination-modal-section vaccination-actions-section">
+                <div className="vaccination-section-title">
+                  <h3>Acciones</h3>
+                </div>
+                <div className="modal-actions">
+                  <button type="button" className="secondary-button" onClick={closeScheduleModal} disabled={isSaving}>Cancelar</button>
+                  <button type="submit" className="primary-button vaccination-submit" disabled={!canSubmitSchedule}>
+                    <Syringe size={18} />
+                    {isSaving ? 'Programando...' : 'Programar vacunación'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
 
       {isBulkModalOpen && (
         <div className="modal-backdrop">

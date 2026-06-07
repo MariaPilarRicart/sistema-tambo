@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { BarChart3, Droplets, Edit2, Milk, RefreshCcw, Save, Trash2, X } from 'lucide-react';
+import { BarChart3, Droplets, Edit2, Milk, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { getAnimales } from '../services/animalesService';
 import { getLotes } from '../services/lotesService';
@@ -35,6 +35,8 @@ import type {
   ProduccionResumen,
   TurnoOrdene,
 } from '../types/produccion';
+
+type StatsType = 'animal' | 'lote' | 'loteLeche';
 
 function localDateTimeValue() {
   const date = new Date();
@@ -134,6 +136,12 @@ const estadoReproductivoLabels: Record<EstadoReproductivo, string> = {
   RECUPERACION: 'Recuperación',
 };
 
+const statsTypeLabels: Record<StatsType, string> = {
+  animal: 'Por animal',
+  lote: 'Por lote de animales',
+  loteLeche: 'Por lote de producción',
+};
+
 interface ProduccionViewProps {
   authToken: string | null;
   currentUser: AuthUser | null;
@@ -165,6 +173,18 @@ function animalLabel(animal: Pick<Animal, 'caravana' | 'categoriaAnimal' | 'esta
   return `Caravana ${animal.caravana} - ${categoriaLabels[animal.categoriaAnimal]} - ${estadoReproductivoLabels[animal.estadoReproductivo]}`;
 }
 
+function statsAnimalLabel(animal: Pick<Animal, 'caravana' | 'nombre'>) {
+  return `#${animal.caravana}${animal.nombre ? ` ${animal.nombre}` : ''}`;
+}
+
+function statsLoteLabel(lote: Pick<Lote, 'nombre' | 'descripcion'>) {
+  return lote.descripcion ? `${lote.nombre} - ${lote.descripcion}` : lote.nombre;
+}
+
+function statsLoteLecheLabel(loteLeche: Pick<LoteLeche, 'codigo' | 'descripcion'>) {
+  return loteLeche.descripcion ? `${loteLeche.codigo} - ${loteLeche.descripcion}` : loteLeche.codigo;
+}
+
 function loteLecheToEditValues(loteLeche: LoteLeche): LoteLecheEditValues {
   return {
     descripcion: loteLeche.descripcion ?? '',
@@ -192,7 +212,11 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
   const [loteLecheForm, setLoteLecheForm] = useState<LoteLecheCreateValues>(emptyLoteLecheCreateForm);
   const [editingLoteLeche, setEditingLoteLeche] = useState<LoteLeche | null>(null);
   const [loteLecheEditForm, setLoteLecheEditForm] = useState<LoteLecheEditValues | null>(null);
+  const [showLoteLecheModal, setShowLoteLecheModal] = useState(false);
+  const [showOrdeneModal, setShowOrdeneModal] = useState(false);
   const [filters, setFilters] = useState<ProduccionFilters>(emptyFilters);
+  const [statsType, setStatsType] = useState<StatsType>('animal');
+  const [statsSearch, setStatsSearch] = useState('');
   const [statsAnimalId, setStatsAnimalId] = useState('');
   const [statsLoteId, setStatsLoteId] = useState('');
   const [statsLoteLecheId, setStatsLoteLecheId] = useState('');
@@ -217,6 +241,28 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
           animal.activo && animal.estadoAnimal === 'ACTIVO' && animal.categoriaAnimal === 'VACA_PRODUCCION' && String(animal.loteId) === form.loteId,
       ),
     [animales, form.loteId],
+  );
+  const statsQuery = statsSearch.trim().toLocaleLowerCase('es-AR');
+  const filteredStatsAnimals = useMemo(
+    () =>
+      statsQuery
+        ? animales.filter((animal) => `${animal.caravana} ${animal.nombre ?? ''}`.toLocaleLowerCase('es-AR').includes(statsQuery)).slice(0, 8)
+        : [],
+    [animales, statsQuery],
+  );
+  const filteredStatsLotes = useMemo(
+    () =>
+      statsQuery
+        ? lotes.filter((lote) => `${lote.nombre} ${lote.descripcion ?? ''}`.toLocaleLowerCase('es-AR').includes(statsQuery)).slice(0, 8)
+        : [],
+    [lotes, statsQuery],
+  );
+  const filteredStatsLotesLeche = useMemo(
+    () =>
+      statsQuery
+        ? lotesLeche.filter((lote) => `${lote.codigo} ${lote.descripcion ?? ''}`.toLocaleLowerCase('es-AR').includes(statsQuery)).slice(0, 8)
+        : [],
+    [lotesLeche, statsQuery],
   );
 
   function handleRequestError(requestError: unknown, fallback: string) {
@@ -282,6 +328,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
     try {
       await createLoteLeche(authToken, loteLecheForm);
       setLoteLecheForm(emptyLoteLecheCreateForm);
+      setShowLoteLecheModal(false);
       setSuccess('Lote de leche creado correctamente.');
       await loadData();
       await refreshNextCode();
@@ -324,8 +371,10 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
     try {
       await createProduccion(authToken, form);
       setForm({ ...emptyForm, fechaHora: localDateTimeValue(), loteId: form.loteId, loteLecheId: form.loteLecheId });
+      setShowOrdeneModal(false);
       setSuccess('Ordeñe registrado correctamente.');
       await loadData();
+      await refreshActiveStats();
     } catch (saveError) {
       handleRequestError(saveError, 'No se pudo registrar el ordeñe.');
     } finally {
@@ -406,6 +455,78 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
     }
   }
 
+  async function refreshActiveStats() {
+    if (statsType === 'animal' && statsAnimalId) await loadAnimalStats(statsAnimalId);
+    if (statsType === 'lote' && statsLoteId) await loadLoteStats(statsLoteId);
+    if (statsType === 'loteLeche' && statsLoteLecheId) await loadLoteLecheStats(statsLoteLecheId);
+  }
+
+  function openLoteLecheModal() {
+    setShowLoteLecheModal(true);
+    setError('');
+    setSuccess('');
+    void refreshNextCode();
+  }
+
+  function closeLoteLecheModal() {
+    setShowLoteLecheModal(false);
+    setLoteLecheForm(emptyLoteLecheCreateForm);
+    void refreshNextCode();
+  }
+
+  function openOrdeneModal() {
+    setShowOrdeneModal(true);
+    setError('');
+    setSuccess('');
+  }
+
+  function closeOrdeneModal() {
+    setShowOrdeneModal(false);
+    setForm({ ...emptyForm, fechaHora: localDateTimeValue() });
+  }
+
+  function changeStatsType(nextType: StatsType) {
+    setStatsType(nextType);
+    setStatsSearch('');
+    setStatsAnimalId('');
+    setStatsLoteId('');
+    setStatsLoteLecheId('');
+    setAnimalStats(null);
+    setLoteStats(null);
+    setLoteLecheStats(null);
+  }
+
+  function resetActiveStatsSearch(value: string) {
+    setStatsSearch(value);
+    if (statsType === 'animal') {
+      setStatsAnimalId('');
+      setAnimalStats(null);
+    }
+    if (statsType === 'lote') {
+      setStatsLoteId('');
+      setLoteStats(null);
+    }
+    if (statsType === 'loteLeche') {
+      setStatsLoteLecheId('');
+      setLoteLecheStats(null);
+    }
+  }
+
+  function selectStatsAnimal(animal: Animal) {
+    setStatsSearch(statsAnimalLabel(animal));
+    void loadAnimalStats(String(animal.id));
+  }
+
+  function selectStatsLote(lote: Lote) {
+    setStatsSearch(statsLoteLabel(lote));
+    void loadLoteStats(String(lote.id));
+  }
+
+  function selectStatsLoteLeche(loteLeche: LoteLeche) {
+    setStatsSearch(statsLoteLecheLabel(loteLeche));
+    void loadLoteLecheStats(String(loteLeche.id));
+  }
+
   function openEditLoteLeche(loteLeche: LoteLeche) {
     setEditingLoteLeche(loteLeche);
     setLoteLecheEditForm(loteLecheToEditValues(loteLeche));
@@ -452,22 +573,8 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
             <h2>Lotes de leche</h2>
             <p>Alta simple y administración posterior de calidad, estado y descarte.</p>
           </div>
+          {isAdmin && <button type="button" className="primary-button" onClick={openLoteLecheModal}><Plus size={16} />Nuevo lote</button>}
         </div>
-        {isAdmin && (
-          <form className="user-form production-form" onSubmit={handleCreateLoteLeche}>
-            <label>
-              <span>Código</span>
-              <input value={loteLecheForm.codigo} onChange={(event) => setLoteLecheForm({ ...loteLecheForm, codigo: event.target.value })} required />
-            </label>
-            <label>
-              <span>Descripción</span>
-              <input value={loteLecheForm.descripcion} onChange={(event) => setLoteLecheForm({ ...loteLecheForm, descripcion: event.target.value })} />
-            </label>
-            <button type="submit" className="primary-button production-wide-field" disabled={isSaving}>
-              <Save size={18} />Crear lote de leche
-            </button>
-          </form>
-        )}
         <div className="table-wrap feed-table-wrap">
           <table className="users-table production-history-table">
             <thead><tr><th>Código</th><th>Estado</th><th>Fechas</th><th>Disponibilidad</th><th>Calidad</th><th>Acciones</th></tr></thead>
@@ -496,23 +603,10 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
       </section>
 
       <section className="panel">
-        <div className="panel-header"><div><h2>Cargar ordeñe</h2><p>Primero seleccioná el lote del sistema y luego el animal activo.</p></div></div>
-        <form className="user-form production-form" onSubmit={handleSubmit}>
-          <label><span>Lote del sistema</span><select value={form.loteId} onChange={(event) => updateForm({ loteId: event.target.value, animalId: '' })} required><option value="">Seleccionar lote</option>{lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}</select></label>
-          <label><span>Animal filtrado por lote</span><select value={form.animalId} onChange={(event) => updateForm({ animalId: event.target.value })} required disabled={!form.loteId}><option value="">Seleccionar animal</option>{selectedLoteAnimals.map((animal) => <option key={animal.id} value={animal.id}>{animalLabel(animal)}</option>)}</select></label>
-          <label><span>Lote de leche destino</span><select value={form.loteLecheId} onChange={(event) => updateForm({ loteLecheId: event.target.value })} required><option value="">Seleccionar lote de leche</option>{availableLotesLeche.map((lote) => <option key={lote.id} value={lote.id}>{lote.codigo} - {estadoLoteLecheLabels[lote.estado]}</option>)}</select></label>
-          <label><span>Fecha y hora</span><input type="datetime-local" value={form.fechaHora} onChange={(event) => updateForm({ fechaHora: event.target.value })} required /></label>
-          <label><span>Turno</span><select value={form.turno} onChange={(event) => updateForm({ turno: event.target.value as TurnoOrdene })}>{Object.entries(turnoLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label><span>Litros producidos</span><input type="number" min="0" step="0.01" value={form.litrosProducidos} onChange={(event) => updateForm({ litrosProducidos: event.target.value })} required /></label>
-          <label><span>Litros descartados</span><input type="number" min="0" step="0.01" value={form.litrosDescartados} onChange={(event) => updateForm({ litrosDescartados: event.target.value })} required /></label>
-          {hasDiscard && <label><span>Motivo de descarte</span><select value={form.motivoDescarte} onChange={(event) => updateForm({ motivoDescarte: event.target.value as ProduccionFormValues['motivoDescarte'] })} required><option value="">Seleccionar motivo</option>{Object.entries(motivoLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
-          <label className="production-wide-field"><span>Observación de descarte</span><textarea rows={2} value={form.observacionDescarte} onChange={(event) => updateForm({ observacionDescarte: event.target.value })} /></label>
-          <button type="submit" className="primary-button production-wide-field" disabled={isSaving}><Save size={18} />Guardar ordeñe</button>
-        </form>
-      </section>
-
-      <section className="panel">
-        <div className="panel-header"><div><h2>Historial</h2><p>Registros individuales de producción.</p></div></div>
+        <div className="panel-header">
+          <div><h2>Historial</h2><p>Registros individuales de producción.</p></div>
+          <button type="button" className="primary-button" onClick={openOrdeneModal}><Plus size={16} />Nuevo ordeñe</button>
+        </div>
         <form className="filters-form events-filters production-filters" onSubmit={handleApplyFilters}>
           <label className="filter-field"><span>Fecha desde</span><input type="date" value={filters.fechaDesde} onChange={(event) => setFilters({ ...filters, fechaDesde: event.target.value })} /></label>
           <label className="filter-field"><span>Fecha hasta</span><input type="date" value={filters.fechaHasta} onChange={(event) => setFilters({ ...filters, fechaHasta: event.target.value })} /></label>
@@ -549,43 +643,68 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         )}
       </section>
 
-      <div className="feed-grid">
-        <section className="panel">
-          <div className="panel-header"><div><h2>Estadísticas por animal</h2><p>Totales y calidad promedio de los lotes aportados.</p></div></div>
-          <label className="filter-field production-selector"><span>Animal</span><select value={statsAnimalId} onChange={(event) => void loadAnimalStats(event.target.value)}><option value="">Seleccionar animal</option>{animales.map((animal) => <option key={animal.id} value={animal.id}>{animalLabel(animal)}</option>)}</select></label>
-          {animalStats ? <div className="dashboard-kpi-grid production-stats-grid">
-            <article className="dashboard-kpi-card dashboard-kpi-emerald"><strong>Litros totales</strong><h3>{formatLiters(animalStats.litrosTotalesProducidos)}</h3></article>
-            <article className="dashboard-kpi-card dashboard-kpi-amber"><strong>Descartados</strong><h3>{formatLiters(animalStats.litrosDescartados)}</h3></article>
-            <article className="dashboard-kpi-card dashboard-kpi-blue"><strong>Litros netos</strong><h3>{formatLiters(animalStats.litrosNetos)}</h3></article>
-            <article className="dashboard-kpi-card dashboard-kpi-indigo"><strong>Ordeñes</strong><h3>{animalStats.cantidadOrdenes}</h3></article>
-            <article className="dashboard-kpi-card dashboard-kpi-pink"><strong>Grasa promedio</strong><h3>{formatNumber(animalStats.grasaPromedio, '%')}</h3></article>
-            <article className="dashboard-kpi-card dashboard-kpi-pink"><strong>Proteína promedio</strong><h3>{formatNumber(animalStats.proteinaPromedio, '%')}</h3></article>
-            <article className="dashboard-kpi-card dashboard-kpi-rose"><strong>RB promedio</strong><h3>{formatNumber(animalStats.recuentoBacterianoPromedio)}</h3></article>
-            <article className="dashboard-kpi-card dashboard-kpi-rose"><strong>Temp. promedio</strong><h3>{formatNumber(animalStats.temperaturaPromedio, ' °C')}</h3></article>
-          </div> : <p className="table-empty">Seleccioná un animal para ver estadísticas.</p>}
-        </section>
+      <section className="panel production-stats-panel">
+        <div className="panel-header"><div><h2>Estadísticas</h2><p>Elegí un tipo y buscá por coincidencia de caracteres.</p></div></div>
+        <div className="production-stats-controls">
+          <label className="filter-field">
+            <span>Tipo de estadística</span>
+            <select value={statsType} onChange={(event) => changeStatsType(event.target.value as StatsType)}>
+              {Object.entries(statsTypeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+          <label className="filter-field production-stats-search">
+            <span>Buscar</span>
+            <input
+              value={statsSearch}
+              onChange={(event) => resetActiveStatsSearch(event.target.value)}
+              placeholder={statsType === 'animal' ? 'Buscar por caravana o nombre...' : statsType === 'lote' ? 'Buscar por nombre o descripción...' : 'Buscar por código o descripción...'}
+              autoComplete="off"
+            />
+            {statsQuery && statsType === 'animal' && !statsAnimalId && (
+              <div className="client-results production-stats-results">
+                {filteredStatsAnimals.map((animal) => <button type="button" key={animal.id} onClick={() => selectStatsAnimal(animal)}>{statsAnimalLabel(animal)}</button>)}
+                {filteredStatsAnimals.length === 0 && <p>No se encontraron animales</p>}
+              </div>
+            )}
+            {statsQuery && statsType === 'lote' && !statsLoteId && (
+              <div className="client-results production-stats-results">
+                {filteredStatsLotes.map((lote) => <button type="button" key={lote.id} onClick={() => selectStatsLote(lote)}>{statsLoteLabel(lote)}</button>)}
+                {filteredStatsLotes.length === 0 && <p>No se encontraron lotes</p>}
+              </div>
+            )}
+            {statsQuery && statsType === 'loteLeche' && !statsLoteLecheId && (
+              <div className="client-results production-stats-results">
+                {filteredStatsLotesLeche.map((lote) => <button type="button" key={lote.id} onClick={() => selectStatsLoteLeche(lote)}>{statsLoteLecheLabel(lote)}</button>)}
+                {filteredStatsLotesLeche.length === 0 && <p>No se encontraron lotes de producción</p>}
+              </div>
+            )}
+          </label>
+        </div>
 
-        <section className="panel">
-          <div className="panel-header"><div><h2>Estadísticas por lote</h2><p>Totales, promedio por animal y ranking.</p></div></div>
-          <label className="filter-field production-selector"><span>Lote</span><select value={statsLoteId} onChange={(event) => void loadLoteStats(event.target.value)}><option value="">Seleccionar lote</option>{lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}</select></label>
-          {loteStats ? <>
-            <div className="dashboard-kpi-grid production-stats-grid">
-              <article className="dashboard-kpi-card dashboard-kpi-emerald"><strong>Litros totales</strong><h3>{formatLiters(loteStats.litrosTotalesProducidos)}</h3></article>
-              <article className="dashboard-kpi-card dashboard-kpi-amber"><strong>Descartados</strong><h3>{formatLiters(loteStats.litrosDescartados)}</h3></article>
-              <article className="dashboard-kpi-card dashboard-kpi-blue"><strong>Litros netos</strong><h3>{formatLiters(loteStats.litrosNetos)}</h3></article>
-              <article className="dashboard-kpi-card dashboard-kpi-indigo"><strong>Animales</strong><h3>{loteStats.cantidadAnimalesConProduccion}</h3></article>
-              <article className="dashboard-kpi-card dashboard-kpi-pink"><strong>Proteína promedio</strong><h3>{formatNumber(loteStats.proteinaPromedio, '%')}</h3></article>
-              <article className="dashboard-kpi-card dashboard-kpi-rose"><strong>RCS promedio</strong><h3>{formatNumber(loteStats.recuentoCelulasSomaticasPromedio)}</h3></article>
-            </div>
-            <div className="compact-bars">{loteStats.rankingAnimales.slice(0, 8).map((item) => <div className="compact-bar-row" key={item.animal.id}><div className="compact-bar-label"><strong>{item.animal.caravana}</strong><span>{formatLiters(item.litrosNetos)}</span></div><div className="compact-bar-track"><span style={{ width: `${Math.min((item.litrosNetos / Math.max(loteStats.rankingAnimales[0]?.litrosNetos ?? 1, 1)) * 100, 100)}%` }} /></div></div>)}</div>
-          </> : <p className="table-empty">Seleccioná un lote para ver estadísticas.</p>}
-        </section>
-      </div>
+        {statsType === 'animal' && (animalStats ? <div className="dashboard-kpi-grid production-stats-grid">
+          <article className="dashboard-kpi-card dashboard-kpi-emerald"><strong>Litros totales</strong><h3>{formatLiters(animalStats.litrosTotalesProducidos)}</h3></article>
+          <article className="dashboard-kpi-card dashboard-kpi-amber"><strong>Descartados</strong><h3>{formatLiters(animalStats.litrosDescartados)}</h3></article>
+          <article className="dashboard-kpi-card dashboard-kpi-blue"><strong>Litros netos</strong><h3>{formatLiters(animalStats.litrosNetos)}</h3></article>
+          <article className="dashboard-kpi-card dashboard-kpi-indigo"><strong>Ordeñes</strong><h3>{animalStats.cantidadOrdenes}</h3></article>
+          <article className="dashboard-kpi-card dashboard-kpi-pink"><strong>Grasa promedio</strong><h3>{formatNumber(animalStats.grasaPromedio, '%')}</h3></article>
+          <article className="dashboard-kpi-card dashboard-kpi-pink"><strong>Proteína promedio</strong><h3>{formatNumber(animalStats.proteinaPromedio, '%')}</h3></article>
+          <article className="dashboard-kpi-card dashboard-kpi-rose"><strong>RB promedio</strong><h3>{formatNumber(animalStats.recuentoBacterianoPromedio)}</h3></article>
+          <article className="dashboard-kpi-card dashboard-kpi-rose"><strong>Temp. promedio</strong><h3>{formatNumber(animalStats.temperaturaPromedio, ' °C')}</h3></article>
+        </div> : <p className="table-empty">Seleccioná un animal para ver estadísticas.</p>)}
 
-      <section className="panel">
-        <div className="panel-header"><div><h2>Estadísticas por lote de leche</h2><p>Calidad, descarte y animales que aportaron leche.</p></div></div>
-        <label className="filter-field production-selector"><span>Lote de leche</span><select value={statsLoteLecheId} onChange={(event) => void loadLoteLecheStats(event.target.value)}><option value="">Seleccionar lote de leche</option>{lotesLeche.map((lote) => <option key={lote.id} value={lote.id}>{lote.codigo}</option>)}</select></label>
-        {loteLecheStats ? <>
+        {statsType === 'lote' && (loteStats ? <>
+          <div className="dashboard-kpi-grid production-stats-grid">
+            <article className="dashboard-kpi-card dashboard-kpi-emerald"><strong>Litros totales</strong><h3>{formatLiters(loteStats.litrosTotalesProducidos)}</h3></article>
+            <article className="dashboard-kpi-card dashboard-kpi-amber"><strong>Descartados</strong><h3>{formatLiters(loteStats.litrosDescartados)}</h3></article>
+            <article className="dashboard-kpi-card dashboard-kpi-blue"><strong>Litros netos</strong><h3>{formatLiters(loteStats.litrosNetos)}</h3></article>
+            <article className="dashboard-kpi-card dashboard-kpi-indigo"><strong>Animales</strong><h3>{loteStats.cantidadAnimalesConProduccion}</h3></article>
+            <article className="dashboard-kpi-card dashboard-kpi-pink"><strong>Proteína promedio</strong><h3>{formatNumber(loteStats.proteinaPromedio, '%')}</h3></article>
+            <article className="dashboard-kpi-card dashboard-kpi-rose"><strong>RCS promedio</strong><h3>{formatNumber(loteStats.recuentoCelulasSomaticasPromedio)}</h3></article>
+          </div>
+          <div className="compact-bars">{loteStats.rankingAnimales.slice(0, 8).map((item) => <div className="compact-bar-row" key={item.animal.id}><div className="compact-bar-label"><strong>{item.animal.caravana}</strong><span>{formatLiters(item.litrosNetos)}</span></div><div className="compact-bar-track"><span style={{ width: `${Math.min((item.litrosNetos / Math.max(loteStats.rankingAnimales[0]?.litrosNetos ?? 1, 1)) * 100, 100)}%` }} /></div></div>)}</div>
+        </> : <p className="table-empty">Seleccioná un lote de animales para ver estadísticas.</p>)}
+
+        {statsType === 'loteLeche' && (loteLecheStats ? <>
           <div className="dashboard-kpi-grid production-stats-grid">
             <article className="dashboard-kpi-card dashboard-kpi-emerald"><strong>Total</strong><h3>{formatLiters(loteLecheStats.litrosTotales)}</h3></article>
             <article className="dashboard-kpi-card dashboard-kpi-amber"><strong>Descarte</strong><h3>{formatLiters(loteLecheStats.litrosDescartados)}</h3></article>
@@ -595,8 +714,65 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
             <article className="dashboard-kpi-card dashboard-kpi-rose"><strong>RB</strong><h3>{formatNumber(loteLecheStats.calidad.recuentoBacteriano)}</h3></article>
           </div>
           <div className="table-wrap feed-table-wrap"><table className="users-table"><thead><tr><th>Animal</th><th>Lote</th><th>Total</th><th>Descartado</th><th>Neto aportado</th></tr></thead><tbody>{loteLecheStats.litrosPorAnimal.map((item) => <tr key={item.animal.id}><td><strong>{item.animal.caravana}</strong><span>{categoriaLabels[item.animal.categoriaAnimal]}</span></td><td>{item.animal.lote.nombre}</td><td>{formatLiters(item.litrosTotales)}</td><td>{formatLiters(item.litrosDescartados)}</td><td>{formatLiters(item.litrosNetos)}</td></tr>)}</tbody></table></div>
-        </> : <p className="table-empty">Seleccioná un lote de leche para ver estadísticas.</p>}
+        </> : <p className="table-empty">Seleccioná un lote de producción para ver estadísticas.</p>)}
       </section>
+
+      {showLoteLecheModal && isAdmin && (
+        <div className="modal-backdrop">
+          <section className="panel modal-panel animal-form-modal">
+            <div className="panel-header">
+              <div>
+                <h2>Nuevo lote de leche</h2>
+                <p>Alta simple para registrar producción disponible.</p>
+              </div>
+              <button type="button" className="icon-button" onClick={closeLoteLecheModal} aria-label="Cerrar nuevo lote de leche"><X size={18} /></button>
+            </div>
+            <form className="user-form animal-modal-form" onSubmit={handleCreateLoteLeche}>
+              <label>
+                <span>Código</span>
+                <input value={loteLecheForm.codigo} onChange={(event) => setLoteLecheForm({ ...loteLecheForm, codigo: event.target.value })} required />
+              </label>
+              <label>
+                <span>Descripción</span>
+                <input value={loteLecheForm.descripcion} onChange={(event) => setLoteLecheForm({ ...loteLecheForm, descripcion: event.target.value })} />
+              </label>
+              <div className="modal-actions production-wide-field">
+                <button type="button" className="secondary-button" onClick={closeLoteLecheModal} disabled={isSaving}>Cancelar</button>
+                <button type="submit" className="primary-button" disabled={isSaving}><Save size={18} />Crear lote de leche</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
+
+      {showOrdeneModal && (
+        <div className="modal-backdrop">
+          <section className="panel modal-panel animal-form-modal production-ordene-modal">
+            <div className="panel-header">
+              <div>
+                <h2>Nuevo ordeñe</h2>
+                <p>Primero seleccioná el lote del sistema y luego el animal activo.</p>
+              </div>
+              <button type="button" className="icon-button" onClick={closeOrdeneModal} aria-label="Cerrar nuevo ordeñe"><X size={18} /></button>
+            </div>
+            <form className="user-form animal-modal-form" onSubmit={handleSubmit}>
+              <label><span>Lote del sistema</span><select value={form.loteId} onChange={(event) => updateForm({ loteId: event.target.value, animalId: '' })} required><option value="">Seleccionar lote</option>{lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}</select></label>
+              <label><span>Animal filtrado por lote</span><select value={form.animalId} onChange={(event) => updateForm({ animalId: event.target.value })} required disabled={!form.loteId}><option value="">Seleccionar animal</option>{selectedLoteAnimals.map((animal) => <option key={animal.id} value={animal.id}>{animalLabel(animal)}</option>)}</select></label>
+              <label><span>Lote de leche destino</span><select value={form.loteLecheId} onChange={(event) => updateForm({ loteLecheId: event.target.value })} required><option value="">Seleccionar lote de leche</option>{availableLotesLeche.map((lote) => <option key={lote.id} value={lote.id}>{lote.codigo} - {estadoLoteLecheLabels[lote.estado]}</option>)}</select></label>
+              <label><span>Fecha y hora</span><input type="datetime-local" value={form.fechaHora} onChange={(event) => updateForm({ fechaHora: event.target.value })} required /></label>
+              <label><span>Turno</span><select value={form.turno} onChange={(event) => updateForm({ turno: event.target.value as TurnoOrdene })}>{Object.entries(turnoLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <label><span>Litros producidos</span><input type="number" min="0" step="0.01" value={form.litrosProducidos} onChange={(event) => updateForm({ litrosProducidos: event.target.value })} required /></label>
+              <label><span>Litros descartados</span><input type="number" min="0" step="0.01" value={form.litrosDescartados} onChange={(event) => updateForm({ litrosDescartados: event.target.value })} required /></label>
+              {hasDiscard && <label><span>Motivo de descarte</span><select value={form.motivoDescarte} onChange={(event) => updateForm({ motivoDescarte: event.target.value as ProduccionFormValues['motivoDescarte'] })} required><option value="">Seleccionar motivo</option>{Object.entries(motivoLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
+              <label className="production-wide-field"><span>Observación de descarte</span><textarea rows={2} value={form.observacionDescarte} onChange={(event) => updateForm({ observacionDescarte: event.target.value })} /></label>
+              <div className="modal-actions production-wide-field">
+                <button type="button" className="secondary-button" onClick={closeOrdeneModal} disabled={isSaving}>Cancelar</button>
+                <button type="submit" className="primary-button" disabled={isSaving}><Save size={18} />Guardar ordeñe</button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
 
       {editingLoteLeche && loteLecheEditForm && (
         <div className="modal-backdrop">
