@@ -9,7 +9,6 @@ import {
   updateAlimento,
   updateReglaAlimentacion,
 } from '../services/alimentacionService';
-import { createLote, getLotes, updateLote } from '../services/lotesService';
 import { createReglaSanitaria, getReglasSanitarias, updateReglaSanitaria } from '../services/reglasSanitariasService';
 import { createUser, deactivateUser, getUsers, updateUser } from '../services/usersService';
 import type { AuthUser, UserRole } from '../types/auth';
@@ -22,11 +21,10 @@ import type {
   TipoAlimento,
 } from '../types/alimentacion';
 import type { CategoriaAnimal } from '../types/animales';
-import type { Lote, LoteFormValues } from '../types/lotes';
 import type { ReglaSanitaria, ReglaSanitariaFormValues, TipoReglaSanitaria } from '../services/reglasSanitariasService';
 import type { User, UserFormValues } from '../types/users';
 
-type SettingsTab = 'usuarios' | 'lotes' | 'vacunas' | 'alimentacion';
+type SettingsTab = 'usuarios' | 'alimentacion';
 type EstadoFilter = '' | 'true' | 'false';
 
 const tipoAlimentoOptions: TipoAlimento[] = ['SILO', 'BALANCEADO', 'FIBRA', 'SUPLEMENTO', 'SALES', 'OTRO'];
@@ -46,12 +44,6 @@ const emptyUserForm: UserFormValues = {
   email: '',
   password: '',
   rol: 'EMPLEADO',
-  activo: true,
-};
-
-const emptyLoteForm: LoteFormValues = {
-  nombre: '',
-  descripcion: '',
   activo: true,
 };
 
@@ -118,32 +110,27 @@ function confirmLogicalDelete() {
 export function SettingsPage({ authToken, currentUser, onUnauthorized }: SettingsPageProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('usuarios');
   const [users, setUsers] = useState<User[]>([]);
-  const [lotes, setLotes] = useState<Lote[]>([]);
   const [reglas, setReglas] = useState<ReglaSanitaria[]>([]);
   const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [reglasAlimentacion, setReglasAlimentacion] = useState<ReglaAlimentacion[]>([]);
 
   const [userFormValues, setUserFormValues] = useState<UserFormValues>(emptyUserForm);
-  const [loteFormValues, setLoteFormValues] = useState<LoteFormValues>(emptyLoteForm);
   const [reglaFormValues, setReglaFormValues] = useState<ReglaSanitariaFormValues>(emptyReglaForm);
   const [alimentoFormValues, setAlimentoFormValues] = useState<AlimentoFormValues>(emptyAlimentoForm);
   const [reglaAlimentacionFormValues, setReglaAlimentacionFormValues] =
     useState<ReglaAlimentacionFormValues>(emptyReglaAlimentacionForm);
 
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [editingLote, setEditingLote] = useState<Lote | null>(null);
   const [editingRegla, setEditingRegla] = useState<ReglaSanitaria | null>(null);
   const [editingAlimento, setEditingAlimento] = useState<Alimento | null>(null);
   const [editingReglaAlimentacion, setEditingReglaAlimentacion] = useState<ReglaAlimentacion | null>(null);
 
   const [showUserModal, setShowUserModal] = useState(false);
-  const [showLoteModal, setShowLoteModal] = useState(false);
   const [showReglaModal, setShowReglaModal] = useState(false);
   const [showAlimentoModal, setShowAlimentoModal] = useState(false);
   const [showReglaAlimentacionModal, setShowReglaAlimentacionModal] = useState(false);
 
   const [userFilters, setUserFilters] = useState({ buscar: '', estado: '' as EstadoFilter, rol: '' });
-  const [loteFilters, setLoteFilters] = useState({ buscar: '', estado: '' as EstadoFilter, minAnimales: '', maxAnimales: '' });
   const [reglaFilters, setReglaFilters] = useState({ buscar: '', estado: '' as EstadoFilter, tipo: '', frecuencia: '' });
   const [alimentoFilters, setAlimentoFilters] = useState({ buscar: '', estado: '' as EstadoFilter, tipoAlimento: '' });
   const [reglaAlimentacionFilters, setReglaAlimentacionFilters] = useState({
@@ -159,26 +146,17 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
 
   const isAdmin = currentUser?.role === 'ADMIN';
   const activeUsersCount = useMemo(() => users.filter((user) => user.activo).length, [users]);
-  const activeLotesCount = useMemo(() => lotes.filter((lote) => lote.activo).length, [lotes]);
   const activeReglasCount = useMemo(() => reglas.filter((regla) => regla.activo).length, [reglas]);
   const activeAlimentosCount = useMemo(() => alimentos.filter((alimento) => alimento.activo).length, [alimentos]);
 
   const summaryCount =
     activeTab === 'usuarios'
       ? activeUsersCount
-      : activeTab === 'lotes'
-        ? activeLotesCount
-        : activeTab === 'vacunas'
-          ? activeReglasCount
-          : activeAlimentosCount;
+      : activeAlimentosCount;
   const summaryLabel =
     activeTab === 'usuarios'
       ? 'usuarios activos'
-      : activeTab === 'lotes'
-        ? 'lotes activos'
-        : activeTab === 'vacunas'
-          ? 'reglas activas'
-          : 'alimentos activos';
+      : 'alimentos activos';
 
   const visibleUsers = useMemo(() => {
     const query = userFilters.buscar.trim().toLowerCase();
@@ -187,18 +165,6 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
       return searchMatch && matchesEstado(user.activo, userFilters.estado) && (!userFilters.rol || user.rol === userFilters.rol);
     });
   }, [users, userFilters]);
-
-  const visibleLotes = useMemo(() => {
-    const query = loteFilters.buscar.trim().toLowerCase();
-    const min = loteFilters.minAnimales === '' ? null : Number(loteFilters.minAnimales);
-    const max = loteFilters.maxAnimales === '' ? null : Number(loteFilters.maxAnimales);
-    return lotes.filter((lote) => {
-      const searchMatch = !query || textIncludes(lote.nombre, query) || textIncludes(lote.descripcion, query);
-      const minMatch = min === null || lote.cantidadAnimales >= min;
-      const maxMatch = max === null || lote.cantidadAnimales <= max;
-      return searchMatch && matchesEstado(lote.activo, loteFilters.estado) && minMatch && maxMatch;
-    });
-  }, [lotes, loteFilters]);
 
   const visibleReglas = useMemo(() => {
     const query = reglaFilters.buscar.trim().toLowerCase();
@@ -259,19 +225,6 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     }
   }
 
-  async function loadLotes() {
-    if (!authToken) return;
-    setIsLoading(true);
-    setError('');
-    try {
-      setLotes(await getLotes(authToken));
-    } catch (loadError) {
-      handleRequestError(loadError);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   async function loadReglas() {
     if (!authToken || !isAdmin) return;
     setIsLoading(true);
@@ -305,8 +258,6 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
 
   useEffect(() => {
     if (activeTab === 'usuarios') void loadUsers();
-    if (activeTab === 'lotes') void loadLotes();
-    if (activeTab === 'vacunas') void loadReglas();
     if (activeTab === 'alimentacion') void loadAlimentacionConfig();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, authToken, isAdmin]);
@@ -320,13 +271,6 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     setEditingUser(null);
     setUserFormValues(emptyUserForm);
     setShowUserModal(false);
-    clearMessages();
-  }
-
-  function resetLoteForm() {
-    setEditingLote(null);
-    setLoteFormValues(emptyLoteForm);
-    setShowLoteModal(false);
     clearMessages();
   }
 
@@ -355,13 +299,6 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     setEditingUser(null);
     setUserFormValues({ ...emptyUserForm, activo: true });
     setShowUserModal(true);
-    clearMessages();
-  }
-
-  function openNewLoteModal() {
-    setEditingLote(null);
-    setLoteFormValues({ ...emptyLoteForm, activo: true });
-    setShowLoteModal(true);
     clearMessages();
   }
 
@@ -401,17 +338,6 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
       activo: user.activo,
     });
     setShowUserModal(true);
-    clearMessages();
-  }
-
-  function startEditingLote(lote: Lote) {
-    setEditingLote(lote);
-    setLoteFormValues({
-      nombre: lote.nombre,
-      descripcion: lote.descripcion ?? '',
-      activo: lote.activo,
-    });
-    setShowLoteModal(true);
     clearMessages();
   }
 
@@ -516,29 +442,6 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     }
   }
 
-  async function handleLoteSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!authToken) return onUnauthorized();
-    setIsSaving(true);
-    clearMessages();
-    try {
-      if (editingLote) {
-        await updateLote(authToken, editingLote.id, loteFormValues);
-        resetLoteForm();
-        setSuccess('Lote actualizado correctamente.');
-      } else {
-        await createLote(authToken, { ...loteFormValues, activo: true });
-        resetLoteForm();
-        setSuccess('Lote creado correctamente.');
-      }
-      await loadLotes();
-    } catch (saveError) {
-      handleRequestError(saveError);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
   async function handleReglaSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!authToken) return onUnauthorized();
@@ -620,23 +523,6 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
       }
       setSuccess(activo ? 'Usuario reactivado correctamente.' : 'Usuario dado de baja correctamente.');
       await loadUsers();
-    } catch (updateError) {
-      handleRequestError(updateError);
-    }
-  }
-
-  async function setLoteActive(lote: Lote, activo: boolean) {
-    if (!authToken) return onUnauthorized();
-    if (!activo && !confirmLogicalDelete()) return;
-    clearMessages();
-    try {
-      await updateLote(authToken, lote.id, {
-        nombre: lote.nombre,
-        descripcion: lote.descripcion ?? '',
-        activo,
-      });
-      setSuccess(activo ? 'Lote reactivado correctamente.' : 'Lote dado de baja correctamente.');
-      await loadLotes();
     } catch (updateError) {
       handleRequestError(updateError);
     }
@@ -733,7 +619,7 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
       <section className="settings-header">
         <div>
           <h2>Configuración</h2>
-          <p>Usuarios, lotes, reglas sanitarias y alimentación del sistema.</p>
+          <p>Usuarios y alimentación del sistema.</p>
         </div>
         <div className="settings-summary">
           <strong>{summaryCount}</strong>
@@ -744,8 +630,6 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
       <div className="settings-tabs" role="tablist">
         {[
           ['usuarios', 'Usuarios'],
-          ['lotes', 'Lotes'],
-          ['vacunas', 'Vacunas'],
           ['alimentacion', 'Alimentación'],
         ].map(([tab, label]) => (
           <button
@@ -793,33 +677,7 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
         </section>
       )}
 
-      {activeTab === 'lotes' && (
-        <section className="panel users-list-panel">
-          <div className="panel-header">
-            <div><h2>Lotes</h2><p>{visibleLotes.length} de {lotes.length} lotes registrados.</p></div>
-            <div className="header-actions">
-              <button type="button" className="secondary-button" onClick={openNewLoteModal}><Plus size={16} /> Nuevo lote</button>
-              <button type="button" className="icon-button" onClick={() => void loadLotes()} aria-label="Actualizar lotes"><RefreshCcw size={18} /></button>
-            </div>
-          </div>
-          <form className="filters-form events-filters production-filters">
-            <label className="filter-field"><span>Buscar</span><input value={loteFilters.buscar} onChange={(event) => setLoteFilters({ ...loteFilters, buscar: event.target.value })} placeholder="Nombre o descripción" /></label>
-            <label className="filter-field"><span>Estado</span><select value={loteFilters.estado} onChange={(event) => setLoteFilters({ ...loteFilters, estado: event.target.value as EstadoFilter })}><option value="">Todos</option><option value="true">Activo</option><option value="false">Inactivo</option></select></label>
-            <label className="filter-field"><span>Animales mín.</span><input type="number" min="0" value={loteFilters.minAnimales} onChange={(event) => setLoteFilters({ ...loteFilters, minAnimales: event.target.value })} /></label>
-            <label className="filter-field"><span>Animales máx.</span><input type="number" min="0" value={loteFilters.maxAnimales} onChange={(event) => setLoteFilters({ ...loteFilters, maxAnimales: event.target.value })} /></label>
-          </form>
-          {isLoading ? <p className="table-empty">Cargando lotes...</p> : (
-            <div className="table-wrap">
-              <table className="users-table">
-                <thead><tr><th>Lote</th><th>Animales</th><th>Estado</th><th>Acciones</th></tr></thead>
-                <tbody>{visibleLotes.map((lote) => <tr key={lote.id}><td><strong>{lote.nombre}</strong><span>{lote.descripcion || 'Sin descripción'}</span></td><td>{lote.cantidadAnimales}</td><td>{renderStatus(lote.activo)}</td><td><div className="table-actions"><button type="button" onClick={() => startEditingLote(lote)} aria-label={`Editar ${lote.nombre}`}><Edit2 size={16} /></button>{lote.activo ? <button type="button" onClick={() => void setLoteActive(lote, false)} aria-label={`Dar de baja ${lote.nombre}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setLoteActive(lote, true)} aria-label={`Reactivar ${lote.nombre}`}><RotateCcw size={16} /></button>}</div></td></tr>)}</tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
-
-      {activeTab === 'vacunas' && (
+      {false && (
         <section className="panel users-list-panel">
           <div className="panel-header">
             <div><h2>Vacunas / Reglas Sanitarias</h2><p>{visibleReglas.length} de {reglas.length} reglas registradas.</p></div>
@@ -905,23 +763,6 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
               <label><span>Rol</span><select value={userFormValues.rol} onChange={(event) => setUserFormValues({ ...userFormValues, rol: event.target.value as UserRole })}><option value="ADMIN">ADMIN</option><option value="EMPLEADO">EMPLEADO</option></select></label>
               {editingUser && <label><span>Estado</span><select value={userFormValues.activo ? 'true' : 'false'} onChange={(event) => setUserFormValues({ ...userFormValues, activo: event.target.value === 'true' })}><option value="true">ACTIVO</option><option value="false">INACTIVO</option></select></label>}
               <div className="modal-actions animal-form-actions"><button type="button" className="secondary-button" onClick={resetUserForm}>Cancelar</button><button type="submit" className="primary-button" disabled={isSaving}><Plus size={18} />{isSaving ? 'Guardando...' : 'Guardar'}</button></div>
-            </form>
-          </section>
-        </div>
-      )}
-
-      {showLoteModal && (
-        <div className="modal-backdrop">
-          <section className="panel modal-panel animal-form-modal">
-            <div className="panel-header">
-              <div><h2>{editingLote ? 'Editar lote' : 'Nuevo lote'}</h2><p>{editingLote ? 'Datos del lote y estado operativo.' : 'El lote se crea activo automáticamente.'}</p></div>
-              <button type="button" className="icon-button" onClick={resetLoteForm} aria-label="Cerrar"><X size={18} /></button>
-            </div>
-            <form className="user-form animal-modal-form" onSubmit={handleLoteSubmit}>
-              <label><span>Nombre</span><input value={loteFormValues.nombre} onChange={(event) => setLoteFormValues({ ...loteFormValues, nombre: event.target.value })} required /></label>
-              <label className="animal-form-message"><span>Descripción</span><textarea rows={3} value={loteFormValues.descripcion} onChange={(event) => setLoteFormValues({ ...loteFormValues, descripcion: event.target.value })} /></label>
-              {editingLote && <label><span>Estado</span><select value={loteFormValues.activo ? 'true' : 'false'} onChange={(event) => setLoteFormValues({ ...loteFormValues, activo: event.target.value === 'true' })}><option value="true">ACTIVO</option><option value="false">INACTIVO</option></select></label>}
-              <div className="modal-actions animal-form-actions"><button type="button" className="secondary-button" onClick={resetLoteForm}>Cancelar</button><button type="submit" className="primary-button" disabled={isSaving}><Plus size={18} />{isSaving ? 'Guardando...' : 'Guardar'}</button></div>
             </form>
           </section>
         </div>

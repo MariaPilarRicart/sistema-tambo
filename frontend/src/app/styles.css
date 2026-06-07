@@ -1024,6 +1024,26 @@ a {
   gap: 24px;
 }
 
+.vaccination-page .vaccination-summary-section {
+  order: 1;
+}
+
+.vaccination-page .vaccination-schedule-section {
+  order: 2;
+}
+
+.vaccination-page .vaccination-pending-section {
+  order: 3;
+}
+
+.vaccination-page .vaccination-rules-section {
+  order: 4;
+}
+
+.vaccination-page .vaccination-history-section {
+  order: 5;
+}
+
 .settings-header {
   align-items: center;
   display: flex;
