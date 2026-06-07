@@ -644,6 +644,50 @@ a {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.dashboard-alert-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.employee-priority-panel {
+  border-color: #a7f3d0;
+}
+
+.employee-kpi-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.employee-quick-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.employee-quick-card {
+  align-items: center;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  color: var(--slate-700);
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  min-height: 104px;
+  padding: 16px;
+  text-align: center;
+}
+
+.employee-quick-card:hover {
+  border-color: #a7f3d0;
+  color: var(--emerald-dark);
+}
+
+.employee-quick-card strong {
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .dashboard-chart-card,
 .dashboard-distribution-panel {
   min-width: 0;
@@ -1889,7 +1933,9 @@ a {
   .dashboard-real-metrics,
   .dashboard-kpi-grid,
   .dashboard-distribution-grid,
+  .dashboard-alert-grid,
   .dashboard-bottom-grid,
+  .employee-quick-grid,
   .feed-grid,
   .settings-grid,
   .vaccination-form,
@@ -1901,7 +1947,9 @@ a {
 
   .dashboard-grid,
   .dashboard-distribution-grid,
+  .dashboard-alert-grid,
   .dashboard-bottom-grid,
+  .employee-quick-grid,
   .feed-grid,
   .feed-registration-form,
   .settings-grid {
@@ -1939,6 +1987,8 @@ a {
   .metric-grid,
   .dashboard-real-metrics,
   .dashboard-kpi-grid,
+  .employee-kpi-grid,
+  .employee-quick-grid,
   .production-summary-grid,
   .production-form,
   .operative-summary-grid {
