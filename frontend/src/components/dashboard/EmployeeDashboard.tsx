@@ -13,6 +13,7 @@ interface EmployeeDashboardProps {
 }
 
 type SummaryModalKey = 'overdue' | 'today' | 'next7';
+type FeedingModalKey = 'records' | 'stock' | 'empty';
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('es-AR', {
@@ -24,6 +25,10 @@ function formatDate(value: string) {
 
 function friendlyText(value: string) {
   return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function formatNumber(value: number, suffix = '') {
+  return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(value)}${suffix}`;
 }
 
 function taskPlace(task: DashboardTareaDetalle) {
@@ -109,28 +114,42 @@ function SanitaryList({ tasks }: { tasks: DashboardResumenSanidad['tareas'] }) {
   );
 }
 
-function FeedingRecordsModal({
+function FeedingModal({
+  exhaustedItems,
+  lowStockItems,
   onClose,
   records,
+  type,
 }: {
+  exhaustedItems: DashboardResumen['resumenAlimentacion']['insumos'];
+  lowStockItems: DashboardResumen['resumenAlimentacion']['insumos'];
   onClose: () => void;
   records: DashboardResumen['resumenAlimentacion']['ultimosRegistros'];
+  type: FeedingModalKey;
 }) {
+  const title = type === 'records'
+    ? 'Alimentaciones registradas hoy'
+    : type === 'stock'
+      ? 'Alimentos con stock bajo'
+      : 'Alimentos agotados';
+  const stockItems = type === 'empty' ? exhaustedItems : lowStockItems;
+
   return (
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <section className="modal-panel employee-summary-modal" role="dialog" aria-modal="true" aria-labelledby="employee-feed-modal-title" onClick={(event) => event.stopPropagation()}>
         <div className="dashboard-card-heading">
           <div>
-            <h2 id="employee-feed-modal-title">Alimentaciones registradas hoy</h2>
+            <h2 id="employee-feed-modal-title">{title}</h2>
             <p>Detalle disponible desde el módulo Alimentación.</p>
           </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar modal">
             X
           </button>
         </div>
-        {records.length === 0 ? (
+        {type === 'records' && records.length === 0 && (
           <p className="table-empty">No hay alimentaciones registradas hoy.</p>
-        ) : (
+        )}
+        {type === 'records' && records.length > 0 && (
           <div className="employee-task-list">
             {records.map((record) => (
               <article className="employee-task-card" key={record.id}>
@@ -139,9 +158,30 @@ function FeedingRecordsModal({
                     <strong>{record.lote}</strong>
                     <span>Alimentación</span>
                   </div>
-                  <p>Ración: {record.racion}</p>
+                  {record.racion && record.racion !== 'Sin racion' && record.racion !== 'Sin ración' && <p>Ración: {record.racion}</p>}
                   <small>Fecha: {formatDate(record.fecha)}</small>
-                  <small>Cantidad: {record.cantidadKg} kg</small>
+                  <small>Cantidad: {formatNumber(record.cantidadKg, ' kg')}</small>
+                </div>
+                <Link className="secondary-button" to={paths.feed}>Ver alimentación</Link>
+              </article>
+            ))}
+          </div>
+        )}
+        {type !== 'records' && stockItems.length === 0 && (
+          <p className="table-empty">{type === 'stock' ? 'No hay alimentos bajo mínimo.' : 'No hay alimentos agotados.'}</p>
+        )}
+        {type !== 'records' && stockItems.length > 0 && (
+          <div className="employee-task-list">
+            {stockItems.map((item) => (
+              <article className="employee-task-card" key={item.id}>
+                <div>
+                  <div className="employee-task-title">
+                    <strong>{item.alimento}</strong>
+                    <span>{friendlyText(item.estado)}</span>
+                  </div>
+                  <small>Stock actual: {formatNumber(item.stockActual)} {item.unidad}</small>
+                  <small>Punto mínimo: {formatNumber(item.stockMinimo)} {item.unidad}</small>
+                  <small>Estado: {friendlyText(item.estado)}</small>
                 </div>
                 <Link className="secondary-button" to={paths.feed}>Ver alimentación</Link>
               </article>
@@ -154,17 +194,18 @@ function FeedingRecordsModal({
 }
 
 function FeedingSection({
-  onOpenDetails,
+  onOpenModal,
   resumen,
 }: {
-  onOpenDetails: () => void;
+  onOpenModal: (type: FeedingModalKey) => void;
   resumen: DashboardResumen;
 }) {
-  const riskItems = resumen.resumenAlimentacion.insumosConRiesgo.slice(0, 3);
+  const lowStockItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado !== 'OK');
+  const exhaustedItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado === 'CRITICO');
   const recordsToday = resumen.resumenAlimentacion.ultimosRegistros.filter((record) => isToday(record.fecha));
   const fedLots = new Set(recordsToday.map((record) => record.lote)).size;
-  const exhaustedItems = resumen.resumenAlimentacion.insumosConRiesgo.filter((item) => item.estado === 'CRITICO');
-  const lowStockCount = resumen.resumenAlimentacion.insumosBajoMinimo;
+  const hasLowStock = lowStockItems.length > 0;
+  const hasExhausted = exhaustedItems.length > 0;
 
   return (
     <section className="panel">
@@ -175,46 +216,34 @@ function FeedingSection({
         </div>
       </div>
       <div className="employee-feed-grid">
-        <button className="employee-feed-card employee-feed-button" type="button" onClick={onOpenDetails}>
+        <button className={`employee-feed-card employee-feed-button ${recordsToday.length > 0 ? 'employee-feed-ok' : 'employee-feed-warning'}`} type="button" onClick={() => onOpenModal('records')}>
           <Utensils size={18} />
           <div>
-            <span>Estado de carga</span>
-            <strong>{recordsToday.length > 0 ? `${recordsToday.length} alimentaciones hoy` : 'No hay registros de alimentación para hoy'}</strong>
-            <p>{recordsToday.length > 0 ? 'Consultá el detalle de cargas registradas.' : 'Si ya se alimentó, registrá la carga correspondiente.'}</p>
+            <span>Alimentaciones registradas hoy</span>
+            <strong>{recordsToday.length > 0 ? `${recordsToday.length} cargas - ${fedLots} lotes` : 'Sin alimentaciones registradas hoy'}</strong>
+            <p>Consultá el detalle de cargas registradas.</p>
           </div>
         </button>
-        <article className="employee-feed-card">
-          <ClipboardList size={18} />
-          <div>
-            <span>Lotes alimentados</span>
-            <strong>{fedLots}</strong>
-            <p>{fedLots > 0 ? 'Lotes con registro de alimentación hoy.' : 'No hay lotes con registros de alimentación hoy.'}</p>
-          </div>
-        </article>
-        <article className="employee-feed-card">
+        <button className={`employee-feed-card ${hasLowStock ? 'employee-feed-button employee-feed-warning' : 'employee-feed-ok'}`} type="button" onClick={() => hasLowStock && onOpenModal('stock')} disabled={!hasLowStock}>
           <Utensils size={18} />
           <div>
-            <span>Stock bajo</span>
-            <strong>{lowStockCount}</strong>
-            {riskItems.length > 0 ? (
-              <ul className="employee-feed-list">
-                {riskItems.map((item) => (
-                  <li key={item.id}>{item.alimento}: {friendlyText(item.estado)}</li>
-                ))}
-              </ul>
+            <span>Stock de alimentos</span>
+            <strong>{hasLowStock ? `Stock bajo: ${lowStockItems.length}` : 'Sin alertas críticas'}</strong>
+            {hasLowStock ? (
+              <p>Hay alimentos por debajo del mínimo.</p>
             ) : (
-              <p>No se detectan alimentos bajo mínimo.</p>
+              <p>No hay alimentos bajo mínimo.</p>
             )}
           </div>
-        </article>
-        <article className="employee-feed-card">
+        </button>
+        <button className={`employee-feed-card ${hasExhausted ? 'employee-feed-button employee-feed-danger' : 'employee-feed-ok'}`} type="button" onClick={() => hasExhausted && onOpenModal('empty')} disabled={!hasExhausted}>
           <ClipboardList size={18} />
           <div>
             <span>Agotados</span>
-            <strong>{exhaustedItems.length}</strong>
-            <p>{exhaustedItems.length > 0 ? 'Hay insumos sin stock disponible.' : 'No hay insumos agotados reportados.'}</p>
+            <strong>{hasExhausted ? `Agotados: ${exhaustedItems.length}` : '0'}</strong>
+            <p>{hasExhausted ? 'Hay insumos sin stock disponible.' : 'No hay insumos agotados.'}</p>
           </div>
-        </article>
+        </button>
       </div>
       <div className="employee-feed-actions">
         <Link className="secondary-button" to={paths.feed}>Registrar alimentación</Link>
@@ -276,28 +305,10 @@ function SummaryCard({
 
 export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
   const [activeModal, setActiveModal] = useState<SummaryModalKey | null>(null);
-  const [isFeedingModalOpen, setIsFeedingModalOpen] = useState(false);
+  const [activeFeedingModal, setActiveFeedingModal] = useState<FeedingModalKey | null>(null);
   const agendaOverdueTasks = resumen.tareasVencidasDetalle.filter(isAgendaTask);
   const agendaTodayTasks = resumen.tareasHoyDetalle.filter(isAgendaTask);
   const agendaNextSevenDaysTasks = resumen.tareasProximos7Dias.filter(isAgendaTask);
-  const priority = agendaOverdueTasks.length > 0
-    ? {
-        title: 'Hay tareas vencidas',
-        message: 'Revisa el detalle desde el resumen operativo.',
-        className: 'employee-priority-critical',
-      }
-    : agendaTodayTasks.length > 0
-      ? {
-          title: 'Hay tareas para hoy',
-          message: 'Revisa el detalle desde el resumen operativo.',
-          className: 'employee-priority-warning',
-        }
-      : {
-          title: 'Estas al dia',
-          message: 'No hay tareas urgentes para hoy.',
-          className: 'employee-priority-ok',
-        };
-
   const summary: Array<{ key: SummaryModalKey; title: string; value: number; tasks: DashboardTareaDetalle[] }> = [
     { key: 'overdue', title: 'Tareas vencidas', value: agendaOverdueTasks.length, tasks: agendaOverdueTasks },
     { key: 'today', title: 'Tareas para hoy', value: agendaTodayTasks.length, tasks: agendaTodayTasks },
@@ -305,20 +316,12 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
   ];
   const modalSummary = summary.find((item) => item.key === activeModal);
   const feedingRecordsToday = resumen.resumenAlimentacion.ultimosRegistros.filter((record) => isToday(record.fecha));
+  const lowStockItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado !== 'OK');
+  const exhaustedItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado === 'CRITICO');
   const sanitaryTasks = resumen.resumenSanidad.tareas;
 
   return (
     <>
-      <section className={`panel employee-priority-panel ${priority.className}`}>
-        <div className="dashboard-card-heading">
-          <div>
-            <h2>Prioridad del dia</h2>
-          </div>
-        </div>
-        <p className="employee-priority-message">{priority.title}</p>
-        <p className="employee-priority-subtext">{priority.message}</p>
-      </section>
-
       <section className="panel">
         <div className="dashboard-card-heading">
           <div>
@@ -349,7 +352,7 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
         <SanitaryList tasks={sanitaryTasks} />
       </section>
 
-      <FeedingSection resumen={resumen} onOpenDetails={() => setIsFeedingModalOpen(true)} />
+      <FeedingSection resumen={resumen} onOpenModal={setActiveFeedingModal} />
 
       <section className="panel">
         <div className="dashboard-card-heading">
@@ -396,10 +399,13 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
           </section>
         </div>
       )}
-      {isFeedingModalOpen && (
-        <FeedingRecordsModal
+      {activeFeedingModal && (
+        <FeedingModal
+          exhaustedItems={exhaustedItems}
+          lowStockItems={lowStockItems}
           records={feedingRecordsToday}
-          onClose={() => setIsFeedingModalOpen(false)}
+          type={activeFeedingModal}
+          onClose={() => setActiveFeedingModal(null)}
         />
       )}
     </>

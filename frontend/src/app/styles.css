@@ -1086,7 +1086,7 @@ a {
 .employee-feed-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .employee-feed-card {
@@ -1109,6 +1109,30 @@ a {
   border-color: #a7f3d0;
   box-shadow: 0 12px 28px rgb(15 23 42 / 0.08);
   transform: translateY(-1px);
+}
+
+.employee-feed-card:disabled {
+  cursor: default;
+}
+
+.employee-feed-card:disabled:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.employee-feed-ok {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.employee-feed-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.employee-feed-danger {
+  background: #fff1f2;
+  border-color: #fecdd3;
 }
 
 .employee-feed-card strong {
