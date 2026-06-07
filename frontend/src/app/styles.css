@@ -809,14 +809,6 @@ a {
   min-width: 4px;
 }
 
-.dashboard-milk-donut {
-  align-items: center;
-  display: grid;
-  gap: 16px;
-  grid-template-columns: 140px 1fr;
-  margin-top: 8px;
-}
-
 .dashboard-compact-table th,
 .dashboard-compact-table td {
   padding-bottom: 9px;
@@ -2293,7 +2285,6 @@ a {
   .dashboard-period-selector,
   .dashboard-detail-grid,
   .dashboard-risk-grid,
-  .dashboard-milk-donut,
   .dashboard-herd-summary {
     grid-template-columns: 1fr;
   }

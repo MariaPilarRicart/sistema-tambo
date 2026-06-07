@@ -115,15 +115,6 @@ function sanitaryConclusion(vencidas: number, proximas: number) {
   return 'No hay controles sanitarios pendientes para este período.';
 }
 
-function milkDestinationText(vendida: number, disponible: number, descartada: number) {
-  const maxValue = Math.max(vendida, disponible, descartada);
-  if (maxValue === 0) return 'Sin datos suficientes para interpretar el destino de la leche.';
-  if (descartada >= maxValue && descartada > 0) return 'El descarte representa una proporción alta del período.';
-  if (vendida >= maxValue) return 'La mayor parte de la leche del período fue vendida.';
-  if (disponible >= maxValue) return 'Una parte importante de la leche sigue disponible para venta.';
-  return 'El descarte representa una proporción baja del período.';
-}
-
 function KpiCard({
   description,
   icon: Icon,
@@ -223,60 +214,6 @@ function ValueBars({
   );
 }
 
-function MilkDestinationDonut({ disponible, descartada, vendida }: { vendida: number; disponible: number; descartada: number }) {
-  const total = vendida + disponible + descartada;
-  const segments = [
-    { label: 'Vendida', value: vendida, color: '#059669' },
-    { label: 'Disponible', value: disponible, color: '#2563eb' },
-    { label: 'Descartada', value: descartada, color: '#d97706' },
-  ].filter((item) => item.value > 0);
-  let offset = 0;
-  const radius = 38;
-  const circumference = 2 * Math.PI * radius;
-
-  if (total === 0) return <p className="table-empty">Sin datos para mostrar destino de leche.</p>;
-
-  return (
-    <div className="dashboard-milk-donut">
-      <div className="donut-chart">
-        <svg viewBox="0 0 100 100" aria-hidden="true">
-          <circle className="donut-bg" cx="50" cy="50" r={radius} />
-          {segments.map((segment) => {
-            const dash = (segment.value / total) * circumference;
-            const currentOffset = offset;
-            offset += dash;
-            return (
-              <circle
-                className="donut-segment"
-                cx="50"
-                cy="50"
-                key={segment.label}
-                r={radius}
-                stroke={segment.color}
-                strokeDasharray={`${dash} ${circumference - dash}`}
-                strokeDashoffset={-currentOffset}
-              />
-            );
-          })}
-        </svg>
-        <div>
-          <strong>{formatNumber(total, ' L')}</strong>
-          <span>total</span>
-        </div>
-      </div>
-      <div className="chart-legend">
-        {segments.map((segment) => (
-          <div className="chart-legend-row" key={segment.label}>
-            <span style={{ background: segment.color }} />
-            <strong>{segment.label}</strong>
-            <small>{formatNumber((segment.value / total) * 100, '%')}</small>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 export function AdminDashboard({
   periodo,
   fechaDesde,
@@ -290,16 +227,19 @@ export function AdminDashboard({
   onClearCustomPeriod,
 }: AdminDashboardProps) {
   const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad } = resumen;
-  const productionVsSales = [
-    { label: 'Producido en el período', value: resumenProduccion.litrosProducidos },
-    { label: 'Vendido en el período', value: resumenVentas.litrosVendidos },
-    { label: 'Disponible actual', value: resumenLeche.litrosDisponibles },
-  ];
-  const milkDestination = {
-    vendida: resumenVentas.litrosVendidos,
-    disponible: resumenLeche.litrosDisponibles,
-    descartada: resumenProduccion.litrosDescartados,
-  };
+  const commercialReading = resumenVentas.cantidadVentas === 0
+    ? 'No se registraron ventas en el período seleccionado.'
+    : `Durante el período se vendieron ${formatNumber(resumenVentas.litrosVendidos, ' L')} por un total de ${formatCurrency(resumenVentas.facturacion)}.`;
+  const commercialContext = resumenVentas.litrosVendidos > resumenProduccion.litrosProducidos && resumenVentas.litrosVendidos > 0
+    ? 'Las ventas del período pueden corresponder a leche producida en días anteriores.'
+    : null;
+  const commercialSuggestion = resumenVentas.cantidadVentas === 0
+    ? 'No hay ventas registradas en el período.'
+    : resumenLeche.riesgoVencimiento.vence48Horas.lotes + resumenLeche.riesgoVencimiento.vence7Dias.lotes > 0
+      ? 'Revisar lotes próximos a vencer antes de registrar nuevas ventas.'
+      : resumenLeche.litrosDisponibles > 0
+        ? 'Hay leche disponible para comercializar.'
+        : 'Revisar el módulo de ventas para más detalle.';
   const kpis = [
     { title: 'Litros producidos', description: 'Producción total del período', value: formatNumber(resumenProduccion.litrosProducidos, ' L'), icon: Droplets, tone: 'blue' as const },
     { title: 'Litros netos', description: 'Producción menos descarte', value: formatNumber(resumenProduccion.litrosNetos, ' L'), icon: PackageCheck, tone: 'emerald' as const },
@@ -399,22 +339,10 @@ export function AdminDashboard({
         </SectionCard>
 
         <SectionCard
-          title="Resultado comercial y disponibilidad"
-          description="Relación entre producción, ventas y leche disponible."
+          title="Movimiento comercial del período"
+          description="Evolución de ventas y lectura comercial del período seleccionado."
           action={<Link className="panel-chip" to={paths.sales}>Ver ventas</Link>}
         >
-          <div className="dashboard-detail-grid">
-            <span>Litros vendidos <strong>{formatNumber(resumenVentas.litrosVendidos, ' L')}</strong></span>
-            <span>Producción vendida <strong>{formatNumber(resumenVentas.porcentajeProduccionVendida, '%')}</strong></span>
-            <span>Facturación <strong>{formatCurrency(resumenVentas.facturacion)}</strong></span>
-            <span>Precio promedio <strong>{formatNullable(resumenVentas.precioPromedioLitro, ' $/L')}</strong></span>
-            <span>Leche disponible <strong>{formatNumber(resumenLeche.litrosDisponibles, ' L')}</strong></span>
-            <span>Próxima a vencer <strong>{formatNumber(resumenLeche.riesgoVencimiento.vence48Horas.litros + resumenLeche.riesgoVencimiento.vence7Dias.litros, ' L')}</strong></span>
-            <span>Cantidad de ventas <strong>{resumenVentas.cantidadVentas}</strong></span>
-          </div>
-          <h3 className="dashboard-subtitle">Producción vs ventas vs disponible</h3>
-          <ValueBars emptyMessage="Sin datos para comparar producción, ventas y disponibilidad." items={productionVsSales} />
-          <p className="dashboard-section-note">La disponibilidad puede incluir leche de lotes producidos antes del período seleccionado.</p>
           <h3 className="dashboard-subtitle">Ventas por período</h3>
           <ValueBars
             emptyMessage="Sin ventas registradas para este período."
@@ -424,16 +352,8 @@ export function AdminDashboard({
               detail: formatCurrency(item.facturacion),
             }))}
           />
-          <h3 className="dashboard-subtitle">Destino de la leche</h3>
-          <MilkDestinationDonut {...milkDestination} />
-          <p className="dashboard-conclusion">
-            {resumenVentas.cantidadVentas === 0
-              ? 'No hubo ventas registradas en el período.'
-              : `Se vendió el ${formatNumber(resumenVentas.porcentajeProduccionVendida, '%')} de la producción del período.`}
-            {' '}Quedan {formatNumber(resumenLeche.litrosDisponibles, ' L')} disponibles para venta.
-            {' '}{resumenLeche.litrosDisponibles > resumenVentas.litrosVendidos ? 'Hay leche acumulada que conviene comercializar.' : ''}
-          </p>
-          <p className="dashboard-conclusion">{milkDestinationText(milkDestination.vendida, milkDestination.disponible, milkDestination.descartada)}</p>
+          <p className="dashboard-conclusion">{commercialReading}</p>
+          {commercialContext && <p className="dashboard-section-note">{commercialContext}</p>}
           {resumenVentas.ultimaVenta ? (
             <p className="dashboard-section-note">
               Última venta: {formatDate(resumenVentas.ultimaVenta.fecha)} · {resumenVentas.ultimaVenta.cliente} · {formatNumber(resumenVentas.ultimaVenta.litros, ' L')} · {formatCurrency(resumenVentas.ultimaVenta.total)}.
@@ -441,6 +361,7 @@ export function AdminDashboard({
           ) : (
             <p className="table-empty">Sin ventas registradas para este período.</p>
           )}
+          <p className="dashboard-conclusion">{commercialSuggestion}</p>
         </SectionCard>
       </div>
 
