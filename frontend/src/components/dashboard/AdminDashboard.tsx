@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -34,6 +34,8 @@ const periodOptions: Array<{ value: DashboardPeriodo; label: string }> = [
   { value: 'anio', label: 'Año' },
   { value: 'personalizado', label: 'Personalizado' },
 ];
+
+type AdminModalType = 'stock' | 'tareas' | 'sanidad';
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('es-AR', {
@@ -122,18 +124,22 @@ function sanitaryConclusion(vencidas: number, proximas: number) {
 function KpiCard({
   description,
   icon: Icon,
+  onClick,
   title,
   value,
   tone,
+  className = '',
 }: {
   description: string;
   icon: LucideIcon;
+  onClick?: () => void;
   title: string;
   value: string;
   tone: 'emerald' | 'blue' | 'indigo' | 'pink' | 'amber' | 'rose';
+  className?: string;
 }) {
-  return (
-    <article className={`metric-card dashboard-kpi-card dashboard-kpi-${tone}`}>
+  const content = (
+    <>
       <div className="dashboard-kpi-top">
         <div className={`metric-icon metric-icon-${tone}`}>
           <Icon size={20} />
@@ -142,6 +148,20 @@ function KpiCard({
       </div>
       <strong>{title}</strong>
       <p>{description}</p>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button className={`metric-card dashboard-kpi-card dashboard-kpi-clickable dashboard-kpi-${tone} ${className}`} type="button" onClick={onClick}>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <article className={`metric-card dashboard-kpi-card dashboard-kpi-${tone} ${className}`}>
+      {content}
     </article>
   );
 }
@@ -230,7 +250,15 @@ export function AdminDashboard({
   onApplyCustomPeriod,
   onClearCustomPeriod,
 }: AdminDashboardProps) {
+  const [activeModal, setActiveModal] = useState<AdminModalType | null>(null);
   const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad, resumenRodeo } = resumen;
+  const stockBajo = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual < insumo.stockMinimo);
+  const agotados = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual === 0);
+  const stockCardClass = agotados.length > 0
+    ? 'dashboard-stock-critical'
+    : stockBajo.length > 0
+      ? 'dashboard-stock-warning'
+      : 'dashboard-stock-ok';
   const commercialReading = resumenVentas.cantidadVentas === 0
     ? 'No se registraron ventas en el período seleccionado.'
     : `Durante el período se vendieron ${formatNumber(resumenVentas.litrosVendidos, ' L')} por un total de ${formatCurrency(resumenVentas.facturacion)}.`;
@@ -251,7 +279,15 @@ export function AdminDashboard({
     { title: 'Leche disponible', description: `${resumenLeche.lotesDisponibles} lotes disponibles`, value: formatNumber(resumenLeche.litrosDisponibles, ' L'), icon: Truck, tone: 'indigo' as const },
     { title: 'Litros vendidos', description: `${resumenVentas.cantidadVentas} ventas`, value: formatNumber(resumenVentas.litrosVendidos, ' L'), icon: BarChart3, tone: 'pink' as const },
     { title: 'Facturación', description: `Promedio ${formatNullable(resumenVentas.precioPromedioLitro, ' $/L')}`, value: formatCurrency(resumenVentas.facturacion), icon: DollarSign, tone: 'emerald' as const },
-    { title: 'Stock crítico', description: 'Insumos bajo mínimo', value: String(resumenAlimentacion.insumosBajoMinimo), icon: Utensils, tone: 'rose' as const },
+    {
+      title: 'Stock de alimentos',
+      description: stockBajo.length > 0 ? `Stock bajo: ${stockBajo.length} | Agotados: ${agotados.length}` : `Sin alertas críticas | Agotados: ${agotados.length}`,
+      value: stockBajo.length > 0 ? `Stock bajo: ${stockBajo.length}` : 'Sin alertas',
+      icon: Utensils,
+      tone: agotados.length > 0 ? 'rose' as const : stockBajo.length > 0 ? 'amber' as const : 'emerald' as const,
+      onClick: () => setActiveModal('stock'),
+      className: stockCardClass,
+    },
     { title: 'Tareas vencidas', description: 'Agenda pendiente', value: String(resumen.tareasVencidas), icon: ClipboardList, tone: 'amber' as const },
   ];
 
@@ -311,7 +347,17 @@ export function AdminDashboard({
                   <strong>{alerta.titulo}</strong>
                   <p>{alerta.detalle}</p>
                   <small>{alerta.accionSugerida}</small>
-                  <Link className="dashboard-alert-action" to={alerta.accionRuta}>{alerta.accionLabel}</Link>
+                  {alerta.codigo === 'TAREAS_VENCIDAS' || alerta.codigo === 'STOCK_CRITICO' || alerta.codigo === 'SANIDAD_PENDIENTE' ? (
+                    <button
+                      className="dashboard-alert-action"
+                      type="button"
+                      onClick={() => setActiveModal(alerta.codigo === 'TAREAS_VENCIDAS' ? 'tareas' : alerta.codigo === 'STOCK_CRITICO' ? 'stock' : 'sanidad')}
+                    >
+                      Ver detalle
+                    </button>
+                  ) : (
+                    <Link className="dashboard-alert-action" to={alerta.accionRuta}>{alerta.accionLabel}</Link>
+                  )}
                 </div>
               </article>
             ))}
@@ -475,6 +521,100 @@ export function AdminDashboard({
           <span>Vaquillonas <strong>{resumenRodeo.vaquillonas}</strong></span>
         </div>
       </section>
+
+      {activeModal && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setActiveModal(null)}>
+          <section className="modal-panel admin-dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="admin-dashboard-modal-title" onClick={(event) => event.stopPropagation()}>
+            <div className="dashboard-card-heading">
+              <div>
+                <h2 id="admin-dashboard-modal-title">
+                  {activeModal === 'stock' ? 'Stock de alimentos' : activeModal === 'tareas' ? 'Tareas vencidas' : 'Controles sanitarios pendientes'}
+                </h2>
+                <p>Detalle para seguimiento y acción desde el módulo correspondiente.</p>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setActiveModal(null)} aria-label="Cerrar modal">
+                X
+              </button>
+            </div>
+
+            {activeModal === 'stock' && (
+              <div className="admin-modal-sections">
+                <section>
+                  <h3>Alimentos bajo mínimo</h3>
+                  {stockBajo.length === 0 ? (
+                    <p className="table-empty">No hay alimentos bajo mínimo.</p>
+                  ) : (
+                    <div className="dashboard-urgent-list">
+                      {stockBajo.map((insumo) => (
+                        <div className="dashboard-urgent-row" key={insumo.id}>
+                          <strong>{insumo.alimento}</strong>
+                          <span>Stock actual: {formatNumber(insumo.stockActual)} {insumo.unidad}</span>
+                          <span>Punto mínimo: {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
+                          <span className={`badge ${badgeClass(insumo.estado)}`}>{friendlyEnum(insumo.estado)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+                <section>
+                  <h3>Alimentos agotados</h3>
+                  {agotados.length === 0 ? (
+                    <p className="table-empty">No hay alimentos agotados.</p>
+                  ) : (
+                    <div className="dashboard-urgent-list">
+                      {agotados.map((insumo) => (
+                        <div className="dashboard-urgent-row" key={insumo.id}>
+                          <strong>{insumo.alimento}</strong>
+                          <span>Stock actual: {formatNumber(insumo.stockActual)} {insumo.unidad}</span>
+                          <span>Punto mínimo: {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
+                          <span className="badge badge-critical">Agotado</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+                <Link className="secondary-button dashboard-inline-action" to={paths.feed}>Ver alimentación</Link>
+              </div>
+            )}
+
+            {activeModal === 'tareas' && (
+              resumen.tareasVencidasDetalle.length === 0 ? (
+                <p className="table-empty">No hay tareas vencidas de agenda.</p>
+              ) : (
+                <div className="dashboard-urgent-list">
+                  {resumen.tareasVencidasDetalle.map((tarea) => (
+                    <div className="dashboard-urgent-row" key={tarea.id}>
+                      <strong>{friendlyEnum(tarea.tipoTarea)}</strong>
+                      <span>{tarea.animal ? `Animal #${tarea.animal.caravana}` : 'Sin animal'}</span>
+                      <span>{tarea.animal?.lote?.nombre ?? tarea.lote?.nombre ?? 'Sin lote'}</span>
+                      <small>Fecha: {formatDate(tarea.fechaProyectada)} | Estado: {friendlyEnum(tarea.estado)}</small>
+                      <Link className="secondary-button" to={paths.agenda}>Ver agenda</Link>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {activeModal === 'sanidad' && (
+              resumenSanidad.tareas.length === 0 ? (
+                <p className="table-empty">No hay controles sanitarios pendientes.</p>
+              ) : (
+                <div className="dashboard-urgent-list">
+                  {resumenSanidad.tareas.map((tarea) => (
+                    <div className="dashboard-urgent-row" key={tarea.id}>
+                      <strong>{friendlyEnum(tarea.tipo)}</strong>
+                      <span>{friendlyEnum(tarea.lote ?? tarea.categoria ?? tarea.alcance)}</span>
+                      <span>Vence: {formatDate(tarea.fechaObjetivo)}</span>
+                      <span className="badge badge-warning">{friendlyEnum(tarea.estado)}</span>
+                      <Link className="secondary-button" to={paths.vaccination}>Ver vacunación</Link>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </section>
+        </div>
+      )}
     </>
   );
 }
