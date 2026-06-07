@@ -1101,6 +1101,15 @@ a {
   display: block;
   font-size: 14px;
   font-weight: 900;
+  margin-top: 4px;
+}
+
+.employee-feed-card span {
+  color: var(--emerald-dark);
+  display: block;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .employee-feed-card p,
@@ -1124,6 +1133,13 @@ a {
   gap: 4px;
   list-style: none;
   padding: 0;
+}
+
+.employee-feed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .employee-summary-modal {

@@ -112,26 +112,27 @@ function FeedingSection({ resumen }: { resumen: DashboardResumen }) {
           <h2>Alimentación del día</h2>
           <p>Control de carga diaria y stock de alimento.</p>
         </div>
-        <Link className="panel-chip" to={paths.feed}>Ver alimentación</Link>
       </div>
       <div className="employee-feed-grid">
         <article className="employee-feed-card">
           <Utensils size={18} />
           <div>
-            <strong>{resumen.cargaDia.alimentacionRegistrada ? 'Alimentación registrada hoy' : 'Alimentación pendiente de carga'}</strong>
-            <Link to={paths.feed}>{resumen.cargaDia.alimentacionRegistrada ? 'Ver alimentación' : 'Registrar alimentación'}</Link>
+            <span>Estado de carga</span>
+            <strong>{resumen.cargaDia.alimentacionRegistrada ? 'Alimentación del día registrada' : 'Falta registrar la alimentación del día'}</strong>
+            <p>{resumen.cargaDia.alimentacionRegistrada ? 'Ya se cargó el consumo diario.' : 'Revisá si los lotes ya recibieron alimento y registrá la carga correspondiente.'}</p>
           </div>
         </article>
         <article className="employee-feed-card">
           <ClipboardList size={18} />
           <div>
-            <strong>No se detectan lotes con alimentación pendiente.</strong>
-            <p>Sin detalle operativo por lote para mostrar.</p>
+            <span>Lotes a revisar</span>
+            <strong>No hay lotes con alimentación pendiente detectada.</strong>
           </div>
         </article>
         <article className="employee-feed-card">
           <Utensils size={18} />
           <div>
+            <span>Stock de alimentos</span>
             <strong>{riskItems.length > 0 ? 'Stock bajo de alimentos' : 'Stock de alimentos sin alertas críticas'}</strong>
             {riskItems.length > 0 ? (
               <ul className="employee-feed-list">
@@ -140,11 +141,14 @@ function FeedingSection({ resumen }: { resumen: DashboardResumen }) {
                 ))}
               </ul>
             ) : (
-              <p>No hay alertas críticas de stock.</p>
+              <p>No hay alimentos bajo mínimo.</p>
             )}
-            <Link to={paths.feed}>Ver alimentación</Link>
           </div>
         </article>
+      </div>
+      <div className="employee-feed-actions">
+        <Link className="secondary-button" to={paths.feed}>Registrar alimentación</Link>
+        <Link className="secondary-button" to={paths.feed}>Ver alimentación</Link>
       </div>
     </section>
   );
