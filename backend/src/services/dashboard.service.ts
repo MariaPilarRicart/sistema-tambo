@@ -414,7 +414,8 @@ function buildManagementAlerts(input: {
   porcentajeDescarte: number;
   insumosBajoMinimo: number;
   insumosAgotados: number;
-  controlesPendientes: number;
+  controlesSanitariosVencidos: number;
+  controlesSanitariosProximos: number;
   litrosProducidos: number;
   cantidadVentas: number;
 }) {
@@ -447,13 +448,16 @@ function buildManagementAlerts(input: {
       accionRuta: '/alimentacion',
     });
   }
-  if (input.controlesPendientes > 0) {
+  const controlesPendientes = input.controlesSanitariosVencidos + input.controlesSanitariosProximos;
+  if (controlesPendientes > 0) {
     alerts.push({
       codigo: 'SANIDAD_PENDIENTE',
       titulo: 'Controles sanitarios',
-      detalle: `${input.controlesPendientes} controles sanitarios requieren atencion.`,
-      severidad: 'MEDIA',
-      accionSugerida: 'Programar o registrar los controles sanitarios.',
+      detalle: input.controlesSanitariosVencidos > 0
+        ? `${input.controlesSanitariosVencidos} controles sanitarios vencidos.`
+        : `${input.controlesSanitariosProximos} controles sanitarios próximos.`,
+      severidad: input.controlesSanitariosVencidos > 0 ? 'CRITICA' : 'MEDIA',
+      accionSugerida: input.controlesSanitariosVencidos > 0 ? 'Revisar vacunación hoy.' : 'Programar o registrar los controles sanitarios.',
       accionLabel: 'Ver vacunación',
       accionRuta: '/vacunacion',
     });
@@ -732,7 +736,8 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     porcentajeDescarte: resumenProduccion.porcentajeDescarte,
     insumosBajoMinimo: resumenAlimentacion.insumosBajoMinimo,
     insumosAgotados,
-    controlesPendientes: resumenSanidad.controlesPendientes,
+    controlesSanitariosVencidos: resumenSanidad.tareasSanitariasVencidas,
+    controlesSanitariosProximos: resumenSanidad.tareasSanitariasProximas,
     litrosProducidos: resumenProduccion.litrosProducidos,
     cantidadVentas: resumenVentas.cantidadVentas,
   });
