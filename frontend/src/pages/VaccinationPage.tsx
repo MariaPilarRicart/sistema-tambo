@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CalendarClock, CheckCircle2, Clock3, FilterX, ListChecks, RefreshCcw, Syringe, X } from 'lucide-react';
+import { SanitaryRulesPanel } from '../components/ui/SanitaryRulesPanel';
 import { ApiError } from '../services/apiClient';
 import { getAnimales } from '../services/animalesService';
 import { getLotes } from '../services/lotesService';
@@ -365,7 +366,7 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
   }
 
   return (
-    <div className="settings-page">
+    <div className="settings-page vaccination-page">
       <section className="settings-header">
         <div>
           <h2>Control de Vacunación</h2>
@@ -379,7 +380,7 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
-      <div className="operative-summary-grid">
+      <div className="operative-summary-grid vaccination-summary-section">
         <button type="button" className="metric-card operative-card vaccination-summary-card" onClick={() => applyStatusFilter('')}>
           <div className="metric-icon metric-icon-blue"><ListChecks size={20} /></div><p className="metric-title">Todas</p><strong className="metric-value">{summary.todas}</strong>
         </button>
@@ -397,7 +398,7 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
         </button>
       </div>
 
-      <section className="panel">
+      <section className="panel vaccination-pending-section">
         <div className="panel-header"><div><h2>Vacunas pendientes</h2><p>{visiblePendingHistory.length} tareas sanitarias visibles.</p></div></div>
         <form className="filters-form events-filters production-filters">
           <label className="filter-field">
@@ -482,7 +483,7 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
         )}
       </section>
 
-      <section className="panel">
+      <section className="panel vaccination-schedule-section">
         <div className="panel-header"><div><h2>Programar vacunación</h2><p>Crear campañas extraordinarias o controles especiales.</p></div></div>
         <form className="user-form vaccination-form" onSubmit={handleScheduleSubmit}>
           <div className="vaccination-mode-selector">
@@ -551,7 +552,11 @@ export function VaccinationPage({ authToken, onUnauthorized }: VaccinationPagePr
         </form>
       </section>
 
-      <section className="panel">
+      <div className="vaccination-rules-section">
+        <SanitaryRulesPanel authToken={authToken} onUnauthorized={onUnauthorized} onRulesChanged={() => loadData(filters)} />
+      </div>
+
+      <section className="panel vaccination-history-section">
         <div className="panel-header">
           <div><h2>Historial sanitario</h2><p>{history.length} registros encontrados.</p></div>
           <button type="button" className="secondary-button" onClick={() => applyStatusFilter('')}><FilterX size={16} />Todas</button>

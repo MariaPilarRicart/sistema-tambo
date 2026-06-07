@@ -5,6 +5,7 @@ import { ApiError } from '../services/apiClient';
 import { createAnimal, deactivateAnimal, getAnimales, updateAnimal } from '../services/animalesService';
 import { createEvento } from '../services/eventosService';
 import { getLotes } from '../services/lotesService';
+import { LotesPanel } from '../components/ui/LotesPanel';
 import type {
   Animal,
   AnimalDeactivateValues,
@@ -479,6 +480,8 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
             </div>
           )}
       </section>
+
+      <LotesPanel authToken={authToken} onUnauthorized={onUnauthorized} onLotesChanged={() => loadData(filters)} />
 
       {isAnimalModalOpen && isAdmin && (
         <div className="modal-backdrop">
