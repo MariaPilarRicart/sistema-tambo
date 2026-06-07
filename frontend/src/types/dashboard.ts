@@ -82,6 +82,11 @@ export interface DashboardResumenVentas {
   precioPromedioLitro: number | null;
   cantidadVentas: number;
   porcentajeProduccionVendida: number;
+  series: Array<{
+    etiqueta: string;
+    litrosVendidos: number;
+    facturacion: number;
+  }>;
   ultimaVenta: {
     id: number;
     fecha: string;
