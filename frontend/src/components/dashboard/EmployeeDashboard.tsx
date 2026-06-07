@@ -6,7 +6,7 @@ import {
   Utensils,
 } from 'lucide-react';
 import { paths } from '../../routes/paths';
-import type { DashboardResumen, DashboardTareaDetalle } from '../../types/dashboard';
+import type { DashboardResumen, DashboardResumenSanidad, DashboardTareaDetalle } from '../../types/dashboard';
 
 interface EmployeeDashboardProps {
   resumen: DashboardResumen;
@@ -40,6 +40,47 @@ function taskBadge(task: DashboardTareaDetalle) {
   if (type.includes('ALIMENT')) return 'Alimentación';
   if (type.includes('PRODUC')) return 'Producción';
   return 'Agenda';
+}
+
+function sanitaryStatus(fechaObjetivo: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dueDate = new Date(fechaObjetivo);
+  dueDate.setHours(0, 0, 0, 0);
+  return dueDate < today ? 'Vencida' : 'Próxima a vencer';
+}
+
+function SanitaryList({ tasks }: { tasks: DashboardResumenSanidad['tareas'] }) {
+  const visibleTasks = [...tasks]
+    .sort((a, b) => {
+      const statusA = sanitaryStatus(a.fechaObjetivo) === 'Vencida' ? 0 : 1;
+      const statusB = sanitaryStatus(b.fechaObjetivo) === 'Vencida' ? 0 : 1;
+      if (statusA !== statusB) return statusA - statusB;
+      return new Date(a.fechaObjetivo).getTime() - new Date(b.fechaObjetivo).getTime();
+    });
+  const hasMore = visibleTasks.length > 5;
+
+  if (visibleTasks.length === 0) return <p className="table-empty">Sin vencimientos sanitarios próximos.</p>;
+
+  return (
+    <div className="employee-task-list">
+      {visibleTasks.slice(0, 5).map((task) => (
+        <article className="employee-task-card" key={task.id}>
+          <div>
+            <div className="employee-task-title">
+              <strong>{friendlyText(task.tipo)}</strong>
+              <span>Vacunación</span>
+            </div>
+            <p>Lote: {task.lote ?? 'Sin lote'}</p>
+            <small>Vence: {formatDate(task.fechaObjetivo)}</small>
+            <small>Estado: {sanitaryStatus(task.fechaObjetivo)}</small>
+          </div>
+          <Link className="secondary-button" to={paths.vaccination}>Ver vacunación</Link>
+        </article>
+      ))}
+      {hasMore && <p className="dashboard-section-note">Hay más vencimientos sanitarios pendientes de revisión.</p>}
+    </div>
+  );
 }
 
 function TaskList({
@@ -121,6 +162,7 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
     { key: 'next7', title: 'Proximos 7 dias', value: resumen.tareasProximos7Dias.length, tasks: resumen.tareasProximos7Dias },
   ];
   const modalSummary = summary.find((item) => item.key === activeModal);
+  const sanitaryTasks = resumen.resumenSanidad.tareas;
 
   const workGroups = [
     { title: 'Proximos partos', tasks: resumen.proximosTrabajos.partos },
@@ -163,15 +205,12 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
       <section className="panel employee-primary-panel">
         <div className="dashboard-card-heading">
           <div>
-            <h2>Vacunaciones y alertas sanitarias</h2>
-            <p>Vencimientos sanitarios que requieren revisión.</p>
+            <h2>Vacunaciones próximas a vencer</h2>
+            <p>Certificados sanitarios que requieren revisión.</p>
           </div>
-          <Link className="panel-chip" to={paths.agenda}>Ver agenda</Link>
+          <Link className="panel-chip" to={paths.vaccination}>Ver vacunación</Link>
         </div>
-        <TaskList
-          emptyMessage="No hay tareas pendientes importantes."
-          tasks={resumen.tareasPrioritarias}
-        />
+        <SanitaryList tasks={sanitaryTasks} />
       </section>
 
       <div className="dashboard-two-column employee-grid">
@@ -249,7 +288,7 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
               </button>
             </div>
             <TaskList
-              emptyMessage="No hay tareas para mostrar."
+              emptyMessage="No hay tareas de agenda para mostrar."
               limit={modalSummary.tasks.length}
               tasks={modalSummary.tasks}
             />
