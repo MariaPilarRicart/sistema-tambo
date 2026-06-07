@@ -916,14 +916,17 @@ a {
 }
 
 .employee-priority-critical {
+  background: #fff1f2;
   border-color: #fecdd3;
 }
 
 .employee-priority-warning {
+  background: #fffbeb;
   border-color: #fde68a;
 }
 
 .employee-priority-ok {
+  background: #f0fdf4;
   border-color: #bbf7d0;
 }
 
@@ -1083,7 +1086,7 @@ a {
 .employee-feed-grid {
   display: grid;
   gap: 14px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .employee-feed-card {
@@ -1094,6 +1097,18 @@ a {
   display: flex;
   gap: 12px;
   padding: 16px;
+  text-align: left;
+}
+
+.employee-feed-button {
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.employee-feed-button:hover {
+  border-color: #a7f3d0;
+  box-shadow: 0 12px 28px rgb(15 23 42 / 0.08);
+  transform: translateY(-1px);
 }
 
 .employee-feed-card strong {

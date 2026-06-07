@@ -58,6 +58,13 @@ function addDays(date: Date, days: number) {
   return nextDate;
 }
 
+function isToday(value: string) {
+  const today = startOfToday();
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime() === today.getTime();
+}
+
 function sanitaryStatus(fechaObjetivo: string) {
   const today = startOfToday();
   const dueDate = new Date(fechaObjetivo);
@@ -102,8 +109,62 @@ function SanitaryList({ tasks }: { tasks: DashboardResumenSanidad['tareas'] }) {
   );
 }
 
-function FeedingSection({ resumen }: { resumen: DashboardResumen }) {
+function FeedingRecordsModal({
+  onClose,
+  records,
+}: {
+  onClose: () => void;
+  records: DashboardResumen['resumenAlimentacion']['ultimosRegistros'];
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section className="modal-panel employee-summary-modal" role="dialog" aria-modal="true" aria-labelledby="employee-feed-modal-title" onClick={(event) => event.stopPropagation()}>
+        <div className="dashboard-card-heading">
+          <div>
+            <h2 id="employee-feed-modal-title">Alimentaciones registradas hoy</h2>
+            <p>Detalle disponible desde el módulo Alimentación.</p>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar modal">
+            X
+          </button>
+        </div>
+        {records.length === 0 ? (
+          <p className="table-empty">No hay alimentaciones registradas hoy.</p>
+        ) : (
+          <div className="employee-task-list">
+            {records.map((record) => (
+              <article className="employee-task-card" key={record.id}>
+                <div>
+                  <div className="employee-task-title">
+                    <strong>{record.lote}</strong>
+                    <span>Alimentación</span>
+                  </div>
+                  <p>Ración: {record.racion}</p>
+                  <small>Fecha: {formatDate(record.fecha)}</small>
+                  <small>Cantidad: {record.cantidadKg} kg</small>
+                </div>
+                <Link className="secondary-button" to={paths.feed}>Ver alimentación</Link>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function FeedingSection({
+  onOpenDetails,
+  resumen,
+}: {
+  onOpenDetails: () => void;
+  resumen: DashboardResumen;
+}) {
   const riskItems = resumen.resumenAlimentacion.insumosConRiesgo.slice(0, 3);
+  const recordsToday = resumen.resumenAlimentacion.ultimosRegistros.filter((record) => isToday(record.fecha));
+  const fedLots = new Set(recordsToday.map((record) => record.lote)).size;
+  const exhaustedItems = resumen.resumenAlimentacion.insumosConRiesgo.filter((item) => item.estado === 'CRITICO');
+  const lowStockCount = resumen.resumenAlimentacion.insumosBajoMinimo;
 
   return (
     <section className="panel">
@@ -114,26 +175,27 @@ function FeedingSection({ resumen }: { resumen: DashboardResumen }) {
         </div>
       </div>
       <div className="employee-feed-grid">
-        <article className="employee-feed-card">
+        <button className="employee-feed-card employee-feed-button" type="button" onClick={onOpenDetails}>
           <Utensils size={18} />
           <div>
             <span>Estado de carga</span>
-            <strong>{resumen.cargaDia.alimentacionRegistrada ? 'Alimentación del día registrada' : 'Falta registrar la alimentación del día'}</strong>
-            <p>{resumen.cargaDia.alimentacionRegistrada ? 'Ya se cargó el consumo diario.' : 'Revisá si los lotes ya recibieron alimento y registrá la carga correspondiente.'}</p>
+            <strong>{recordsToday.length > 0 ? `${recordsToday.length} alimentaciones hoy` : 'No hay registros de alimentación para hoy'}</strong>
+            <p>{recordsToday.length > 0 ? 'Consultá el detalle de cargas registradas.' : 'Si ya se alimentó, registrá la carga correspondiente.'}</p>
           </div>
-        </article>
+        </button>
         <article className="employee-feed-card">
           <ClipboardList size={18} />
           <div>
-            <span>Lotes a revisar</span>
-            <strong>No hay lotes con alimentación pendiente detectada.</strong>
+            <span>Lotes alimentados</span>
+            <strong>{fedLots}</strong>
+            <p>{fedLots > 0 ? 'Lotes con registro de alimentación hoy.' : 'No hay lotes con registros de alimentación hoy.'}</p>
           </div>
         </article>
         <article className="employee-feed-card">
           <Utensils size={18} />
           <div>
-            <span>Stock de alimentos</span>
-            <strong>{riskItems.length > 0 ? 'Stock bajo de alimentos' : 'Stock de alimentos sin alertas críticas'}</strong>
+            <span>Stock bajo</span>
+            <strong>{lowStockCount}</strong>
             {riskItems.length > 0 ? (
               <ul className="employee-feed-list">
                 {riskItems.map((item) => (
@@ -141,8 +203,16 @@ function FeedingSection({ resumen }: { resumen: DashboardResumen }) {
                 ))}
               </ul>
             ) : (
-              <p>No hay alimentos bajo mínimo.</p>
+              <p>No se detectan alimentos bajo mínimo.</p>
             )}
+          </div>
+        </article>
+        <article className="employee-feed-card">
+          <ClipboardList size={18} />
+          <div>
+            <span>Agotados</span>
+            <strong>{exhaustedItems.length}</strong>
+            <p>{exhaustedItems.length > 0 ? 'Hay insumos sin stock disponible.' : 'No hay insumos agotados reportados.'}</p>
           </div>
         </article>
       </div>
@@ -206,6 +276,7 @@ function SummaryCard({
 
 export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
   const [activeModal, setActiveModal] = useState<SummaryModalKey | null>(null);
+  const [isFeedingModalOpen, setIsFeedingModalOpen] = useState(false);
   const agendaOverdueTasks = resumen.tareasVencidasDetalle.filter(isAgendaTask);
   const agendaTodayTasks = resumen.tareasHoyDetalle.filter(isAgendaTask);
   const agendaNextSevenDaysTasks = resumen.tareasProximos7Dias.filter(isAgendaTask);
@@ -213,20 +284,17 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
     ? {
         title: 'Hay tareas vencidas',
         message: 'Revisa el detalle desde el resumen operativo.',
-        severity: 'Critica',
         className: 'employee-priority-critical',
       }
     : agendaTodayTasks.length > 0
       ? {
           title: 'Hay tareas para hoy',
-          message: 'Revisa las tareas del dia desde el resumen operativo.',
-          severity: 'Media',
+          message: 'Revisa el detalle desde el resumen operativo.',
           className: 'employee-priority-warning',
         }
       : {
           title: 'Estas al dia',
           message: 'No hay tareas urgentes para hoy.',
-          severity: 'Normal',
           className: 'employee-priority-ok',
         };
 
@@ -236,6 +304,7 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
     { key: 'next7', title: 'Proximos 7 dias', value: agendaNextSevenDaysTasks.length, tasks: agendaNextSevenDaysTasks },
   ];
   const modalSummary = summary.find((item) => item.key === activeModal);
+  const feedingRecordsToday = resumen.resumenAlimentacion.ultimosRegistros.filter((record) => isToday(record.fecha));
   const sanitaryTasks = resumen.resumenSanidad.tareas;
 
   return (
@@ -244,7 +313,6 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
         <div className="dashboard-card-heading">
           <div>
             <h2>Prioridad del dia</h2>
-            <p>{priority.severity}</p>
           </div>
         </div>
         <p className="employee-priority-message">{priority.title}</p>
@@ -281,7 +349,7 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
         <SanitaryList tasks={sanitaryTasks} />
       </section>
 
-      <FeedingSection resumen={resumen} />
+      <FeedingSection resumen={resumen} onOpenDetails={() => setIsFeedingModalOpen(true)} />
 
       <section className="panel">
         <div className="dashboard-card-heading">
@@ -327,6 +395,12 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
             />
           </section>
         </div>
+      )}
+      {isFeedingModalOpen && (
+        <FeedingRecordsModal
+          records={feedingRecordsToday}
+          onClose={() => setIsFeedingModalOpen(false)}
+        />
       )}
     </>
   );
