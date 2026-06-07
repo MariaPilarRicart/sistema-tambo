@@ -102,6 +102,54 @@ function SanitaryList({ tasks }: { tasks: DashboardResumenSanidad['tareas'] }) {
   );
 }
 
+function FeedingSection({ resumen }: { resumen: DashboardResumen }) {
+  const riskItems = resumen.resumenAlimentacion.insumosConRiesgo.slice(0, 3);
+
+  return (
+    <section className="panel">
+      <div className="dashboard-card-heading">
+        <div>
+          <h2>Alimentación del día</h2>
+          <p>Control de carga diaria y stock de alimento.</p>
+        </div>
+        <Link className="panel-chip" to={paths.feed}>Ver alimentación</Link>
+      </div>
+      <div className="employee-feed-grid">
+        <article className="employee-feed-card">
+          <Utensils size={18} />
+          <div>
+            <strong>{resumen.cargaDia.alimentacionRegistrada ? 'Alimentación registrada hoy' : 'Alimentación pendiente de carga'}</strong>
+            <Link to={paths.feed}>{resumen.cargaDia.alimentacionRegistrada ? 'Ver alimentación' : 'Registrar alimentación'}</Link>
+          </div>
+        </article>
+        <article className="employee-feed-card">
+          <ClipboardList size={18} />
+          <div>
+            <strong>No se detectan lotes con alimentación pendiente.</strong>
+            <p>Sin detalle operativo por lote para mostrar.</p>
+          </div>
+        </article>
+        <article className="employee-feed-card">
+          <Utensils size={18} />
+          <div>
+            <strong>{riskItems.length > 0 ? 'Stock bajo de alimentos' : 'Stock de alimentos sin alertas críticas'}</strong>
+            {riskItems.length > 0 ? (
+              <ul className="employee-feed-list">
+                {riskItems.map((item) => (
+                  <li key={item.id}>{item.alimento}: {friendlyText(item.estado)}</li>
+                ))}
+              </ul>
+            ) : (
+              <p>No hay alertas críticas de stock.</p>
+            )}
+            <Link to={paths.feed}>Ver alimentación</Link>
+          </div>
+        </article>
+      </div>
+    </section>
+  );
+}
+
 function TaskList({
   emptyMessage,
   limit = 5,
@@ -186,12 +234,6 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
   const modalSummary = summary.find((item) => item.key === activeModal);
   const sanitaryTasks = resumen.resumenSanidad.tareas;
 
-  const workGroups = [
-    { title: 'Proximos partos', tasks: resumen.proximosTrabajos.partos },
-    { title: 'Vacas a secar', tasks: resumen.proximosTrabajos.secados },
-    { title: 'Tactos pendientes', tasks: resumen.proximosTrabajos.tactos },
-  ];
-
   return (
     <>
       <section className={`panel employee-priority-panel ${priority.className}`}>
@@ -235,67 +277,32 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
         <SanitaryList tasks={sanitaryTasks} />
       </section>
 
-      <div className="dashboard-two-column employee-grid">
-        <section className="panel">
-          <div className="dashboard-card-heading">
-            <div>
-              <h2>Proximos trabajos</h2>
-              <p>Animales que requieren seguimiento cercano.</p>
-            </div>
-          </div>
-          <div className="employee-work-groups">
-            {workGroups.map((group) => (
-              <article className="employee-work-group" key={group.title}>
-                <h3>{group.title}</h3>
-                {group.tasks.length === 0 ? (
-                  <p className="table-empty">Sin pendientes.</p>
-                ) : (
-                  group.tasks.slice(0, 3).map((task) => (
-                    <div className="employee-work-item" key={task.id}>
-                      <span>{friendlyText(task.tipoTarea)}</span>
-                      <strong>{task.animal ? `#${task.animal.caravana}` : taskPlace(task)}</strong>
-                      <small>{formatDate(task.fechaProyectada)}</small>
-                      <Link to={paths.agenda}>Ver agenda</Link>
-                    </div>
-                  ))
-                )}
-              </article>
-            ))}
-          </div>
-        </section>
+      <FeedingSection resumen={resumen} />
 
-        <section className="panel">
-          <div className="dashboard-card-heading">
+      <section className="panel">
+        <div className="dashboard-card-heading">
+          <div>
+            <h2>Registros del dia</h2>
+            <p>Estado simple de registros diarios.</p>
+          </div>
+        </div>
+        <div className="employee-load-list">
+          <article>
+            <HeartPulse size={18} />
             <div>
-              <h2>Registros del dia</h2>
-              <p>Estado simple de registros diarios.</p>
+              <strong>{resumen.cargaDia.produccionRegistrada ? 'Produccion registrada hoy' : 'Produccion pendiente de carga'}</strong>
+              <Link to={paths.production}>{resumen.cargaDia.produccionRegistrada ? 'Ver produccion' : 'Registrar produccion'}</Link>
             </div>
-          </div>
-          <div className="employee-load-list">
-            <article>
-              <HeartPulse size={18} />
-              <div>
-                <strong>{resumen.cargaDia.produccionRegistrada ? 'Produccion registrada hoy' : 'Produccion pendiente de carga'}</strong>
-                <Link to={paths.production}>{resumen.cargaDia.produccionRegistrada ? 'Ver produccion' : 'Registrar produccion'}</Link>
-              </div>
-            </article>
-            <article>
-              <Utensils size={18} />
-              <div>
-                <strong>{resumen.cargaDia.alimentacionRegistrada ? 'Alimentacion registrada hoy' : 'Alimentacion pendiente de carga'}</strong>
-                <Link to={paths.feed}>{resumen.cargaDia.alimentacionRegistrada ? 'Ver alimentacion' : 'Registrar alimentacion'}</Link>
-              </div>
-            </article>
-            <article>
-              <ClipboardList size={18} />
-              <div>
-                <strong>{resumen.cargaDia.eventosRegistrados > 0 ? 'Hay eventos registrados hoy' : 'Sin eventos registrados hoy'}</strong>
-                <Link to={paths.events}>{resumen.cargaDia.eventosRegistrados > 0 ? 'Ver eventos' : 'Registrar evento'}</Link>
-              </div>
-            </article>
-          </div>
-        </section>
-      </div>
+          </article>
+          <article>
+            <ClipboardList size={18} />
+            <div>
+              <strong>{resumen.cargaDia.eventosRegistrados > 0 ? 'Hay eventos registrados hoy' : 'Sin eventos registrados hoy'}</strong>
+              <Link to={paths.events}>{resumen.cargaDia.eventosRegistrados > 0 ? 'Ver eventos' : 'Registrar evento'}</Link>
+            </div>
+          </article>
+        </div>
+      </section>
 
       {modalSummary && (
         <div className="modal-backdrop" role="presentation" onClick={() => setActiveModal(null)}>

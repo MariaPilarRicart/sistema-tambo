@@ -1017,7 +1017,6 @@ a {
 }
 
 .employee-task-list,
-.employee-work-groups,
 .employee-load-list {
   display: grid;
   gap: 12px;
@@ -1071,44 +1070,6 @@ a {
   margin: 4px 0 0;
 }
 
-.employee-work-group {
-  border: 1px solid var(--slate-200);
-  border-radius: 14px;
-  padding: 14px;
-}
-
-.employee-work-group h3 {
-  color: var(--slate-900);
-  font-size: 13px;
-  margin: 0 0 10px;
-}
-
-.employee-work-item {
-  align-items: center;
-  border-top: 1px solid var(--slate-100);
-  display: grid;
-  gap: 8px;
-  grid-template-columns: 1fr auto auto auto;
-  padding: 10px 0;
-}
-
-.employee-work-item:first-of-type {
-  border-top: 0;
-}
-
-.employee-work-item span,
-.employee-work-item small {
-  color: var(--slate-500);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.employee-work-item strong {
-  color: var(--slate-900);
-  font-size: 12px;
-}
-
-.employee-work-item a,
 .employee-load-list a {
   color: var(--emerald-dark);
   font-size: 12px;
@@ -1117,6 +1078,52 @@ a {
 
 .employee-load-list article {
   justify-content: flex-start;
+}
+
+.employee-feed-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.employee-feed-card {
+  align-items: flex-start;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  display: flex;
+  gap: 12px;
+  padding: 16px;
+}
+
+.employee-feed-card strong {
+  color: var(--slate-900);
+  display: block;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.employee-feed-card p,
+.employee-feed-list {
+  color: var(--slate-500);
+  font-size: 12px;
+  font-weight: 800;
+  margin: 6px 0 0;
+}
+
+.employee-feed-card a {
+  color: var(--emerald-dark);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  margin-top: 8px;
+}
+
+.employee-feed-list {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  padding: 0;
 }
 
 .employee-summary-modal {
@@ -2389,6 +2396,7 @@ a {
   .dashboard-two-column,
   .dashboard-bottom-grid,
   .employee-summary-grid,
+  .employee-feed-grid,
   .employee-quick-grid,
   .feed-grid,
   .feed-registration-form,
@@ -2429,6 +2437,7 @@ a {
   .dashboard-kpi-grid,
   .employee-kpi-grid,
   .employee-summary-grid,
+  .employee-feed-grid,
   .employee-quick-grid,
   .production-summary-grid,
   .production-form,
