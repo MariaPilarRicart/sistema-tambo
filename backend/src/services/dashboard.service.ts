@@ -1,6 +1,7 @@
 import { EstadoAnimal, EstadoTarea, TipoTarea } from '@prisma/client';
 import {
   countAnimales,
+  countRodeoGeneralForDashboard,
   countSanitaryTasks,
   countTareas,
   findAvailableLotesLeche,
@@ -96,20 +97,29 @@ function round(value: number, digits = 2) {
 }
 
 function formatSeriesLabel(date: Date, periodo: DashboardPeriodoInput, turno?: string) {
-  if (periodo === 'hoy' && turno) return formatTurno(turno);
+  const dateLabel = formatDateLabel(date);
+  if (turno) return `${dateLabel} - ${formatTurno(turno)}`;
   if (periodo === 'anio') return date.toLocaleString('es-AR', { month: 'short' });
-  return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+  return dateLabel;
 }
 
 function formatTurno(turno: string) {
   const labels: Record<string, string> = {
-    MANANA: 'Mañana',
-    TARDE: 'Tarde',
-    NOCHE: 'Noche',
+    MANANA: 'Turno mañana',
+    TARDE: 'Turno tarde',
+    NOCHE: 'Turno noche',
   };
   if (labels[turno]) return labels[turno];
   const readable = turno.toLowerCase().replace(/_/g, ' ');
-  return readable.charAt(0).toUpperCase() + readable.slice(1);
+  return `Turno ${readable}`;
+}
+
+function formatDateLabel(date: Date) {
+  return date.toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 function calculateCoverage(litrosNetos: number, litrosVendidos: number) {
@@ -216,7 +226,7 @@ function buildSalesSummary(
   for (const venta of ventas) {
     const etiqueta = periodo === 'anio'
       ? venta.fechaVenta.toLocaleString('es-AR', { month: 'short' })
-      : venta.fechaVenta.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+      : formatDateLabel(venta.fechaVenta);
     const current = seriesMap.get(etiqueta) ?? { etiqueta, litrosVendidos: 0, facturacion: 0 };
     current.litrosVendidos += toNumber(venta.totalLitros);
     current.facturacion += toNumber(venta.precioTotal);
@@ -531,6 +541,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     secadosPendientes,
     partosPendientes,
     ultimosEventos,
+    rodeoGeneral,
     produccionesPeriodo,
     lotesPeriodo,
     ventasPeriodo,
@@ -557,6 +568,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     countTareas({ estado: EstadoTarea.PENDIENTE, tipo: TipoTarea.SECADO }),
     countTareas({ estado: EstadoTarea.PENDIENTE, tipo: TipoTarea.PARTO }),
     findUltimosEventos(),
+    countRodeoGeneralForDashboard(),
     findProduccionesByDateRange(fechaDesde, fechaHasta),
     findLotesLecheByDateRange(fechaDesde, fechaHasta),
     findVentasByDateRange(fechaDesde, fechaHasta),
@@ -612,6 +624,11 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     resumenAlimentacion,
     resumenSanidad,
     alertasGestion,
+    resumenRodeo: {
+      vacasProduccion: rodeoGeneral.vacasProduccion,
+      vacasSecasPreparto: rodeoGeneral.vacasSecasPreparto,
+      vaquillonas: rodeoGeneral.vaquillonas,
+    },
     ultimosEventos: ultimosEventos.map((evento) => ({
       id: evento.id,
       fecha: evento.fecha,

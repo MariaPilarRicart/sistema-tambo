@@ -224,6 +224,12 @@ export interface DashboardAlertaGestion {
   accionRuta: string;
 }
 
+export interface DashboardResumenRodeo {
+  vacasProduccion: number;
+  vacasSecasPreparto: number;
+  vaquillonas: number;
+}
+
 export interface DashboardResumen {
   periodo: DashboardPeriodo;
   fechaDesde: string;
@@ -246,6 +252,7 @@ export interface DashboardResumen {
   resumenLeche: DashboardResumenLeche;
   resumenAlimentacion: DashboardResumenAlimentacion;
   resumenSanidad: DashboardResumenSanidad;
+  resumenRodeo: DashboardResumenRodeo;
   alertasGestion: DashboardAlertaGestion[];
   ultimosEventos: DashboardUltimoEvento[];
 }

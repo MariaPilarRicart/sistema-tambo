@@ -5,6 +5,20 @@ export function countAnimales(where?: Prisma.AnimalWhereInput) {
   return prisma.animal.count({ where });
 }
 
+export async function countRodeoGeneralForDashboard() {
+  const [vacasProduccion, vacasSecasPreparto, vaquillonas] = await Promise.all([
+    prisma.animal.count({ where: { activo: true, estadoAnimal: 'ACTIVO', categoriaAnimal: 'VACA_PRODUCCION' } }),
+    prisma.animal.count({ where: { activo: true, estadoAnimal: 'ACTIVO', categoriaAnimal: { in: ['VACA_SECA', 'PREPARTO'] } } }),
+    prisma.animal.count({ where: { activo: true, estadoAnimal: 'ACTIVO', categoriaAnimal: 'VAQUILLONA' } }),
+  ]);
+
+  return {
+    vacasProduccion,
+    vacasSecasPreparto,
+    vaquillonas,
+  };
+}
+
 export function groupAnimalesByEstadoAnimal() {
   return prisma.animal.groupBy({
     by: ['estadoAnimal'],

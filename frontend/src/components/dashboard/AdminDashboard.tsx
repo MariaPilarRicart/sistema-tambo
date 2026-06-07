@@ -36,7 +36,11 @@ const periodOptions: Array<{ value: DashboardPeriodo; label: string }> = [
 ];
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString();
+  return new Date(value).toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 }
 
 function formatNumber(value: number, suffix = '') {
@@ -174,7 +178,7 @@ function SimpleBars({
         <div className="dashboard-value-row" key={item.etiqueta}>
           <div className="dashboard-value-label">
             <strong>{item.etiqueta}</strong>
-            <span>{formatNumber(item.litrosProducidos, ' L')} producidos · {formatNumber(item.litrosNetos, ' L')} netos</span>
+            <span>Producido: {formatNumber(item.litrosProducidos, ' L')} | Neto: {formatNumber(item.litrosNetos, ' L')}</span>
           </div>
           <div className="dashboard-value-track" aria-hidden="true">
             <span style={{ width: `${(item.litrosProducidos / maxValue) * 100}%` }} />
@@ -203,7 +207,7 @@ function ValueBars({
         <div className="dashboard-value-row" key={item.label}>
           <div className="dashboard-value-label">
             <strong>{item.label}</strong>
-            <span>{formatNumber(item.value, ' L')}{item.detail ? ` · ${item.detail}` : ''}</span>
+            <span>{formatNumber(item.value, ' L')}{item.detail ? ` | ${item.detail}` : ''}</span>
           </div>
           <div className="dashboard-value-track" aria-hidden="true">
             <span style={{ width: `${(item.value / maxValue) * 100}%` }} />
@@ -226,7 +230,7 @@ export function AdminDashboard({
   onApplyCustomPeriod,
   onClearCustomPeriod,
 }: AdminDashboardProps) {
-  const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad } = resumen;
+  const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad, resumenRodeo } = resumen;
   const commercialReading = resumenVentas.cantidadVentas === 0
     ? 'No se registraron ventas en el período seleccionado.'
     : `Durante el período se vendieron ${formatNumber(resumenVentas.litrosVendidos, ' L')} por un total de ${formatCurrency(resumenVentas.facturacion)}.`;
@@ -326,11 +330,11 @@ export function AdminDashboard({
             <span>Vacas con producción <strong>{resumenProduccion.animalesConProduccion}</strong></span>
             <span>Promedio diario producido <strong>{formatNullable(resumenProduccion.promedioDiarioProducido, ' L')}</strong></span>
             <span>Promedio por vaca <strong>{formatNullable(resumenProduccion.promedioLitrosPorAnimal, ' L')}</strong></span>
-            <span>Día de mayor producción <strong>{resumenProduccion.diaMayorProduccion ? `${resumenProduccion.diaMayorProduccion.etiqueta} · ${formatNumber(resumenProduccion.diaMayorProduccion.litrosProducidos, ' L')}` : 'Sin datos'}</strong></span>
+            <span>Mayor producción del período <strong>{resumenProduccion.diaMayorProduccion ? `${resumenProduccion.diaMayorProduccion.etiqueta} - ${formatNumber(resumenProduccion.diaMayorProduccion.litrosProducidos, ' L')}` : 'Sin datos'}</strong></span>
             <span>Tendencia <strong>{friendlyEnum(resumenProduccion.tendencia)}</strong></span>
           </div>
           <h3 className="dashboard-subtitle">Evolución diaria de producción</h3>
-          <p className="dashboard-section-note">Cada barra representa los litros producidos en ese día dentro del período seleccionado.</p>
+          <p className="dashboard-section-note">Cada barra representa los litros producidos en esa fecha y turno dentro del período seleccionado.</p>
           <SimpleBars emptyMessage="Sin datos registrados para este período." series={resumenProduccion.series} />
           <p className="dashboard-conclusion">{trendText(resumenProduccion.tendencia)}</p>
           <p className="dashboard-section-note">
@@ -356,7 +360,11 @@ export function AdminDashboard({
           {commercialContext && <p className="dashboard-section-note">{commercialContext}</p>}
           {resumenVentas.ultimaVenta ? (
             <p className="dashboard-section-note">
-              Última venta: {formatDate(resumenVentas.ultimaVenta.fecha)} · {resumenVentas.ultimaVenta.cliente} · {formatNumber(resumenVentas.ultimaVenta.litros, ' L')} · {formatCurrency(resumenVentas.ultimaVenta.total)}.
+              Última venta:<br />
+              Fecha: {formatDate(resumenVentas.ultimaVenta.fecha)}<br />
+              Cliente: {resumenVentas.ultimaVenta.cliente}<br />
+              Litros: {formatNumber(resumenVentas.ultimaVenta.litros, ' L')}<br />
+              Total: {formatCurrency(resumenVentas.ultimaVenta.total)}
             </p>
           ) : (
             <p className="table-empty">Sin ventas registradas para este período.</p>
@@ -431,7 +439,7 @@ export function AdminDashboard({
             <span>Controles pendientes <strong>{resumenSanidad.controlesPendientes}</strong></span>
             <span>Estado general <strong>{sanitaryStatusText(resumenSanidad.tareasSanitariasVencidas, resumenSanidad.tareasSanitariasProximas)}</strong></span>
             <span>Más repetido <strong>{friendlyEnum(resumenSanidad.tipoControlMasRepetido)}</strong></span>
-            <span>Próximo urgente <strong>{resumenSanidad.proximoControlUrgente ? `${friendlyEnum(resumenSanidad.proximoControlUrgente.tipo)} · ${formatDate(resumenSanidad.proximoControlUrgente.fechaObjetivo)}` : 'Sin datos'}</strong></span>
+            <span>Próximo urgente <strong>{resumenSanidad.proximoControlUrgente ? `${friendlyEnum(resumenSanidad.proximoControlUrgente.tipo)} - ${formatDate(resumenSanidad.proximoControlUrgente.fechaObjetivo)}` : 'Sin datos'}</strong></span>
           </div>
           <p className="dashboard-conclusion">{sanitaryConclusion(resumenSanidad.tareasSanitariasVencidas, resumenSanidad.tareasSanitariasProximas)}</p>
           {resumenSanidad.tareas.length === 0 ? (
@@ -462,8 +470,9 @@ export function AdminDashboard({
         <div className="dashboard-detail-grid dashboard-herd-summary">
           <span>Animales activos <strong>{resumen.animalesActivos}</strong></span>
           <span>Animales inactivos <strong>{resumen.animalesInactivos}</strong></span>
-          <span>Tactos pendientes <strong>{resumen.tactosPendientes}</strong></span>
-          <span>Partos pendientes <strong>{resumen.partosPendientes}</strong></span>
+          <span>Vacas en producción <strong>{resumenRodeo.vacasProduccion}</strong></span>
+          <span>Vacas secas / preparto <strong>{resumenRodeo.vacasSecasPreparto}</strong></span>
+          <span>Vaquillonas <strong>{resumenRodeo.vaquillonas}</strong></span>
         </div>
       </section>
     </>
