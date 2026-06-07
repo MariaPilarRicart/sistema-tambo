@@ -968,6 +968,38 @@ a {
   font-weight: 900;
 }
 
+.employee-summary-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.employee-summary-card {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  display: grid;
+  gap: 8px;
+  min-height: 104px;
+  padding: 16px;
+}
+
+.employee-summary-card strong {
+  color: var(--slate-900);
+  display: block;
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.employee-summary-card span {
+  color: var(--slate-600);
+  display: block;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+
 .employee-task-list,
 .employee-work-groups,
 .employee-load-list {
@@ -995,8 +1027,27 @@ a {
   font-weight: 900;
 }
 
+.employee-task-title {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.employee-task-title span {
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  color: var(--emerald-dark);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  padding: 5px 8px;
+}
+
 .employee-task-card p,
-.employee-task-card span {
+.employee-task-card small {
   color: var(--slate-500);
   display: block;
   font-size: 12px;
@@ -2315,6 +2366,7 @@ a {
   .dashboard-alert-grid,
   .dashboard-two-column,
   .dashboard-bottom-grid,
+  .employee-summary-grid,
   .employee-quick-grid,
   .feed-grid,
   .feed-registration-form,
@@ -2354,6 +2406,7 @@ a {
   .dashboard-real-metrics,
   .dashboard-kpi-grid,
   .employee-kpi-grid,
+  .employee-summary-grid,
   .employee-quick-grid,
   .production-summary-grid,
   .production-form,

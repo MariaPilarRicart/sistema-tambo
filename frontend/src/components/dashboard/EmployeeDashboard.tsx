@@ -1,14 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
-  CalendarClock,
   ClipboardList,
   HeartPulse,
-  ListChecks,
-  Milk,
-  Search,
-  Siren,
-  Stethoscope,
-  Syringe,
   Utensils,
 } from 'lucide-react';
 import { paths } from '../../routes/paths';
@@ -36,6 +29,16 @@ function taskPlace(task: DashboardTareaDetalle) {
   return 'Sin lote';
 }
 
+function taskBadge(task: DashboardTareaDetalle) {
+  const type = task.tipoTarea.toUpperCase();
+  if (type.includes('AFTOSA') || type.includes('BRUCELOSIS') || type.includes('TUBERCULINA') || type.includes('VACUN') || type.includes('CLINICO')) {
+    return 'Vacunación';
+  }
+  if (type.includes('ALIMENT')) return 'Alimentación';
+  if (type.includes('PRODUC')) return 'Producción';
+  return 'Agenda';
+}
+
 function TaskList({
   emptyMessage,
   tasks,
@@ -50,11 +53,15 @@ function TaskList({
       {tasks.slice(0, 5).map((task) => (
         <article className="employee-task-card" key={task.id}>
           <div>
-            <strong>{friendlyText(task.tipoTarea)}</strong>
+            <div className="employee-task-title">
+              <strong>{friendlyText(task.tipoTarea)}</strong>
+              <span>{taskBadge(task)}</span>
+            </div>
             <p>
               {task.animal ? `Animal #${task.animal.caravana}` : 'Sin animal'} | Lote {taskPlace(task)}
             </p>
-            <span>Vence: {formatDate(task.fechaProyectada)} | {friendlyText(task.estado)}</span>
+            <small>Vence: {formatDate(task.fechaProyectada)}</small>
+            <small>Estado: {friendlyText(task.estado)}</small>
           </div>
           <Link className="secondary-button" to={paths.agenda}>Ver agenda</Link>
         </article>
@@ -64,19 +71,16 @@ function TaskList({
 }
 
 function SummaryCard({
-  action,
   title,
   value,
 }: {
-  action: string;
   title: string;
   value: number;
 }) {
   return (
-    <article className="operative-card">
+    <article className="employee-summary-card">
       <strong>{value}</strong>
       <span>{title}</span>
-      <p>{action}</p>
     </article>
   );
 }
@@ -104,22 +108,12 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
         };
 
   const summary = [
-    { title: 'Tareas vencidas', value: resumen.tareasVencidas, action: 'Revisar primero.' },
-    { title: 'Tareas para hoy', value: resumen.tareasHoy, action: 'Completar durante la jornada.' },
-    { title: 'Proximos 7 dias', value: resumen.tareasProximos7Dias.length, action: 'Organizar el trabajo cercano.' },
-    { title: 'Tactos pendientes', value: resumen.tactosPendientes, action: 'Control reproductivo pendiente.' },
-    { title: 'Secados pendientes', value: resumen.secadosPendientes, action: 'Preparar secado.' },
-    { title: 'Partos pendientes', value: resumen.partosPendientes, action: 'Seguimiento de partos.' },
-  ];
-
-  const quickLinks = [
-    { label: 'Registrar evento', to: paths.events, icon: Stethoscope },
-    { label: 'Registrar produccion', to: paths.production, icon: Milk },
-    { label: 'Registrar alimentacion', to: paths.feed, icon: Utensils },
-    { label: 'Ver agenda', to: paths.agenda, icon: CalendarClock },
-    { label: 'Buscar animal', to: paths.herd, icon: Search },
-    { label: 'Ver vacunacion', to: paths.vaccination, icon: Syringe },
-    { label: 'Ver listados', to: paths.listings, icon: ListChecks },
+    { title: 'Tareas vencidas', value: resumen.tareasVencidas },
+    { title: 'Tareas para hoy', value: resumen.tareasHoy },
+    { title: 'Proximos 7 dias', value: resumen.tareasProximos7Dias.length },
+    { title: 'Tactos pendientes', value: resumen.tactosPendientes },
+    { title: 'Secados pendientes', value: resumen.secadosPendientes },
+    { title: 'Partos pendientes', value: resumen.partosPendientes },
   ];
 
   const workGroups = [
@@ -141,10 +135,18 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
         <p className="employee-priority-message">{priority.message}</p>
       </section>
 
-      <section className="operative-summary-grid">
-        {summary.map((item) => (
-          <SummaryCard key={item.title} {...item} />
-        ))}
+      <section className="panel">
+        <div className="dashboard-card-heading">
+          <div>
+            <h2>Resumen operativo</h2>
+            <p>Indicadores principales de trabajo diario.</p>
+          </div>
+        </div>
+        <div className="employee-summary-grid">
+          {summary.map((item) => (
+            <SummaryCard key={item.title} {...item} />
+          ))}
+        </div>
       </section>
 
       <section className="panel employee-primary-panel">
@@ -159,63 +161,6 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
           emptyMessage="No hay tareas pendientes importantes."
           tasks={resumen.tareasPrioritarias}
         />
-      </section>
-
-      <div className="dashboard-two-column employee-grid">
-        <section className="panel">
-          <div className="dashboard-card-heading">
-            <div>
-              <h2>Proximos 7 dias</h2>
-              <p>Tareas operativas programadas.</p>
-            </div>
-          </div>
-          <TaskList
-            emptyMessage="No hay tareas programadas para los proximos 7 dias."
-            tasks={resumen.tareasProximos7Dias}
-          />
-        </section>
-
-        <section className="panel">
-          <div className="dashboard-card-heading">
-            <div>
-              <h2>Alertas operativas</h2>
-              <p>Mensajes simples para resolver o avisar.</p>
-            </div>
-          </div>
-          {resumen.alertasOperativas.length === 0 ? (
-            <p className="table-empty">Sin alertas operativas por ahora.</p>
-          ) : (
-            <div className="alert-list">
-              {resumen.alertasOperativas.map((alerta) => (
-                <article className={`alert-card alert-${alerta.severidad === 'CRITICA' ? 'critical' : alerta.severidad === 'INFO' ? 'info' : 'warning'}`} key={`${alerta.titulo}-${alerta.accionRuta}`}>
-                  <Siren size={18} />
-                  <div>
-                    <strong>{alerta.titulo}</strong>
-                    <p>{alerta.detalle}</p>
-                    <Link className="dashboard-alert-action" to={alerta.accionRuta}>{alerta.accionLabel}</Link>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      <section className="panel">
-        <div className="dashboard-card-heading">
-          <div>
-            <h2>Accesos rapidos</h2>
-            <p>Acciones frecuentes de carga y consulta.</p>
-          </div>
-        </div>
-        <div className="employee-quick-grid">
-          {quickLinks.map(({ icon: Icon, label, to }) => (
-            <Link className="employee-quick-card" to={to} key={label}>
-              <Icon size={22} />
-              <strong>{label}</strong>
-            </Link>
-          ))}
-        </div>
       </section>
 
       <div className="dashboard-two-column employee-grid">
@@ -250,7 +195,7 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
         <section className="panel">
           <div className="dashboard-card-heading">
             <div>
-              <h2>Carga del dia</h2>
+              <h2>Registros del dia</h2>
               <p>Estado simple de registros diarios.</p>
             </div>
           </div>
