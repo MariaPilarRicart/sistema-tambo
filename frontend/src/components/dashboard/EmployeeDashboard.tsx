@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ClipboardList,
@@ -10,6 +11,8 @@ import type { DashboardResumen, DashboardTareaDetalle } from '../../types/dashbo
 interface EmployeeDashboardProps {
   resumen: DashboardResumen;
 }
+
+type SummaryModalKey = 'overdue' | 'today' | 'next7';
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('es-AR', {
@@ -41,16 +44,18 @@ function taskBadge(task: DashboardTareaDetalle) {
 
 function TaskList({
   emptyMessage,
+  limit = 5,
   tasks,
 }: {
   emptyMessage: string;
+  limit?: number;
   tasks: DashboardTareaDetalle[];
 }) {
   if (tasks.length === 0) return <p className="table-empty">{emptyMessage}</p>;
 
   return (
     <div className="employee-task-list">
-      {tasks.slice(0, 5).map((task) => (
+      {tasks.slice(0, limit).map((task) => (
         <article className="employee-task-card" key={task.id}>
           <div>
             <div className="employee-task-title">
@@ -71,21 +76,24 @@ function TaskList({
 }
 
 function SummaryCard({
+  onClick,
   title,
   value,
 }: {
+  onClick: () => void;
   title: string;
   value: number;
 }) {
   return (
-    <article className="employee-summary-card">
+    <button className="employee-summary-card" type="button" onClick={onClick}>
       <strong>{value}</strong>
       <span>{title}</span>
-    </article>
+    </button>
   );
 }
 
 export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
+  const [activeModal, setActiveModal] = useState<SummaryModalKey | null>(null);
   const priority = resumen.tareasVencidas > 0
     ? {
         message: 'Hay tareas vencidas. Revisa primero la agenda.',
@@ -107,14 +115,12 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
           className: 'employee-priority-ok',
         };
 
-  const summary = [
-    { title: 'Tareas vencidas', value: resumen.tareasVencidas },
-    { title: 'Tareas para hoy', value: resumen.tareasHoy },
-    { title: 'Proximos 7 dias', value: resumen.tareasProximos7Dias.length },
-    { title: 'Tactos pendientes', value: resumen.tactosPendientes },
-    { title: 'Secados pendientes', value: resumen.secadosPendientes },
-    { title: 'Partos pendientes', value: resumen.partosPendientes },
+  const summary: Array<{ key: SummaryModalKey; title: string; value: number; tasks: DashboardTareaDetalle[] }> = [
+    { key: 'overdue', title: 'Tareas vencidas', value: resumen.tareasVencidas, tasks: resumen.tareasPrioritarias.filter((task) => new Date(task.fechaProyectada) < new Date(resumen.fechaDesde)) },
+    { key: 'today', title: 'Tareas para hoy', value: resumen.tareasHoy, tasks: resumen.tareasHoyDetalle },
+    { key: 'next7', title: 'Proximos 7 dias', value: resumen.tareasProximos7Dias.length, tasks: resumen.tareasProximos7Dias },
   ];
+  const modalSummary = summary.find((item) => item.key === activeModal);
 
   const workGroups = [
     { title: 'Proximos partos', tasks: resumen.proximosTrabajos.partos },
@@ -144,7 +150,12 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
         </div>
         <div className="employee-summary-grid">
           {summary.map((item) => (
-            <SummaryCard key={item.title} {...item} />
+            <SummaryCard
+              key={item.title}
+              title={item.title}
+              value={item.value}
+              onClick={() => setActiveModal(item.key)}
+            />
           ))}
         </div>
       </section>
@@ -152,8 +163,8 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
       <section className="panel employee-primary-panel">
         <div className="dashboard-card-heading">
           <div>
-            <h2>Tareas prioritarias</h2>
-            <p>Vencidas, de hoy y proximas, en ese orden.</p>
+            <h2>Vacunaciones y alertas sanitarias</h2>
+            <p>Vencimientos sanitarios que requieren revisión.</p>
           </div>
           <Link className="panel-chip" to={paths.agenda}>Ver agenda</Link>
         </div>
@@ -224,6 +235,27 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
           </div>
         </section>
       </div>
+
+      {modalSummary && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setActiveModal(null)}>
+          <section className="modal-panel employee-summary-modal" role="dialog" aria-modal="true" aria-labelledby="employee-summary-modal-title" onClick={(event) => event.stopPropagation()}>
+            <div className="dashboard-card-heading">
+              <div>
+                <h2 id="employee-summary-modal-title">{modalSummary.title}</h2>
+                <p>Detalle operativo de agenda.</p>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setActiveModal(null)} aria-label="Cerrar modal">
+                X
+              </button>
+            </div>
+            <TaskList
+              emptyMessage="No hay tareas para mostrar."
+              limit={20}
+              tasks={modalSummary.tasks}
+            />
+          </section>
+        </div>
+      )}
     </>
   );
 }
