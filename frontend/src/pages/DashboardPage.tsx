@@ -5,7 +5,7 @@ import { EmployeeDashboard } from '../components/dashboard/EmployeeDashboard';
 import { ApiError } from '../services/apiClient';
 import { getDashboardResumen } from '../services/dashboardService';
 import type { AuthUser } from '../types/auth';
-import type { DashboardResumen } from '../types/dashboard';
+import type { DashboardPeriodo, DashboardResumen } from '../types/dashboard';
 
 interface DashboardPageProps {
   authToken: string | null;
@@ -15,6 +15,7 @@ interface DashboardPageProps {
 
 export function DashboardPage({ authToken, currentUser, onUnauthorized }: DashboardPageProps) {
   const [resumen, setResumen] = useState<DashboardResumen | null>(null);
+  const [periodo, setPeriodo] = useState<DashboardPeriodo>('hoy');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -24,7 +25,7 @@ export function DashboardPage({ authToken, currentUser, onUnauthorized }: Dashbo
     setError('');
 
     try {
-      setResumen(await getDashboardResumen(authToken));
+      setResumen(await getDashboardResumen(authToken, periodo));
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.statusCode === 401) {
         onUnauthorized();
@@ -40,7 +41,7 @@ export function DashboardPage({ authToken, currentUser, onUnauthorized }: Dashbo
   useEffect(() => {
     void loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken]);
+  }, [authToken, periodo]);
 
   return (
     <div className="dashboard-page">
@@ -66,7 +67,13 @@ export function DashboardPage({ authToken, currentUser, onUnauthorized }: Dashbo
       {error && <div className="form-error">{error}</div>}
       {isLoading && <p className="table-empty">Cargando dashboard...</p>}
 
-      {resumen && currentUser?.role === 'ADMIN' && <AdminDashboard resumen={resumen} />}
+      {resumen && currentUser?.role === 'ADMIN' && (
+        <AdminDashboard
+          periodo={periodo}
+          resumen={resumen}
+          onPeriodoChange={setPeriodo}
+        />
+      )}
       {resumen && currentUser?.role === 'EMPLEADO' && <EmployeeDashboard resumen={resumen} />}
     </div>
   );

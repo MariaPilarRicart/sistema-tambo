@@ -2,28 +2,62 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
-  CalendarClock,
-  CheckCircle2,
+  BarChart3,
   ClipboardList,
-  Clock3,
-  HeartPulse,
+  DollarSign,
+  Droplets,
   LucideIcon,
-  XCircle,
+  PackageCheck,
+  ShieldAlert,
+  Truck,
+  Utensils,
 } from 'lucide-react';
 import { paths } from '../../routes/paths';
-import type { DashboardGroup, DashboardResumen } from '../../types/dashboard';
+import type { DashboardGroup, DashboardPeriodo, DashboardResumen } from '../../types/dashboard';
 
 interface AdminDashboardProps {
+  periodo: DashboardPeriodo;
   resumen: DashboardResumen;
+  onPeriodoChange: (periodo: DashboardPeriodo) => void;
 }
 
 const chartColors = ['#059669', '#2563eb', '#4f46e5', '#d97706', '#db2777', '#64748b'];
+const periodOptions: Array<{ value: DashboardPeriodo; label: string }> = [
+  { value: 'hoy', label: 'Hoy' },
+  { value: 'semana', label: 'Semana' },
+  { value: 'mes', label: 'Mes' },
+  { value: 'anio', label: 'Año' },
+];
 
-function formatDateTime(value: string) {
-  return new Date(value).toLocaleString();
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString();
 }
 
-function DashboardMetricCard({
+function formatNumber(value: number, suffix = '') {
+  return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(value)}${suffix}`;
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('es-AR', { currency: 'ARS', style: 'currency', maximumFractionDigits: 0 }).format(value);
+}
+
+function formatNullable(value: number | null, suffix = '') {
+  return value === null ? 'Sin datos' : formatNumber(value, suffix);
+}
+
+function severityClass(severity: string) {
+  if (severity === 'CRITICA' || severity === 'CRITICO') return 'alert-critical';
+  if (severity === 'MEDIA' || severity === 'BAJO') return 'alert-warning';
+  return 'alert-info';
+}
+
+function badgeClass(value: string) {
+  if (value === 'CRITICO') return 'badge-critical';
+  if (value === 'BAJO') return 'badge-warning';
+  return 'badge-success';
+}
+
+function KpiCard({
   description,
   icon: Icon,
   title,
@@ -33,7 +67,7 @@ function DashboardMetricCard({
   description: string;
   icon: LucideIcon;
   title: string;
-  value: number;
+  value: string;
   tone: 'emerald' | 'blue' | 'indigo' | 'pink' | 'amber' | 'rose';
 }) {
   return (
@@ -50,6 +84,48 @@ function DashboardMetricCard({
   );
 }
 
+function SectionCard({ children, description, title }: { children: ReactNode; description: string; title: string }) {
+  return (
+    <section className="panel dashboard-chart-card">
+      <div className="dashboard-card-heading">
+        <div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function SimpleBars({
+  emptyMessage,
+  series,
+}: {
+  emptyMessage: string;
+  series: Array<{ etiqueta: string; litrosProducidos: number; litrosNetos: number; litrosDescartados: number }>;
+}) {
+  const maxValue = Math.max(...series.map((item) => item.litrosProducidos), 1);
+
+  if (series.length === 0) return <p className="table-empty">{emptyMessage}</p>;
+
+  return (
+    <div className="compact-bars">
+      {series.map((item) => (
+        <div className="compact-bar-row" key={item.etiqueta}>
+          <div className="compact-bar-label">
+            <strong>{item.etiqueta}</strong>
+            <span>{formatNumber(item.litrosProducidos, ' L')}</span>
+          </div>
+          <div className="compact-bar-track" aria-hidden="true">
+            <span style={{ width: `${(item.litrosProducidos / maxValue) * 100}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function compactLoteGroups(groups: DashboardGroup[]) {
   const nonEmptyGroups = groups.filter((group) => group.total > 0).sort((a, b) => b.total - a.total);
   const topGroups = nonEmptyGroups.slice(0, 5);
@@ -62,9 +138,7 @@ function HorizontalBarChart({ groups }: { groups: DashboardGroup[] }) {
   const maxValue = Math.max(...groups.map((group) => group.total), 1);
   const total = groups.reduce((sum, group) => sum + group.total, 0);
 
-  if (groups.length === 0) {
-    return <p className="table-empty">Sin datos para mostrar.</p>;
-  }
+  if (groups.length === 0) return <p className="table-empty">Sin datos para mostrar.</p>;
 
   return (
     <div className="compact-bars">
@@ -92,134 +166,64 @@ function HorizontalBarChart({ groups }: { groups: DashboardGroup[] }) {
   );
 }
 
-function DonutChart({ groups }: { groups: DashboardGroup[] }) {
-  const total = groups.reduce((sum, group) => sum + group.total, 0);
-  const radius = 38;
-  const circumference = 2 * Math.PI * radius;
-  let offset = 0;
-
-  if (groups.length === 0 || total === 0) {
-    return <p className="table-empty">Sin datos para mostrar.</p>;
-  }
-
-  return (
-    <div className="donut-chart-wrap">
-      <div className="donut-chart">
-        <svg viewBox="0 0 100 100" aria-hidden="true">
-          <circle className="donut-bg" cx="50" cy="50" r={radius} />
-          {groups.map((group, index) => {
-            const dash = (group.total / total) * circumference;
-            const currentOffset = offset;
-            offset += dash;
-
-            return (
-              <circle
-                key={group.nombre}
-                className="donut-segment"
-                cx="50"
-                cy="50"
-                r={radius}
-                stroke={chartColors[index % chartColors.length]}
-                strokeDasharray={`${dash} ${circumference - dash}`}
-                strokeDashoffset={-currentOffset}
-              />
-            );
-          })}
-        </svg>
-        <div>
-          <strong>{total}</strong>
-          <span>total</span>
-        </div>
-      </div>
-      <div className="chart-legend">
-        {groups.map((group, index) => {
-          const percentage = total > 0 ? Math.round((group.total / total) * 100) : 0;
-
-          return (
-            <div className="chart-legend-row" key={group.nombre}>
-              <span style={{ background: chartColors[index % chartColors.length] }} />
-              <strong>{group.nombre}</strong>
-              <small>{group.total} · {percentage}%</small>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function ChartCard({ children, description, title }: { children: ReactNode; description: string; title: string }) {
-  return (
-    <section className="panel dashboard-chart-card">
-      <div className="dashboard-card-heading">
-        <div>
-          <h2>{title}</h2>
-          <p>{description}</p>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-export function AdminDashboard({ resumen }: AdminDashboardProps) {
-  const metrics = [
-    { title: 'Animales activos', description: 'En rodeo operativo', value: resumen.animalesActivos, icon: CheckCircle2, tone: 'emerald' as const },
-    { title: 'Animales inactivos', description: 'Bajas historicas', value: resumen.animalesInactivos, icon: XCircle, tone: 'rose' as const },
-    { title: 'Tareas vencidas', description: 'Requieren atencion', value: resumen.tareasVencidas, icon: AlertTriangle, tone: 'amber' as const },
-    { title: 'Tareas de hoy', description: 'Plan del dia', value: resumen.tareasHoy, icon: CalendarClock, tone: 'blue' as const },
-    { title: 'Tareas futuras', description: 'Agenda programada', value: resumen.tareasFuturas, icon: Clock3, tone: 'indigo' as const },
-    { title: 'Tactos pendientes', description: 'Control reproductivo', value: resumen.tactosPendientes, icon: ClipboardList, tone: 'pink' as const },
-    { title: 'Secados pendientes', description: 'Proximos secados', value: resumen.secadosPendientes, icon: ClipboardList, tone: 'amber' as const },
-    { title: 'Partos pendientes', description: 'Seguimiento prenatal', value: resumen.partosPendientes, icon: HeartPulse, tone: 'emerald' as const },
-  ];
-
-  const alerts = [
-    ...(resumen.tareasVencidas > 0
-      ? [{ title: 'Tareas vencidas', detail: `Hay ${resumen.tareasVencidas} tareas pendientes fuera de fecha.`, className: 'alert-critical' }]
-      : []),
-    ...(resumen.tareasHoy > 0
-      ? [{ title: 'Tareas de hoy', detail: `Hay ${resumen.tareasHoy} tareas programadas para completar hoy.`, className: 'alert-info' }]
-      : []),
-    ...(resumen.partosPendientes > 0
-      ? [{ title: 'Seguimiento de partos', detail: `${resumen.partosPendientes} partos pendientes requieren seguimiento.`, className: 'alert-warning' }]
-      : []),
-    ...(resumen.secadosPendientes > 0
-      ? [{ title: 'Planificacion de secados', detail: `${resumen.secadosPendientes} secados pendientes para organizar.`, className: 'alert-warning' }]
-      : []),
-    ...(resumen.tactosPendientes > 0
-      ? [{ title: 'Control reproductivo', detail: `${resumen.tactosPendientes} tactos pendientes para revisar.`, className: 'alert-info' }]
-      : []),
-  ];
-
-  const agendaItems = [
-    { label: 'Vencidas', value: resumen.tareasVencidas, tone: 'rose' },
-    { label: 'Hoy', value: resumen.tareasHoy, tone: 'blue' },
-    { label: 'Futuras', value: resumen.tareasFuturas, tone: 'indigo' },
-    { label: 'Tactos', value: resumen.tactosPendientes, tone: 'pink' },
-    { label: 'Secados', value: resumen.secadosPendientes, tone: 'amber' },
-    { label: 'Partos', value: resumen.partosPendientes, tone: 'emerald' },
+export function AdminDashboard({ periodo, resumen, onPeriodoChange }: AdminDashboardProps) {
+  const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad } = resumen;
+  const kpis = [
+    { title: 'Litros producidos', description: 'Periodo seleccionado', value: formatNumber(resumenProduccion.litrosProducidos, ' L'), icon: Droplets, tone: 'blue' as const },
+    { title: 'Litros netos', description: 'Produccion menos descarte', value: formatNumber(resumenProduccion.litrosNetos, ' L'), icon: PackageCheck, tone: 'emerald' as const },
+    { title: 'Descarte', description: `${formatNumber(resumenProduccion.litrosDescartados, ' L')} descartados`, value: formatNumber(resumenProduccion.porcentajeDescarte, '%'), icon: AlertTriangle, tone: 'amber' as const },
+    { title: 'Leche disponible', description: `${resumenLeche.lotesDisponibles} lotes disponibles`, value: formatNumber(resumenLeche.litrosDisponibles, ' L'), icon: Truck, tone: 'indigo' as const },
+    { title: 'Litros vendidos', description: `${resumenVentas.cantidadVentas} ventas`, value: formatNumber(resumenVentas.litrosVendidos, ' L'), icon: BarChart3, tone: 'pink' as const },
+    { title: 'Facturacion', description: `Promedio ${formatNullable(resumenVentas.precioPromedioLitro, ' $/L')}`, value: formatCurrency(resumenVentas.facturacion), icon: DollarSign, tone: 'emerald' as const },
+    { title: 'Stock critico', description: 'Insumos bajo minimo', value: String(resumenAlimentacion.insumosBajoMinimo), icon: Utensils, tone: 'rose' as const },
+    { title: 'Tareas vencidas', description: 'Agenda pendiente', value: String(resumen.tareasVencidas), icon: ClipboardList, tone: 'amber' as const },
   ];
 
   return (
     <>
+      <section className="dashboard-period-toolbar">
+        <div>
+          <h2>Tablero gerencial</h2>
+          <p>Periodo: {formatDate(resumen.fechaDesde)} al {formatDate(resumen.fechaHasta)}</p>
+        </div>
+        <div className="dashboard-period-selector" aria-label="Seleccionar periodo">
+          {periodOptions.map((option) => (
+            <button
+              className={periodo === option.value ? 'dashboard-period-active' : ''}
+              key={option.value}
+              onClick={() => onPeriodoChange(option.value)}
+              type="button"
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <div className="dashboard-kpi-grid">
+        {kpis.map((metric) => (
+          <KpiCard key={metric.title} {...metric} />
+        ))}
+      </div>
+
       <section className="panel">
         <div className="dashboard-card-heading">
           <div>
-            <h2>Alertas para la toma de decisiones</h2>
-            <p>Prioridades simples basadas en agenda y reproduccion.</p>
+            <h2>Alertas de gestión</h2>
+            <p>Máximo de alertas accionables para resolver hoy.</p>
           </div>
         </div>
-        {alerts.length === 0 ? (
-          <p className="table-empty">Sin alertas relevantes por el momento.</p>
+        {resumen.alertasGestion.length === 0 ? (
+          <p className="table-empty">Sin alertas de gestión para este período.</p>
         ) : (
           <div className="dashboard-alert-grid">
-            {alerts.map((alert) => (
-              <article className={`alert-card ${alert.className}`} key={alert.title}>
+            {resumen.alertasGestion.map((alerta) => (
+              <article className={`alert-card ${severityClass(alerta.severidad)}`} key={alerta.titulo}>
                 <AlertTriangle size={18} />
                 <div>
-                  <strong>{alert.title}</strong>
-                  <p>{alert.detail}</p>
+                  <strong>{alerta.titulo}</strong>
+                  <p>{alerta.detalle}</p>
+                  <small>{alerta.accionSugerida}</small>
                 </div>
               </article>
             ))}
@@ -227,90 +231,191 @@ export function AdminDashboard({ resumen }: AdminDashboardProps) {
         )}
       </section>
 
-      <div className="dashboard-kpi-grid">
-        {metrics.map((metric) => (
-          <DashboardMetricCard key={metric.title} {...metric} />
-        ))}
-      </div>
-
-      <div className="dashboard-distribution-grid">
-        <ChartCard title="Animales por lote" description="Top 5 lotes con mas animales">
-          <HorizontalBarChart groups={compactLoteGroups(resumen.animalesPorLote)} />
-        </ChartCard>
-        <ChartCard title="Estado reproductivo" description="Distribucion porcentual">
-          <DonutChart groups={resumen.animalesPorEstadoReproductivo.filter((group) => group.total > 0)} />
-        </ChartCard>
-        <ChartCard title="Categorias" description="Composicion del rodeo">
-          <DonutChart groups={resumen.animalesPorCategoria.filter((group) => group.total > 0)} />
-        </ChartCard>
-      </div>
-
-      <div className="dashboard-bottom-grid">
-        <section className="panel dashboard-agenda-panel">
-          <div className="dashboard-card-heading">
-            <div>
-              <h2>Agenda operativa</h2>
-              <p>Resumen de tareas pendientes</p>
-            </div>
-            <Link className="panel-chip" to={paths.listings}>Ver listados</Link>
+      <div className="dashboard-two-column">
+        <SectionCard title="Producción" description="Producción, descarte y evolución del período.">
+          <div className="dashboard-detail-grid">
+            <span>Registros <strong>{resumenProduccion.cantidadRegistros}</strong></span>
+            <span>Animales <strong>{resumenProduccion.animalesConProduccion}</strong></span>
+            <span>Promedio/vaca <strong>{formatNullable(resumenProduccion.promedioLitrosPorAnimal, ' L')}</strong></span>
+            <span>Último lote <strong>{resumenProduccion.ultimoLote?.codigo ?? 'Sin datos'}</strong></span>
           </div>
-          <div className="agenda-mini-grid">
-            {agendaItems.map((item) => (
-              <div className={`agenda-mini-item agenda-mini-${item.tone}`} key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-              </div>
-            ))}
-          </div>
-        </section>
+          <SimpleBars emptyMessage="Sin datos registrados para este período." series={resumenProduccion.series} />
+          <p className="dashboard-section-note">
+            Mayor producción: {resumenProduccion.loteMayorProduccion
+              ? `${resumenProduccion.loteMayorProduccion.codigo} · ${formatNumber(resumenProduccion.loteMayorProduccion.litrosProducidos, ' L')}`
+              : 'Sin datos'}
+          </p>
+        </SectionCard>
 
-        <section className="panel dashboard-events-panel">
-          <div className="dashboard-card-heading">
-            <div>
-              <h2>Ultimos eventos registrados</h2>
-              <p>Actividad reciente del rodeo.</p>
-            </div>
-            <Link className="panel-chip" to={paths.events}>Ver eventos</Link>
+        <SectionCard title="Ventas y leche disponible" description="Ventas del período y stock comercial desde lotes de leche.">
+          <div className="dashboard-detail-grid">
+            <span>Precio promedio <strong>{formatNullable(resumenVentas.precioPromedioLitro, ' $/L')}</strong></span>
+            <span>Lotes disponibles <strong>{resumenLeche.lotesDisponibles}</strong></span>
+            <span>Próximos a vencer <strong>{resumenLeche.lotesProximosAVencer}</strong></span>
+            <span>Disponible <strong>{formatNumber(resumenLeche.litrosDisponibles, ' L')}</strong></span>
           </div>
-
-          {resumen.ultimosEventos.length === 0 ? (
-            <p className="table-empty">Sin eventos registrados.</p>
+          <h3 className="dashboard-subtitle">Últimas ventas</h3>
+          {resumenVentas.ultimasVentas.length === 0 ? (
+            <p className="table-empty">Sin ventas registradas para este período.</p>
           ) : (
             <div className="table-wrap">
-              <table className="users-table dashboard-events-table">
+              <table className="users-table dashboard-compact-table">
                 <thead>
                   <tr>
                     <th>Fecha</th>
-                    <th>Tipo</th>
-                    <th>Animal</th>
-                    <th>Lote</th>
-                    <th>Observaciones</th>
+                    <th>Factura</th>
+                    <th>Cliente</th>
+                    <th>Litros</th>
+                    <th>Total</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {resumen.ultimosEventos.slice(0, 5).map((evento) => (
-                    <tr key={evento.id}>
-                      <td>{formatDateTime(evento.fecha)}</td>
-                      <td><span className="status-pill status-active">{evento.tipo}</span></td>
-                      <td>
-                        {evento.animal ? (
-                          <Link className="table-link" to={`/rodeos/${evento.animal.id}`}>
-                            #{evento.animal.caravana}
-                          </Link>
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-                      <td>{evento.animal?.lote?.nombre ?? '-'}</td>
-                      <td>{evento.observaciones || '-'}</td>
+                  {resumenVentas.ultimasVentas.map((venta) => (
+                    <tr key={venta.id}>
+                      <td>{formatDate(venta.fecha)}</td>
+                      <td>{venta.factura}</td>
+                      <td>{venta.cliente}</td>
+                      <td>{formatNumber(venta.litros, ' L')}</td>
+                      <td>{formatCurrency(venta.total)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-        </section>
+        </SectionCard>
       </div>
+
+      <div className="dashboard-two-column">
+        <SectionCard title="Alimentación y stock" description="Lectura de insumos activos contra stock mínimo.">
+          <div className="dashboard-detail-grid">
+            <span>Insumos activos <strong>{resumenAlimentacion.insumosActivos}</strong></span>
+            <span>Bajo mínimo <strong>{resumenAlimentacion.insumosBajoMinimo}</strong></span>
+          </div>
+          {resumenAlimentacion.insumos.length === 0 ? (
+            <p className="table-empty">Sin insumos cargados.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="users-table dashboard-compact-table">
+                <thead>
+                  <tr>
+                    <th>Alimento</th>
+                    <th>Stock</th>
+                    <th>Mínimo</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumenAlimentacion.insumos.slice(0, 8).map((insumo) => (
+                    <tr key={insumo.id}>
+                      <td>{insumo.alimento}</td>
+                      <td>{formatNumber(insumo.stockActual)} {insumo.unidad}</td>
+                      <td>{formatNumber(insumo.stockMinimo)} {insumo.unidad}</td>
+                      <td><span className={`badge ${badgeClass(insumo.estado)}`}>{insumo.estado}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Sanidad" description="Controles sanitarios vencidos o próximos.">
+          <div className="dashboard-detail-grid">
+            <span>Vencidas <strong>{resumenSanidad.tareasSanitariasVencidas}</strong></span>
+            <span>Próximas <strong>{resumenSanidad.tareasSanitariasProximas}</strong></span>
+            <span>Pendientes <strong>{resumenSanidad.controlesPendientes}</strong></span>
+          </div>
+          {resumenSanidad.tareas.length === 0 ? (
+            <p className="table-empty">Sin controles sanitarios pendientes o próximos.</p>
+          ) : (
+            <div className="table-wrap">
+              <table className="users-table dashboard-compact-table">
+                <thead>
+                  <tr>
+                    <th>Tipo</th>
+                    <th>Fecha objetivo</th>
+                    <th>Alcance</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {resumenSanidad.tareas.map((tarea) => (
+                    <tr key={tarea.id}>
+                      <td>{tarea.tipo}</td>
+                      <td>{formatDate(tarea.fechaObjetivo)}</td>
+                      <td>{tarea.lote ?? tarea.categoria ?? tarea.alcance}</td>
+                      <td><span className="badge badge-warning">{tarea.estado}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
+      </div>
+
+      <SectionCard title="Lotes de leche disponibles" description="Stock comercial calculado desde LoteLeche y VentaDetalle.">
+        {resumenLeche.lotes.length === 0 ? (
+          <p className="table-empty">Sin lotes disponibles para vender.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="users-table">
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Producción</th>
+                  <th>Vencimiento</th>
+                  <th>Netos</th>
+                  <th>Vendidos</th>
+                  <th>Disponibles</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resumenLeche.lotes.map((lote) => (
+                  <tr key={lote.id}>
+                    <td><strong>{lote.codigo}</strong></td>
+                    <td>{formatDate(lote.fechaProduccion)}</td>
+                    <td>{formatDate(lote.fechaVencimiento)}</td>
+                    <td>{formatNumber(lote.litrosNetos, ' L')}</td>
+                    <td>{formatNumber(lote.litrosVendidos, ' L')}</td>
+                    <td>{formatNumber(lote.litrosDisponibles, ' L')}</td>
+                    <td><span className="badge badge-success">{lote.estado}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
+
+      <section className="panel">
+        <div className="dashboard-card-heading">
+          <div>
+            <h2>Composición del rodeo</h2>
+            <p>Indicadores secundarios de estructura del rodeo.</p>
+          </div>
+          <Link className="panel-chip" to={paths.herd}>Ver rodeo</Link>
+        </div>
+        <div className="dashboard-detail-grid dashboard-herd-summary">
+          <span>Activos <strong>{resumen.animalesActivos}</strong></span>
+          <span>Inactivos <strong>{resumen.animalesInactivos}</strong></span>
+          <span>Tactos pendientes <strong>{resumen.tactosPendientes}</strong></span>
+          <span>Partos pendientes <strong>{resumen.partosPendientes}</strong></span>
+        </div>
+        <div className="dashboard-distribution-grid">
+          <SectionCard title="Animales por lote" description="Top 5 lotes con más animales">
+            <HorizontalBarChart groups={compactLoteGroups(resumen.animalesPorLote)} />
+          </SectionCard>
+          <SectionCard title="Estado reproductivo" description="Distribución por estado">
+            <HorizontalBarChart groups={resumen.animalesPorEstadoReproductivo.filter((group) => group.total > 0)} />
+          </SectionCard>
+          <SectionCard title="Categorías" description="Composición por categoría">
+            <HorizontalBarChart groups={resumen.animalesPorCategoria.filter((group) => group.total > 0)} />
+          </SectionCard>
+        </div>
+      </section>
     </>
   );
 }
