@@ -9,7 +9,6 @@ const pageTitles: Record<string, string> = {
   [paths.herd]: 'Gestion del Rodeo',
   [paths.events]: 'Historial de Eventos',
   [paths.agenda]: 'Agenda Pendiente',
-  [paths.listings]: 'Listados Operativos',
   [paths.feed]: 'Alimentacion',
   [paths.vaccination]: 'Control de Vacunacion',
   [paths.settings]: 'Configuracion del Sistema',

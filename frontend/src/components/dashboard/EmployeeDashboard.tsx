@@ -3,7 +3,6 @@ import {
   CalendarClock,
   ClipboardList,
   HeartPulse,
-  ListChecks,
   Milk,
   Search,
   Siren,
@@ -119,7 +118,6 @@ export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
     { label: 'Ver agenda', to: paths.agenda, icon: CalendarClock },
     { label: 'Buscar animal', to: paths.herd, icon: Search },
     { label: 'Ver vacunacion', to: paths.vaccination, icon: Syringe },
-    { label: 'Ver listados', to: paths.listings, icon: ListChecks },
   ];
 
   const workGroups = [

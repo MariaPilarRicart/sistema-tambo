@@ -4,7 +4,6 @@ import {
   cancelAgendaTask,
   findAgenda,
   findAgendaTaskById,
-  findOperativePendingAgenda,
   findPendingAgenda,
 } from '../repositories/agenda.repository';
 
@@ -90,30 +89,3 @@ export async function cancelExistingAgendaTask(idParam: string, input: Record<st
   return cancelAgendaTask(id, normalizeOptionalString(input.observacion, 'Observacion de cancelacion'));
 }
 
-function startOfToday() {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function endOfToday() {
-  const date = new Date();
-  date.setHours(23, 59, 59, 999);
-  return date;
-}
-
-export async function getListadosOperativos() {
-  const tareas = await findOperativePendingAgenda();
-  const todayStart = startOfToday();
-  const todayEnd = endOfToday();
-
-  return {
-    vencidas: tareas.filter((tarea) => tarea.fechaProgramada < todayStart),
-    hoy: tareas.filter((tarea) => tarea.fechaProgramada >= todayStart && tarea.fechaProgramada <= todayEnd),
-    proximas: tareas.filter((tarea) => tarea.fechaProgramada > todayEnd),
-    tactos: tareas.filter((tarea) => tarea.tipo === TipoTarea.TACTO),
-    secados: tareas.filter((tarea) => tarea.tipo === TipoTarea.SECADO),
-    partos: tareas.filter((tarea) => tarea.tipo === TipoTarea.PARTO),
-    altasPostParto: tareas.filter((tarea) => tarea.tipo === TipoTarea.ALTA_POST_PARTO),
-  };
-}

@@ -2,7 +2,6 @@ import type { Request, Response } from 'express';
 import {
   cancelExistingAgendaTask,
   getAgendaTask,
-  getListadosOperativos,
   listAgenda,
   listPendingAgenda,
 } from '../services/agenda.service';
@@ -17,12 +16,6 @@ export async function listPendingAgendaController(_request: Request, response: R
   const agenda = await listPendingAgenda();
 
   response.status(200).json({ agenda });
-}
-
-export async function listadosOperativosController(_request: Request, response: Response) {
-  const listados = await getListadosOperativos();
-
-  response.status(200).json({ listados });
 }
 
 export async function getAgendaTaskController(request: Request, response: Response) {

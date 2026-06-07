@@ -4,7 +4,6 @@ export const paths = {
   animalFicha: '/rodeos/:id',
   events: '/eventos',
   agenda: '/agenda',
-  listings: '/listados',
   clients: '/clientes',
   sales: '/ventas',
   feed: '/alimentacion',

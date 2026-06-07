@@ -39,16 +39,6 @@ export interface AgendaTarea {
   };
 }
 
-export interface ListadosOperativos {
-  vencidas: AgendaTarea[];
-  hoy: AgendaTarea[];
-  proximas: AgendaTarea[];
-  tactos: AgendaTarea[];
-  secados: AgendaTarea[];
-  partos: AgendaTarea[];
-  altasPostParto: AgendaTarea[];
-}
-
 export interface CancelAgendaTaskValues {
   observacion: string;
 }

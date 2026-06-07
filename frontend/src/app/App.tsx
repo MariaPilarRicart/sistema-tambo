@@ -8,7 +8,6 @@ import { AnimalFichaPage } from '../pages/AnimalFichaPage';
 import { EventsPage } from '../pages/EventsPage';
 import { FeedPage } from '../pages/FeedPage';
 import { HerdPage } from '../pages/HerdPage';
-import { ListingsPage } from '../pages/ListingsPage';
 import { LoginPage } from '../pages/LoginPage';
 import { SettingsPage } from '../pages/SettingsPage';
 import { SalesPage } from '../pages/SalesPage';
@@ -116,10 +115,6 @@ export function App() {
           <Route
             path={paths.agenda}
             element={<AgendaPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
-          />
-          <Route
-            path={paths.listings}
-            element={<ListingsPage authToken={authToken} currentUser={user} onUnauthorized={handleLogout} />}
           />
           <Route
             path={paths.clients}
