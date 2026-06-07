@@ -8,25 +8,31 @@ import {
   Droplets,
   LucideIcon,
   PackageCheck,
-  ShieldAlert,
   Truck,
   Utensils,
 } from 'lucide-react';
 import { paths } from '../../routes/paths';
-import type { DashboardGroup, DashboardPeriodo, DashboardResumen } from '../../types/dashboard';
+import type { DashboardPeriodo, DashboardResumen } from '../../types/dashboard';
 
 interface AdminDashboardProps {
   periodo: DashboardPeriodo;
+  fechaDesde: string;
+  fechaHasta: string;
+  periodoError: string;
   resumen: DashboardResumen;
   onPeriodoChange: (periodo: DashboardPeriodo) => void;
+  onFechaDesdeChange: (value: string) => void;
+  onFechaHastaChange: (value: string) => void;
+  onApplyCustomPeriod: () => void;
+  onClearCustomPeriod: () => void;
 }
 
-const chartColors = ['#059669', '#2563eb', '#4f46e5', '#d97706', '#db2777', '#64748b'];
 const periodOptions: Array<{ value: DashboardPeriodo; label: string }> = [
   { value: 'hoy', label: 'Hoy' },
   { value: 'semana', label: 'Semana' },
   { value: 'mes', label: 'Mes' },
   { value: 'anio', label: 'Año' },
+  { value: 'personalizado', label: 'Personalizado' },
 ];
 
 function formatDate(value: string) {
@@ -57,6 +63,39 @@ function badgeClass(value: string) {
   return 'badge-success';
 }
 
+function friendlyEnum(value: string | null | undefined) {
+  if (!value) return '-';
+  const labels: Record<string, string> = {
+    AFTOSA: 'Aftosa',
+    BRUCELOSIS: 'Brucelosis',
+    ANALISIS_BRUCELOSIS: 'Análisis de brucelosis',
+    ANALISIS_TUBERCULINA: 'Análisis de tuberculina',
+    VACA_PRODUCCION: 'Vaca en producción',
+    VACA_SECA: 'Vaca seca',
+    PREPARTO: 'Preparto',
+    NO_APLICA: 'No aplica',
+    VACIA: 'Vacía',
+    PRENADA: 'Preñada',
+    RECUPERACION: 'Recuperación',
+    GUACHERA: 'Guachera',
+    ESCUELITA: 'Escuelita',
+    TERNERA: 'Ternera',
+    VAQUILLONA: 'Vaquillona',
+    TORO: 'Toro',
+    BAJA: 'Baja',
+  };
+  if (labels[value]) return labels[value];
+  const readable = value.toLowerCase().replace(/_/g, ' ');
+  return readable.charAt(0).toUpperCase() + readable.slice(1);
+}
+
+function trendText(value: string) {
+  if (value === 'EN_ALZA') return 'La producción muestra una mejora respecto a los primeros días del período.';
+  if (value === 'EN_BAJA') return 'La producción muestra una baja respecto a los primeros días del período.';
+  if (value === 'ESTABLE') return 'La producción se mantiene estable en el período.';
+  return 'No hay suficientes datos para analizar tendencia.';
+}
+
 function KpiCard({
   description,
   icon: Icon,
@@ -84,7 +123,7 @@ function KpiCard({
   );
 }
 
-function SectionCard({ children, description, title }: { children: ReactNode; description: string; title: string }) {
+function SectionCard({ children, description, title, action }: { children: ReactNode; description: string; title: string; action?: ReactNode }) {
   return (
     <section className="panel dashboard-chart-card">
       <div className="dashboard-card-heading">
@@ -92,6 +131,7 @@ function SectionCard({ children, description, title }: { children: ReactNode; de
           <h2>{title}</h2>
           <p>{description}</p>
         </div>
+        {action}
       </div>
       {children}
     </section>
@@ -115,7 +155,7 @@ function SimpleBars({
         <div className="compact-bar-row" key={item.etiqueta}>
           <div className="compact-bar-label">
             <strong>{item.etiqueta}</strong>
-            <span>{formatNumber(item.litrosProducidos, ' L')}</span>
+            <span>{formatNumber(item.litrosProducidos, ' L')} producidos · {formatNumber(item.litrosNetos, ' L')} netos</span>
           </div>
           <div className="compact-bar-track" aria-hidden="true">
             <span style={{ width: `${(item.litrosProducidos / maxValue) * 100}%` }} />
@@ -126,56 +166,33 @@ function SimpleBars({
   );
 }
 
-function compactLoteGroups(groups: DashboardGroup[]) {
-  const nonEmptyGroups = groups.filter((group) => group.total > 0).sort((a, b) => b.total - a.total);
-  const topGroups = nonEmptyGroups.slice(0, 5);
-  const restTotal = nonEmptyGroups.slice(5).reduce((sum, group) => sum + group.total, 0);
-
-  return restTotal > 0 ? [...topGroups, { nombre: 'Otros', total: restTotal }] : topGroups;
-}
-
-function HorizontalBarChart({ groups }: { groups: DashboardGroup[] }) {
-  const maxValue = Math.max(...groups.map((group) => group.total), 1);
-  const total = groups.reduce((sum, group) => sum + group.total, 0);
-
-  if (groups.length === 0) return <p className="table-empty">Sin datos para mostrar.</p>;
-
-  return (
-    <div className="compact-bars">
-      {groups.map((group, index) => {
-        const percentage = total > 0 ? Math.round((group.total / total) * 100) : 0;
-
-        return (
-          <div className="compact-bar-row" key={group.id ?? group.nombre}>
-            <div className="compact-bar-label">
-              <strong>{group.nombre}</strong>
-              <span>{group.total} · {percentage}%</span>
-            </div>
-            <div className="compact-bar-track" aria-hidden="true">
-              <span
-                style={{
-                  background: chartColors[index % chartColors.length],
-                  width: `${(group.total / maxValue) * 100}%`,
-                }}
-              />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-export function AdminDashboard({ periodo, resumen, onPeriodoChange }: AdminDashboardProps) {
+export function AdminDashboard({
+  periodo,
+  fechaDesde,
+  fechaHasta,
+  periodoError,
+  resumen,
+  onPeriodoChange,
+  onFechaDesdeChange,
+  onFechaHastaChange,
+  onApplyCustomPeriod,
+  onClearCustomPeriod,
+}: AdminDashboardProps) {
   const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad } = resumen;
+  const productionVsSales = [
+    { label: 'Producido', value: resumenProduccion.litrosProducidos },
+    { label: 'Vendido', value: resumenVentas.litrosVendidos },
+    { label: 'Disponible', value: resumenLeche.litrosDisponibles },
+  ];
+  const productionVsSalesMax = Math.max(...productionVsSales.map((item) => item.value), 1);
   const kpis = [
-    { title: 'Litros producidos', description: 'Periodo seleccionado', value: formatNumber(resumenProduccion.litrosProducidos, ' L'), icon: Droplets, tone: 'blue' as const },
-    { title: 'Litros netos', description: 'Produccion menos descarte', value: formatNumber(resumenProduccion.litrosNetos, ' L'), icon: PackageCheck, tone: 'emerald' as const },
+    { title: 'Litros producidos', description: 'Producción total del período', value: formatNumber(resumenProduccion.litrosProducidos, ' L'), icon: Droplets, tone: 'blue' as const },
+    { title: 'Litros netos', description: 'Producción menos descarte', value: formatNumber(resumenProduccion.litrosNetos, ' L'), icon: PackageCheck, tone: 'emerald' as const },
     { title: 'Descarte', description: `${formatNumber(resumenProduccion.litrosDescartados, ' L')} descartados`, value: formatNumber(resumenProduccion.porcentajeDescarte, '%'), icon: AlertTriangle, tone: 'amber' as const },
     { title: 'Leche disponible', description: `${resumenLeche.lotesDisponibles} lotes disponibles`, value: formatNumber(resumenLeche.litrosDisponibles, ' L'), icon: Truck, tone: 'indigo' as const },
     { title: 'Litros vendidos', description: `${resumenVentas.cantidadVentas} ventas`, value: formatNumber(resumenVentas.litrosVendidos, ' L'), icon: BarChart3, tone: 'pink' as const },
-    { title: 'Facturacion', description: `Promedio ${formatNullable(resumenVentas.precioPromedioLitro, ' $/L')}`, value: formatCurrency(resumenVentas.facturacion), icon: DollarSign, tone: 'emerald' as const },
-    { title: 'Stock critico', description: 'Insumos bajo minimo', value: String(resumenAlimentacion.insumosBajoMinimo), icon: Utensils, tone: 'rose' as const },
+    { title: 'Facturación', description: `Promedio ${formatNullable(resumenVentas.precioPromedioLitro, ' $/L')}`, value: formatCurrency(resumenVentas.facturacion), icon: DollarSign, tone: 'emerald' as const },
+    { title: 'Stock crítico', description: 'Insumos bajo mínimo', value: String(resumenAlimentacion.insumosBajoMinimo), icon: Utensils, tone: 'rose' as const },
     { title: 'Tareas vencidas', description: 'Agenda pendiente', value: String(resumen.tareasVencidas), icon: ClipboardList, tone: 'amber' as const },
   ];
 
@@ -184,19 +201,30 @@ export function AdminDashboard({ periodo, resumen, onPeriodoChange }: AdminDashb
       <section className="dashboard-period-toolbar">
         <div>
           <h2>Tablero gerencial</h2>
-          <p>Periodo: {formatDate(resumen.fechaDesde)} al {formatDate(resumen.fechaHasta)}</p>
+          <p>Período: {formatDate(resumen.fechaDesde)} al {formatDate(resumen.fechaHasta)}</p>
         </div>
-        <div className="dashboard-period-selector" aria-label="Seleccionar periodo">
-          {periodOptions.map((option) => (
-            <button
-              className={periodo === option.value ? 'dashboard-period-active' : ''}
-              key={option.value}
-              onClick={() => onPeriodoChange(option.value)}
-              type="button"
-            >
-              {option.label}
-            </button>
-          ))}
+        <div className="dashboard-period-controls">
+          <div className="dashboard-period-selector" aria-label="Seleccionar período">
+            {periodOptions.map((option) => (
+              <button
+                className={periodo === option.value ? 'dashboard-period-active' : ''}
+                key={option.value}
+                onClick={() => onPeriodoChange(option.value)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {periodo === 'personalizado' && (
+            <div className="dashboard-custom-period">
+              <input type="date" value={fechaDesde} onChange={(event) => onFechaDesdeChange(event.target.value)} aria-label="Fecha desde" />
+              <input type="date" value={fechaHasta} onChange={(event) => onFechaHastaChange(event.target.value)} aria-label="Fecha hasta" />
+              <button type="button" className="secondary-button" onClick={onApplyCustomPeriod}>Aplicar</button>
+              <button type="button" className="secondary-button" onClick={onClearCustomPeriod}>Limpiar</button>
+            </div>
+          )}
+          {periodoError && <div className="form-error">{periodoError}</div>}
         </div>
       </section>
 
@@ -210,7 +238,7 @@ export function AdminDashboard({ periodo, resumen, onPeriodoChange }: AdminDashb
         <div className="dashboard-card-heading">
           <div>
             <h2>Alertas de gestión</h2>
-            <p>Máximo de alertas accionables para resolver hoy.</p>
+            <p>Alertas accionables para resolver hoy.</p>
           </div>
         </div>
         {resumen.alertasGestion.length === 0 ? (
@@ -218,12 +246,13 @@ export function AdminDashboard({ periodo, resumen, onPeriodoChange }: AdminDashb
         ) : (
           <div className="dashboard-alert-grid">
             {resumen.alertasGestion.map((alerta) => (
-              <article className={`alert-card ${severityClass(alerta.severidad)}`} key={alerta.titulo}>
+              <article className={`alert-card ${severityClass(alerta.severidad)}`} key={alerta.codigo}>
                 <AlertTriangle size={18} />
                 <div>
                   <strong>{alerta.titulo}</strong>
                   <p>{alerta.detalle}</p>
                   <small>{alerta.accionSugerida}</small>
+                  <Link className="dashboard-alert-action" to={alerta.accionRuta}>{alerta.accionLabel}</Link>
                 </div>
               </article>
             ))}
@@ -232,188 +261,169 @@ export function AdminDashboard({ periodo, resumen, onPeriodoChange }: AdminDashb
       </section>
 
       <div className="dashboard-two-column">
-        <SectionCard title="Producción" description="Producción, descarte y evolución del período.">
+        <SectionCard title="Producción interpretada" description="Litros producidos por día dentro del período seleccionado.">
           <div className="dashboard-detail-grid">
-            <span>Registros <strong>{resumenProduccion.cantidadRegistros}</strong></span>
-            <span>Animales <strong>{resumenProduccion.animalesConProduccion}</strong></span>
-            <span>Promedio/vaca <strong>{formatNullable(resumenProduccion.promedioLitrosPorAnimal, ' L')}</strong></span>
-            <span>Último lote <strong>{resumenProduccion.ultimoLote?.codigo ?? 'Sin datos'}</strong></span>
+            <span>Producción total <strong>{formatNumber(resumenProduccion.litrosProducidos, ' L')}</strong></span>
+            <span>Producción neta <strong>{formatNumber(resumenProduccion.litrosNetos, ' L')}</strong></span>
+            <span>Litros descartados <strong>{formatNumber(resumenProduccion.litrosDescartados, ' L')}</strong></span>
+            <span>Porcentaje de descarte <strong>{formatNumber(resumenProduccion.porcentajeDescarte, '%')}</strong></span>
+            <span>Ordeñes registrados <strong>{resumenProduccion.cantidadRegistros}</strong></span>
+            <span>Vacas con producción <strong>{resumenProduccion.animalesConProduccion}</strong></span>
+            <span>Promedio diario producido <strong>{formatNullable(resumenProduccion.promedioDiarioProducido, ' L')}</strong></span>
+            <span>Promedio por vaca <strong>{formatNullable(resumenProduccion.promedioLitrosPorAnimal, ' L')}</strong></span>
+            <span>Día de mayor producción <strong>{resumenProduccion.diaMayorProduccion ? `${resumenProduccion.diaMayorProduccion.etiqueta} · ${formatNumber(resumenProduccion.diaMayorProduccion.litrosProducidos, ' L')}` : 'Sin datos'}</strong></span>
+            <span>Tendencia <strong>{friendlyEnum(resumenProduccion.tendencia)}</strong></span>
           </div>
+          <h3 className="dashboard-subtitle">Evolución diaria de producción</h3>
+          <p className="dashboard-section-note">Litros producidos por día dentro del período seleccionado.</p>
           <SimpleBars emptyMessage="Sin datos registrados para este período." series={resumenProduccion.series} />
+          <p className="dashboard-conclusion">{trendText(resumenProduccion.tendencia)}</p>
           <p className="dashboard-section-note">
-            Mayor producción: {resumenProduccion.loteMayorProduccion
-              ? `${resumenProduccion.loteMayorProduccion.codigo} · ${formatNumber(resumenProduccion.loteMayorProduccion.litrosProducidos, ' L')}`
-              : 'Sin datos'}
+            Último lote generado: {resumenProduccion.ultimoLote?.codigo ?? 'Sin datos'}.
           </p>
         </SectionCard>
 
-        <SectionCard title="Ventas y leche disponible" description="Ventas del período y stock comercial desde lotes de leche.">
+        <SectionCard
+          title="Resultado comercial y disponibilidad"
+          description="Relación entre producción, ventas y leche disponible."
+          action={<Link className="panel-chip" to={paths.sales}>Ver ventas</Link>}
+        >
           <div className="dashboard-detail-grid">
+            <span>Litros vendidos <strong>{formatNumber(resumenVentas.litrosVendidos, ' L')}</strong></span>
+            <span>Producción vendida <strong>{formatNumber(resumenVentas.porcentajeProduccionVendida, '%')}</strong></span>
+            <span>Facturación <strong>{formatCurrency(resumenVentas.facturacion)}</strong></span>
             <span>Precio promedio <strong>{formatNullable(resumenVentas.precioPromedioLitro, ' $/L')}</strong></span>
-            <span>Lotes disponibles <strong>{resumenLeche.lotesDisponibles}</strong></span>
-            <span>Próximos a vencer <strong>{resumenLeche.lotesProximosAVencer}</strong></span>
-            <span>Disponible <strong>{formatNumber(resumenLeche.litrosDisponibles, ' L')}</strong></span>
+            <span>Leche disponible <strong>{formatNumber(resumenLeche.litrosDisponibles, ' L')}</strong></span>
+            <span>Próxima a vencer <strong>{formatNumber(resumenLeche.riesgoVencimiento.vence48Horas.litros + resumenLeche.riesgoVencimiento.vence7Dias.litros, ' L')}</strong></span>
+            <span>Cantidad de ventas <strong>{resumenVentas.cantidadVentas}</strong></span>
           </div>
-          <h3 className="dashboard-subtitle">Últimas ventas</h3>
-          {resumenVentas.ultimasVentas.length === 0 ? (
-            <p className="table-empty">Sin ventas registradas para este período.</p>
+          <h3 className="dashboard-subtitle">Producción vs ventas</h3>
+          <div className="compact-bars">
+            {productionVsSales.map((item) => (
+              <div className="compact-bar-row" key={item.label}>
+                <div className="compact-bar-label">
+                  <strong>{item.label}</strong>
+                  <span>{formatNumber(item.value, ' L')}</span>
+                </div>
+                <div className="compact-bar-track" aria-hidden="true">
+                  <span style={{ width: `${(item.value / productionVsSalesMax) * 100}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="dashboard-conclusion">
+            {resumenVentas.cantidadVentas === 0
+              ? 'No hubo ventas registradas en el período.'
+              : `Se vendió el ${formatNumber(resumenVentas.porcentajeProduccionVendida, '%')} de la producción del período.`}
+            {' '}Quedan {formatNumber(resumenLeche.litrosDisponibles, ' L')} disponibles para venta.
+          </p>
+          {resumenVentas.ultimaVenta ? (
+            <p className="dashboard-section-note">
+              Última venta: {formatDate(resumenVentas.ultimaVenta.fecha)} · {resumenVentas.ultimaVenta.cliente} · {formatNumber(resumenVentas.ultimaVenta.litros, ' L')} · {formatCurrency(resumenVentas.ultimaVenta.total)}.
+            </p>
           ) : (
-            <div className="table-wrap">
-              <table className="users-table dashboard-compact-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Factura</th>
-                    <th>Cliente</th>
-                    <th>Litros</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resumenVentas.ultimasVentas.map((venta) => (
-                    <tr key={venta.id}>
-                      <td>{formatDate(venta.fecha)}</td>
-                      <td>{venta.factura}</td>
-                      <td>{venta.cliente}</td>
-                      <td>{formatNumber(venta.litros, ' L')}</td>
-                      <td>{formatCurrency(venta.total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <p className="table-empty">Sin ventas registradas para este período.</p>
           )}
         </SectionCard>
       </div>
 
+      <SectionCard
+        title="Riesgo de vencimiento de leche"
+        description="Resumen gerencial de urgencia comercial, sin tabla completa de lotes."
+        action={<Link className="panel-chip" to={paths.production}>Ver producción</Link>}
+      >
+        <div className="dashboard-risk-grid">
+          <span>Vence en 48 hs <strong>{formatNumber(resumenLeche.riesgoVencimiento.vence48Horas.litros, ' L')} / {resumenLeche.riesgoVencimiento.vence48Horas.lotes} lotes</strong></span>
+          <span>Vence en 7 días <strong>{formatNumber(resumenLeche.riesgoVencimiento.vence7Dias.litros, ' L')} / {resumenLeche.riesgoVencimiento.vence7Dias.lotes} lotes</strong></span>
+          <span>Sin riesgo inmediato <strong>{formatNumber(resumenLeche.riesgoVencimiento.sinRiesgo.litros, ' L')} / {resumenLeche.riesgoVencimiento.sinRiesgo.lotes} lotes</strong></span>
+        </div>
+        {resumenLeche.riesgoVencimiento.urgentes.length === 0 ? (
+          <p className="table-empty">No hay lotes con vencimiento cercano.</p>
+        ) : (
+          <div className="dashboard-urgent-list">
+            {resumenLeche.riesgoVencimiento.urgentes.map((lote) => (
+              <div className="dashboard-urgent-row" key={lote.id}>
+                <strong>{lote.codigo}</strong>
+                <span>Vence {formatDate(lote.fechaVencimiento)}</span>
+                <span>{formatNumber(lote.litrosDisponibles, ' L')}</span>
+                <small>{lote.accionSugerida}</small>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="dashboard-conclusion">Priorizar la venta de los lotes con vencimiento más cercano.</p>
+        <Link className="secondary-button dashboard-inline-action" to={paths.sales}>Registrar venta</Link>
+      </SectionCard>
+
       <div className="dashboard-two-column">
-        <SectionCard title="Alimentación y stock" description="Lectura de insumos activos contra stock mínimo.">
+        <SectionCard
+          title="Alimentación y stock"
+          description="Resumen de riesgo, no listado completo de insumos."
+          action={<Link className="panel-chip" to={paths.feed}>Ver alimentación</Link>}
+        >
           <div className="dashboard-detail-grid">
             <span>Insumos activos <strong>{resumenAlimentacion.insumosActivos}</strong></span>
             <span>Bajo mínimo <strong>{resumenAlimentacion.insumosBajoMinimo}</strong></span>
+            <span>Estado general <strong>{resumenAlimentacion.estadoGeneral}</strong></span>
           </div>
-          {resumenAlimentacion.insumos.length === 0 ? (
-            <p className="table-empty">Sin insumos cargados.</p>
+          {resumenAlimentacion.insumosConRiesgo.length === 0 ? (
+            <p className="dashboard-conclusion">El stock de alimentación se encuentra dentro de los mínimos definidos.</p>
           ) : (
-            <div className="table-wrap">
-              <table className="users-table dashboard-compact-table">
-                <thead>
-                  <tr>
-                    <th>Alimento</th>
-                    <th>Stock</th>
-                    <th>Mínimo</th>
-                    <th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resumenAlimentacion.insumos.slice(0, 8).map((insumo) => (
-                    <tr key={insumo.id}>
-                      <td>{insumo.alimento}</td>
-                      <td>{formatNumber(insumo.stockActual)} {insumo.unidad}</td>
-                      <td>{formatNumber(insumo.stockMinimo)} {insumo.unidad}</td>
-                      <td><span className={`badge ${badgeClass(insumo.estado)}`}>{insumo.estado}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="dashboard-urgent-list">
+              {resumenAlimentacion.insumosConRiesgo.map((insumo) => (
+                <div className="dashboard-urgent-row" key={insumo.id}>
+                  <strong>{insumo.alimento}</strong>
+                  <span>{formatNumber(insumo.stockActual)} {insumo.unidad}</span>
+                  <span>Mínimo {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
+                  <span className={`badge ${badgeClass(insumo.estado)}`}>{insumo.estado}</span>
+                </div>
+              ))}
             </div>
           )}
         </SectionCard>
 
-        <SectionCard title="Sanidad" description="Controles sanitarios vencidos o próximos.">
+        <SectionCard
+          title="Sanidad"
+          description="Controles urgentes y próximos sin replicar Agenda o Vacunación."
+          action={<Link className="panel-chip" to={paths.vaccination}>Ver vacunación</Link>}
+        >
           <div className="dashboard-detail-grid">
-            <span>Vencidas <strong>{resumenSanidad.tareasSanitariasVencidas}</strong></span>
-            <span>Próximas <strong>{resumenSanidad.tareasSanitariasProximas}</strong></span>
-            <span>Pendientes <strong>{resumenSanidad.controlesPendientes}</strong></span>
+            <span>Controles vencidos <strong>{resumenSanidad.tareasSanitariasVencidas}</strong></span>
+            <span>Controles próximos <strong>{resumenSanidad.tareasSanitariasProximas}</strong></span>
+            <span>Controles pendientes <strong>{resumenSanidad.controlesPendientes}</strong></span>
+            <span>Más repetido <strong>{friendlyEnum(resumenSanidad.tipoControlMasRepetido)}</strong></span>
+            <span>Próximo urgente <strong>{resumenSanidad.proximoControlUrgente ? `${friendlyEnum(resumenSanidad.proximoControlUrgente.tipo)} · ${formatDate(resumenSanidad.proximoControlUrgente.fechaObjetivo)}` : 'Sin datos'}</strong></span>
           </div>
           {resumenSanidad.tareas.length === 0 ? (
             <p className="table-empty">Sin controles sanitarios pendientes o próximos.</p>
           ) : (
-            <div className="table-wrap">
-              <table className="users-table dashboard-compact-table">
-                <thead>
-                  <tr>
-                    <th>Tipo</th>
-                    <th>Fecha objetivo</th>
-                    <th>Alcance</th>
-                    <th>Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resumenSanidad.tareas.map((tarea) => (
-                    <tr key={tarea.id}>
-                      <td>{tarea.tipo}</td>
-                      <td>{formatDate(tarea.fechaObjetivo)}</td>
-                      <td>{tarea.lote ?? tarea.categoria ?? tarea.alcance}</td>
-                      <td><span className="badge badge-warning">{tarea.estado}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="dashboard-urgent-list">
+              {resumenSanidad.tareas.slice(0, 5).map((tarea) => (
+                <div className="dashboard-urgent-row" key={tarea.id}>
+                  <strong>{friendlyEnum(tarea.tipo)}</strong>
+                  <span>{formatDate(tarea.fechaObjetivo)}</span>
+                  <span>{friendlyEnum(tarea.lote ?? tarea.categoria ?? tarea.alcance)}</span>
+                  <span className="badge badge-warning">{friendlyEnum(tarea.estado)}</span>
+                </div>
+              ))}
             </div>
           )}
         </SectionCard>
       </div>
 
-      <SectionCard title="Lotes de leche disponibles" description="Stock comercial calculado desde LoteLeche y VentaDetalle.">
-        {resumenLeche.lotes.length === 0 ? (
-          <p className="table-empty">Sin lotes disponibles para vender.</p>
-        ) : (
-          <div className="table-wrap">
-            <table className="users-table">
-              <thead>
-                <tr>
-                  <th>Código</th>
-                  <th>Producción</th>
-                  <th>Vencimiento</th>
-                  <th>Netos</th>
-                  <th>Vendidos</th>
-                  <th>Disponibles</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {resumenLeche.lotes.map((lote) => (
-                  <tr key={lote.id}>
-                    <td><strong>{lote.codigo}</strong></td>
-                    <td>{formatDate(lote.fechaProduccion)}</td>
-                    <td>{formatDate(lote.fechaVencimiento)}</td>
-                    <td>{formatNumber(lote.litrosNetos, ' L')}</td>
-                    <td>{formatNumber(lote.litrosVendidos, ' L')}</td>
-                    <td>{formatNumber(lote.litrosDisponibles, ' L')}</td>
-                    <td><span className="badge badge-success">{lote.estado}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </SectionCard>
-
       <section className="panel">
         <div className="dashboard-card-heading">
           <div>
-            <h2>Composición del rodeo</h2>
-            <p>Indicadores secundarios de estructura del rodeo.</p>
+            <h2>Situación general del rodeo</h2>
+            <p>Solo indicadores de contexto gerencial.</p>
           </div>
           <Link className="panel-chip" to={paths.herd}>Ver rodeo</Link>
         </div>
         <div className="dashboard-detail-grid dashboard-herd-summary">
-          <span>Activos <strong>{resumen.animalesActivos}</strong></span>
-          <span>Inactivos <strong>{resumen.animalesInactivos}</strong></span>
+          <span>Animales activos <strong>{resumen.animalesActivos}</strong></span>
+          <span>Animales inactivos <strong>{resumen.animalesInactivos}</strong></span>
           <span>Tactos pendientes <strong>{resumen.tactosPendientes}</strong></span>
           <span>Partos pendientes <strong>{resumen.partosPendientes}</strong></span>
-        </div>
-        <div className="dashboard-distribution-grid">
-          <SectionCard title="Animales por lote" description="Top 5 lotes con más animales">
-            <HorizontalBarChart groups={compactLoteGroups(resumen.animalesPorLote)} />
-          </SectionCard>
-          <SectionCard title="Estado reproductivo" description="Distribución por estado">
-            <HorizontalBarChart groups={resumen.animalesPorEstadoReproductivo.filter((group) => group.total > 0)} />
-          </SectionCard>
-          <SectionCard title="Categorías" description="Composición por categoría">
-            <HorizontalBarChart groups={resumen.animalesPorCategoria.filter((group) => group.total > 0)} />
-          </SectionCard>
         </div>
       </section>
     </>

@@ -20,6 +20,12 @@ import {
 } from '../repositories/dashboard.repository';
 
 export type DashboardPeriodo = 'hoy' | 'semana' | 'mes' | 'anio';
+export type DashboardPeriodoInput = DashboardPeriodo | 'personalizado';
+
+interface CustomDateRange {
+  fechaDesde?: Date;
+  fechaHasta?: Date;
+}
 
 function startOfToday() {
   const date = new Date();
@@ -51,8 +57,15 @@ function addDays(date: Date, days: number) {
   return nextDate;
 }
 
-function resolvePeriodRange(periodo: DashboardPeriodo) {
+function resolvePeriodRange(periodo: DashboardPeriodoInput, customRange: CustomDateRange = {}) {
   const now = new Date();
+
+  if (periodo === 'personalizado' && customRange.fechaDesde && customRange.fechaHasta) {
+    return {
+      fechaDesde: startOfDay(customRange.fechaDesde),
+      fechaHasta: endOfDay(customRange.fechaHasta),
+    };
+  }
 
   if (periodo === 'semana') {
     return { fechaDesde: startOfDay(subtractDays(now, 6)), fechaHasta: endOfDay(now) };
@@ -82,10 +95,21 @@ function round(value: number, digits = 2) {
   return Number(value.toFixed(digits));
 }
 
-function formatSeriesLabel(date: Date, periodo: DashboardPeriodo, turno?: string) {
-  if (periodo === 'hoy' && turno) return turno;
+function formatSeriesLabel(date: Date, periodo: DashboardPeriodoInput, turno?: string) {
+  if (periodo === 'hoy' && turno) return formatTurno(turno);
   if (periodo === 'anio') return date.toLocaleString('es-AR', { month: 'short' });
   return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+}
+
+function formatTurno(turno: string) {
+  const labels: Record<string, string> = {
+    MANANA: 'Mañana',
+    TARDE: 'Tarde',
+    NOCHE: 'Noche',
+  };
+  if (labels[turno]) return labels[turno];
+  const readable = turno.toLowerCase().replace(/_/g, ' ');
+  return readable.charAt(0).toUpperCase() + readable.slice(1);
 }
 
 function calculateCoverage(litrosNetos: number, litrosVendidos: number) {
@@ -95,7 +119,7 @@ function calculateCoverage(litrosNetos: number, litrosVendidos: number) {
 function buildProductionSummary(
   producciones: Awaited<ReturnType<typeof findProduccionesByDateRange>>,
   lotesPeriodo: Awaited<ReturnType<typeof findLotesLecheByDateRange>>,
-  periodo: DashboardPeriodo,
+  periodo: DashboardPeriodoInput,
 ) {
   const litrosProducidos = producciones.reduce((total, item) => total + toNumber(item.litrosProducidos), 0);
   const litrosDescartados = producciones.reduce((total, item) => total + toNumber(item.litrosDescartados), 0);
@@ -122,6 +146,31 @@ function buildProductionSummary(
   }
   const loteMayorProduccion = Array.from(productionByLote.values()).sort((a, b) => b.litros - a.litros)[0] ?? null;
   const ultimoLote = lotesPeriodo[0] ?? null;
+  const series = Array.from(seriesMap.values()).map((item) => ({
+    ...item,
+    litrosProducidos: round(item.litrosProducidos),
+    litrosNetos: round(item.litrosNetos),
+    litrosDescartados: round(item.litrosDescartados),
+  }));
+  const uniqueProductionDays = new Set(producciones.map((item) => item.fechaHora.toISOString().slice(0, 10))).size;
+  const promedioDiarioProducido = uniqueProductionDays > 0 ? round(litrosProducidos / uniqueProductionDays) : null;
+  const sortedSeries = [...series].sort((a, b) => a.etiqueta.localeCompare(b.etiqueta));
+  const firstHalf = sortedSeries.slice(0, Math.max(Math.floor(sortedSeries.length / 2), 1));
+  const secondHalf = sortedSeries.slice(Math.max(Math.floor(sortedSeries.length / 2), 1));
+  const firstAverage = firstHalf.length > 0 ? firstHalf.reduce((sum, item) => sum + item.litrosProducidos, 0) / firstHalf.length : 0;
+  const secondAverage = secondHalf.length > 0 ? secondHalf.reduce((sum, item) => sum + item.litrosProducidos, 0) / secondHalf.length : 0;
+  const trendDifference = firstAverage > 0 ? ((secondAverage - firstAverage) / firstAverage) * 100 : 0;
+  const tendencia =
+    sortedSeries.length < 2 || firstAverage === 0
+      ? 'SIN_DATOS'
+      : trendDifference > 5
+        ? 'EN_ALZA'
+        : trendDifference < -5
+          ? 'EN_BAJA'
+          : 'ESTABLE';
+  const diaMayorProduccion = sortedSeries.length > 0
+    ? [...sortedSeries].sort((a, b) => b.litrosProducidos - a.litrosProducidos)[0]
+    : null;
 
   return {
     litrosProducidos: round(litrosProducidos),
@@ -131,6 +180,11 @@ function buildProductionSummary(
     cantidadRegistros: producciones.length,
     animalesConProduccion: animalIds.size,
     promedioLitrosPorAnimal: animalIds.size > 0 ? round(litrosProducidos / animalIds.size) : null,
+    promedioDiarioProducido,
+    diaMayorProduccion: diaMayorProduccion
+      ? { etiqueta: diaMayorProduccion.etiqueta, litrosProducidos: diaMayorProduccion.litrosProducidos }
+      : null,
+    tendencia,
     ultimoLote: ultimoLote
       ? {
           id: ultimoLote.id,
@@ -145,24 +199,30 @@ function buildProductionSummary(
           litrosProducidos: round(loteMayorProduccion.litros),
         }
       : null,
-    series: Array.from(seriesMap.values()).map((item) => ({
-      ...item,
-      litrosProducidos: round(item.litrosProducidos),
-      litrosNetos: round(item.litrosNetos),
-      litrosDescartados: round(item.litrosDescartados),
-    })),
+    series,
   };
 }
 
-function buildSalesSummary(ventas: Awaited<ReturnType<typeof findVentasByDateRange>>) {
+function buildSalesSummary(ventas: Awaited<ReturnType<typeof findVentasByDateRange>>, litrosProducidos: number) {
   const litrosVendidos = ventas.reduce((total, venta) => total + toNumber(venta.totalLitros), 0);
   const facturacion = ventas.reduce((total, venta) => total + toNumber(venta.precioTotal), 0);
+  const ultimaVenta = ventas[0] ?? null;
 
   return {
     litrosVendidos: round(litrosVendidos),
     facturacion: round(facturacion),
     precioPromedioLitro: litrosVendidos > 0 ? round(facturacion / litrosVendidos) : null,
     cantidadVentas: ventas.length,
+    porcentajeProduccionVendida: litrosProducidos > 0 ? round((litrosVendidos / litrosProducidos) * 100) : 0,
+    ultimaVenta: ultimaVenta
+      ? {
+          id: ultimaVenta.id,
+          fecha: ultimaVenta.fechaVenta,
+          cliente: ultimaVenta.cliente.razonSocial,
+          litros: round(toNumber(ultimaVenta.totalLitros)),
+          total: round(toNumber(ultimaVenta.precioTotal)),
+        }
+      : null,
     ultimasVentas: ventas.slice(0, 5).map((venta) => ({
       id: venta.id,
       fecha: venta.fechaVenta,
@@ -175,6 +235,7 @@ function buildSalesSummary(ventas: Awaited<ReturnType<typeof findVentasByDateRan
 }
 
 function buildMilkSummary(lotes: Awaited<ReturnType<typeof findAvailableLotesLeche>>, todayStart: Date) {
+  const nextFortyEightHours = addDays(new Date(), 2);
   const nextSevenDays = addDays(todayStart, 7);
   const lotesMapped = lotes.map((lote) => {
     const litrosVendidos = lote.ventaDetalles.reduce((total, detalle) => total + toNumber(detalle.litrosVendidos), 0);
@@ -190,11 +251,30 @@ function buildMilkSummary(lotes: Awaited<ReturnType<typeof findAvailableLotesLec
       estado: lote.estado,
     };
   });
+  const vence48Horas = lotesMapped.filter((lote) => lote.fechaVencimiento <= nextFortyEightHours);
+  const vence7Dias = lotesMapped.filter((lote) => lote.fechaVencimiento > nextFortyEightHours && lote.fechaVencimiento <= nextSevenDays);
+  const sinRiesgo = lotesMapped.filter((lote) => lote.fechaVencimiento > nextSevenDays);
+  const summarizeRisk = (items: typeof lotesMapped) => ({
+    lotes: items.length,
+    litros: round(items.reduce((total, lote) => total + lote.litrosDisponibles, 0)),
+  });
 
   return {
     litrosDisponibles: round(lotesMapped.reduce((total, lote) => total + lote.litrosDisponibles, 0)),
     lotesDisponibles: lotesMapped.length,
     lotesProximosAVencer: lotesMapped.filter((lote) => lote.fechaVencimiento <= nextSevenDays).length,
+    riesgoVencimiento: {
+      vence48Horas: summarizeRisk(vence48Horas),
+      vence7Dias: summarizeRisk(vence7Dias),
+      sinRiesgo: summarizeRisk(sinRiesgo),
+      urgentes: [...vence48Horas, ...vence7Dias].slice(0, 3).map((lote) => ({
+        id: lote.id,
+        codigo: lote.codigo,
+        fechaVencimiento: lote.fechaVencimiento,
+        litrosDisponibles: lote.litrosDisponibles,
+        accionSugerida: 'Priorizar venta',
+      })),
+    },
     lotes: lotesMapped.slice(0, 8),
   };
 }
@@ -222,6 +302,12 @@ function buildFeedingSummary(
   return {
     insumosActivos: insumos.length,
     insumosBajoMinimo: insumosMapped.filter((insumo) => insumo.estado !== 'OK').length,
+    estadoGeneral: insumosMapped.some((insumo) => insumo.estado === 'CRITICO')
+      ? 'Stock crítico'
+      : insumosMapped.some((insumo) => insumo.estado === 'BAJO')
+        ? 'Revisar compras'
+        : 'Stock normal',
+    insumosConRiesgo: insumosMapped.filter((insumo) => insumo.estado !== 'OK').slice(0, 5),
     insumos: insumosMapped,
     ultimosMovimientos: ultimosMovimientos.map((movimiento) => ({
       id: movimiento.id,
@@ -251,6 +337,20 @@ function buildSanitarySummary(
     tareasSanitariasVencidas: vencidas,
     tareasSanitariasProximas: proximas,
     controlesPendientes: vencidas + proximas,
+    proximoControlUrgente: tareas[0]
+      ? {
+          id: tareas[0].id,
+          tipo: tareas[0].tipoSanitario ?? tareas[0].tipo,
+          fechaObjetivo: tareas[0].fechaObjetivo ?? tareas[0].fechaProgramada,
+        }
+      : null,
+    tipoControlMasRepetido: Object.entries(
+      tareas.reduce<Record<string, number>>((counts, tarea) => {
+        const key = tarea.tipoSanitario ?? String(tarea.tipo);
+        counts[key] = (counts[key] ?? 0) + 1;
+        return counts;
+      }, {}),
+    ).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
     tareas: tareas.map((tarea) => ({
       id: tarea.id,
       tipo: tarea.tipoSanitario ?? tarea.tipo,
@@ -271,7 +371,7 @@ function buildSanitarySummary(
 }
 
 function buildManagementAlerts(input: {
-  tareasVencidas: number;
+    tareasVencidas: number;
   litrosDisponibles: number;
   lotesProximosAVencer: number;
   porcentajeDescarte: number;
@@ -284,66 +384,90 @@ function buildManagementAlerts(input: {
 
   if (input.tareasVencidas > 0) {
     alerts.push({
+      codigo: 'TAREAS_VENCIDAS',
       titulo: 'Tareas vencidas',
       detalle: `Hay ${input.tareasVencidas} tareas vencidas pendientes.`,
       severidad: 'CRITICA',
       accionSugerida: 'Revisar agenda y resolver pendientes hoy.',
+      accionLabel: 'Ver agenda',
+      accionRuta: '/agenda',
     });
   }
   if (input.insumosBajoMinimo > 0) {
     alerts.push({
+      codigo: 'STOCK_CRITICO',
       titulo: 'Stock critico de alimentos',
       detalle: `${input.insumosBajoMinimo} insumos estan en minimo o por debajo.`,
       severidad: 'CRITICA',
       accionSugerida: 'Planificar reposicion de alimento.',
+      accionLabel: 'Ver alimentación',
+      accionRuta: '/alimentacion',
     });
   }
   if (input.controlesPendientes > 0) {
     alerts.push({
+      codigo: 'SANIDAD_PENDIENTE',
       titulo: 'Controles sanitarios pendientes',
       detalle: `${input.controlesPendientes} controles sanitarios requieren atencion.`,
       severidad: 'MEDIA',
       accionSugerida: 'Programar o registrar los controles sanitarios.',
+      accionLabel: 'Ver vacunación',
+      accionRuta: '/vacunacion',
     });
   }
   if (input.litrosDisponibles > 0) {
     alerts.push({
+      codigo: 'LECHE_DISPONIBLE',
       titulo: 'Leche disponible para venta',
       detalle: `Hay ${round(input.litrosDisponibles)} litros disponibles para vender.`,
       severidad: 'INFO',
       accionSugerida: 'Evaluar venta o seguimiento de vencimientos.',
+      accionLabel: 'Registrar venta',
+      accionRuta: '/ventas',
     });
   }
   if (input.lotesProximosAVencer > 0) {
     alerts.push({
+      codigo: 'LOTES_POR_VENCER',
       titulo: 'Lotes proximos a vencer',
       detalle: `${input.lotesProximosAVencer} lotes de leche vencen en los proximos 7 dias.`,
       severidad: 'MEDIA',
       accionSugerida: 'Priorizar venta o control de calidad.',
+      accionLabel: 'Ver producción',
+      accionRuta: '/produccion',
     });
   }
   if (input.porcentajeDescarte >= 10) {
     alerts.push({
+      codigo: 'DESCARTE_ELEVADO',
       titulo: 'Descarte elevado',
       detalle: `El descarte representa ${round(input.porcentajeDescarte)}% de la produccion del periodo.`,
       severidad: 'MEDIA',
       accionSugerida: 'Revisar motivos de descarte y sanidad.',
+      accionLabel: 'Ver producción',
+      accionRuta: '/produccion',
     });
   }
   if (input.litrosProducidos === 0) {
     alerts.push({
+      codigo: 'SIN_PRODUCCION',
       titulo: 'Sin produccion registrada',
       detalle: 'No hubo produccion registrada en el periodo.',
       severidad: 'INFO',
       accionSugerida: 'Verificar si falta cargar produccion.',
+      accionLabel: 'Ver producción',
+      accionRuta: '/produccion',
     });
   }
   if (input.cantidadVentas === 0) {
     alerts.push({
+      codigo: 'SIN_VENTAS',
       titulo: 'Sin ventas registradas',
       detalle: 'No hubo ventas registradas en el periodo.',
       severidad: 'INFO',
       accionSugerida: 'Revisar leche disponible y oportunidades de venta.',
+      accionLabel: 'Ver ventas',
+      accionRuta: '/ventas',
     });
   }
 
@@ -363,10 +487,10 @@ function mapGroup<T extends string>(items: Array<Record<string, unknown>>, key: 
   }));
 }
 
-export async function getDashboardResumen(periodo: DashboardPeriodo = 'hoy') {
+export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy', customRange: CustomDateRange = {}) {
   const todayStart = startOfToday();
   const todayEnd = endOfToday();
-  const { fechaDesde, fechaHasta } = resolvePeriodRange(periodo);
+  const { fechaDesde, fechaHasta } = resolvePeriodRange(periodo, customRange);
   const nextSanitaryLimit = addDays(todayEnd, 30);
 
   const [
@@ -423,7 +547,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodo = 'hoy') {
     findUltimosEventosSanitarios(),
   ]);
   const resumenProduccion = buildProductionSummary(produccionesPeriodo, lotesPeriodo, periodo);
-  const resumenVentas = buildSalesSummary(ventasPeriodo);
+  const resumenVentas = buildSalesSummary(ventasPeriodo, resumenProduccion.litrosProducidos);
   const resumenLeche = buildMilkSummary(lotesDisponibles, todayStart);
   const resumenAlimentacion = buildFeedingSummary(insumos, ultimosMovimientosStock, ultimosRegistrosAlimentacion);
   const resumenSanidad = buildSanitarySummary(tareasSanitarias, ultimosEventosSanitarios, tareasSanitariasVencidas, tareasSanitariasProximas);

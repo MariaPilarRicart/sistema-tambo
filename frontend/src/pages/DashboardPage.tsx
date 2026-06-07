@@ -16,16 +16,35 @@ interface DashboardPageProps {
 export function DashboardPage({ authToken, currentUser, onUnauthorized }: DashboardPageProps) {
   const [resumen, setResumen] = useState<DashboardResumen | null>(null);
   const [periodo, setPeriodo] = useState<DashboardPeriodo>('hoy');
+  const [fechaDesde, setFechaDesde] = useState('');
+  const [fechaHasta, setFechaHasta] = useState('');
+  const [periodoError, setPeriodoError] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   async function loadDashboard() {
     if (!authToken) return;
+    if (periodo === 'personalizado') {
+      if (!fechaDesde || !fechaHasta) {
+        setPeriodoError('Seleccioná fecha desde y fecha hasta');
+        return;
+      }
+      if (fechaDesde > fechaHasta) {
+        setPeriodoError('La fecha desde no puede ser mayor a la fecha hasta');
+        return;
+      }
+    }
+
     setIsLoading(true);
     setError('');
+    setPeriodoError('');
 
     try {
-      setResumen(await getDashboardResumen(authToken, periodo));
+      setResumen(await getDashboardResumen(
+        authToken,
+        periodo,
+        periodo === 'personalizado' ? { fechaDesde, fechaHasta } : undefined,
+      ));
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.statusCode === 401) {
         onUnauthorized();
@@ -42,6 +61,15 @@ export function DashboardPage({ authToken, currentUser, onUnauthorized }: Dashbo
     void loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, periodo]);
+
+  function handlePeriodoChange(nextPeriodo: DashboardPeriodo) {
+    setPeriodo(nextPeriodo);
+    setPeriodoError('');
+    if (nextPeriodo !== 'personalizado') {
+      setFechaDesde('');
+      setFechaHasta('');
+    }
+  }
 
   return (
     <div className="dashboard-page">
@@ -70,8 +98,20 @@ export function DashboardPage({ authToken, currentUser, onUnauthorized }: Dashbo
       {resumen && currentUser?.role === 'ADMIN' && (
         <AdminDashboard
           periodo={periodo}
+          fechaDesde={fechaDesde}
+          fechaHasta={fechaHasta}
+          periodoError={periodoError}
           resumen={resumen}
-          onPeriodoChange={setPeriodo}
+          onFechaDesdeChange={setFechaDesde}
+          onFechaHastaChange={setFechaHasta}
+          onPeriodoChange={handlePeriodoChange}
+          onApplyCustomPeriod={() => void loadDashboard()}
+          onClearCustomPeriod={() => {
+            setFechaDesde('');
+            setFechaHasta('');
+            setPeriodoError('');
+            setPeriodo('hoy');
+          }}
         />
       )}
       {resumen && currentUser?.role === 'EMPLEADO' && <EmployeeDashboard resumen={resumen} />}

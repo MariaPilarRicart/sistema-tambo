@@ -40,7 +40,7 @@ export interface DashboardUltimoEvento {
   } | null;
 }
 
-export type DashboardPeriodo = 'hoy' | 'semana' | 'mes' | 'anio';
+export type DashboardPeriodo = 'hoy' | 'semana' | 'mes' | 'anio' | 'personalizado';
 
 export interface DashboardSerieProduccion {
   etiqueta: string;
@@ -57,6 +57,12 @@ export interface DashboardResumenProduccion {
   cantidadRegistros: number;
   animalesConProduccion: number;
   promedioLitrosPorAnimal: number | null;
+  promedioDiarioProducido: number | null;
+  diaMayorProduccion: {
+    etiqueta: string;
+    litrosProducidos: number;
+  } | null;
+  tendencia: 'EN_ALZA' | 'EN_BAJA' | 'ESTABLE' | 'SIN_DATOS';
   ultimoLote: {
     id: number;
     codigo: string;
@@ -75,6 +81,14 @@ export interface DashboardResumenVentas {
   facturacion: number;
   precioPromedioLitro: number | null;
   cantidadVentas: number;
+  porcentajeProduccionVendida: number;
+  ultimaVenta: {
+    id: number;
+    fecha: string;
+    cliente: string;
+    litros: number;
+    total: number;
+  } | null;
   ultimasVentas: Array<{
     id: number;
     fecha: string;
@@ -89,6 +103,27 @@ export interface DashboardResumenLeche {
   litrosDisponibles: number;
   lotesDisponibles: number;
   lotesProximosAVencer: number;
+  riesgoVencimiento: {
+    vence48Horas: {
+      lotes: number;
+      litros: number;
+    };
+    vence7Dias: {
+      lotes: number;
+      litros: number;
+    };
+    sinRiesgo: {
+      lotes: number;
+      litros: number;
+    };
+    urgentes: Array<{
+      id: number;
+      codigo: string;
+      fechaVencimiento: string;
+      litrosDisponibles: number;
+      accionSugerida: string;
+    }>;
+  };
   lotes: Array<{
     id: number;
     codigo: string;
@@ -104,6 +139,15 @@ export interface DashboardResumenLeche {
 export interface DashboardResumenAlimentacion {
   insumosActivos: number;
   insumosBajoMinimo: number;
+  estadoGeneral: string;
+  insumosConRiesgo: Array<{
+    id: number;
+    alimento: string;
+    stockActual: number;
+    stockMinimo: number;
+    unidad: string;
+    estado: 'OK' | 'BAJO' | 'CRITICO';
+  }>;
   insumos: Array<{
     id: number;
     alimento: string;
@@ -133,6 +177,12 @@ export interface DashboardResumenSanidad {
   tareasSanitariasVencidas: number;
   tareasSanitariasProximas: number;
   controlesPendientes: number;
+  proximoControlUrgente: {
+    id: number;
+    tipo: string;
+    fechaObjetivo: string;
+  } | null;
+  tipoControlMasRepetido: string | null;
   tareas: Array<{
     id: number;
     tipo: string;
@@ -152,10 +202,21 @@ export interface DashboardResumenSanidad {
 }
 
 export interface DashboardAlertaGestion {
+  codigo:
+    | 'TAREAS_VENCIDAS'
+    | 'SANIDAD_PENDIENTE'
+    | 'LECHE_DISPONIBLE'
+    | 'LOTES_POR_VENCER'
+    | 'STOCK_CRITICO'
+    | 'SIN_PRODUCCION'
+    | 'SIN_VENTAS'
+    | 'DESCARTE_ELEVADO';
   titulo: string;
   detalle: string;
   severidad: 'CRITICA' | 'MEDIA' | 'INFO';
   accionSugerida: string;
+  accionLabel: string;
+  accionRuta: string;
 }
 
 export interface DashboardResumen {

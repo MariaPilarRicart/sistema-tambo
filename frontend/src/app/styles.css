@@ -470,6 +470,28 @@ a {
   padding: 6px;
 }
 
+.dashboard-period-controls {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-custom-period {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.dashboard-custom-period input {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 10px;
+  color: var(--slate-800);
+  font-weight: 800;
+  padding: 10px;
+}
+
 .dashboard-period-selector button {
   background: transparent;
   border: 0;
@@ -758,6 +780,79 @@ a {
   font-size: 11px;
   font-weight: 900;
   margin-top: 8px;
+}
+
+.dashboard-alert-action {
+  background: #ffffff;
+  border: 1px solid rgb(255 255 255 / 0.7);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  margin-top: 10px;
+  padding: 6px 10px;
+  text-transform: uppercase;
+}
+
+.dashboard-conclusion {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 12px;
+  color: var(--emerald-dark);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.45;
+  margin: 14px 0 0;
+  padding: 12px;
+}
+
+.dashboard-risk-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+
+.dashboard-risk-grid span,
+.dashboard-urgent-row {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-100);
+  border-radius: 12px;
+  color: var(--slate-500);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 12px;
+}
+
+.dashboard-risk-grid strong,
+.dashboard-urgent-row strong {
+  color: var(--slate-800);
+  display: block;
+  font-size: 15px;
+  margin-top: 4px;
+}
+
+.dashboard-urgent-list {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-urgent-row {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(130px, 1fr) repeat(3, minmax(90px, auto));
+}
+
+.dashboard-urgent-row small {
+  color: var(--slate-500);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.dashboard-inline-action {
+  display: inline-flex;
+  margin-top: 12px;
 }
 
 .employee-priority-panel {
@@ -2137,12 +2232,20 @@ a {
 
   .dashboard-period-selector,
   .dashboard-detail-grid,
+  .dashboard-risk-grid,
   .dashboard-herd-summary {
     grid-template-columns: 1fr;
   }
 
   .dashboard-period-selector {
     display: grid;
+  }
+
+  .dashboard-custom-period,
+  .dashboard-urgent-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    justify-content: stretch;
   }
 
   .donut-chart-wrap {
