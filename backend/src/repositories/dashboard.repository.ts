@@ -72,6 +72,59 @@ export function countTareas(where: {
   return prisma.agendaTarea.count({ where });
 }
 
+export function findAgendaTasksForDashboard(where: Prisma.AgendaTareaWhereInput, take = 5) {
+  return prisma.agendaTarea.findMany({
+    where,
+    take,
+    orderBy: [{ fechaProgramada: 'asc' }, { id: 'asc' }],
+    select: {
+      id: true,
+      tipo: true,
+      tipoSanitario: true,
+      fechaProgramada: true,
+      fechaObjetivo: true,
+      estado: true,
+      descripcion: true,
+      animal: {
+        select: {
+          id: true,
+          caravana: true,
+          lote: {
+            select: {
+              id: true,
+              nombre: true,
+            },
+          },
+        },
+      },
+      alcanceLote: {
+        select: {
+          id: true,
+          nombre: true,
+        },
+      },
+    },
+  });
+}
+
+export function countProduccionesForDashboard(fechaDesde: Date, fechaHasta: Date) {
+  return prisma.produccionAnimal.count({
+    where: { fechaHora: { gte: fechaDesde, lte: fechaHasta } },
+  });
+}
+
+export function countRegistrosAlimentacionForDashboard(fechaDesde: Date, fechaHasta: Date) {
+  return prisma.registroAlimentacion.count({
+    where: { fecha: { gte: fechaDesde, lte: fechaHasta } },
+  });
+}
+
+export function countEventosForDashboard(fechaDesde: Date, fechaHasta: Date) {
+  return prisma.evento.count({
+    where: { fecha: { gte: fechaDesde, lte: fechaHasta } },
+  });
+}
+
 export function findProduccionesByDateRange(fechaDesde: Date, fechaHasta: Date) {
   return prisma.produccionAnimal.findMany({
     where: { fechaHora: { gte: fechaDesde, lte: fechaHasta } },

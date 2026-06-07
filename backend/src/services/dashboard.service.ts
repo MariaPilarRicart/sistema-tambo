@@ -1,9 +1,13 @@
 import { EstadoAnimal, EstadoTarea, TipoTarea } from '@prisma/client';
 import {
   countAnimales,
+  countEventosForDashboard,
+  countProduccionesForDashboard,
   countRodeoGeneralForDashboard,
+  countRegistrosAlimentacionForDashboard,
   countSanitaryTasks,
   countTareas,
+  findAgendaTasksForDashboard,
   findAvailableLotesLeche,
   findInsumosForDashboard,
   findLotesLecheByDateRange,
@@ -507,6 +511,117 @@ function buildManagementAlerts(input: {
   return alerts.slice(0, 8);
 }
 
+function taskDate(task: { fechaObjetivo: Date | null; fechaProgramada: Date }) {
+  return task.fechaObjetivo ?? task.fechaProgramada;
+}
+
+function mapDashboardTask(task: Awaited<ReturnType<typeof findAgendaTasksForDashboard>>[number]) {
+  return {
+    id: task.id,
+    tipoTarea: task.tipoSanitario ?? task.tipo,
+    fechaProyectada: taskDate(task),
+    estado: task.estado,
+    descripcion: task.descripcion,
+    animal: task.animal
+      ? {
+          id: task.animal.id,
+          caravana: task.animal.caravana,
+          lote: task.animal.lote,
+        }
+      : null,
+    lote: task.alcanceLote,
+  };
+}
+
+function buildOperationalAlerts(input: {
+  tareasVencidas: number;
+  tareasHoy: number;
+  produccionesHoy: number;
+  registrosAlimentacionHoy: number;
+  eventosHoy: number;
+  insumosBajoMinimo: number;
+  controlesPendientes: number;
+  partosPendientes: number;
+  secadosPendientes: number;
+}) {
+  const alerts = [];
+
+  if (input.tareasVencidas > 0) {
+    alerts.push({
+      titulo: 'Tareas vencidas',
+      detalle: 'Hay tareas de agenda para revisar primero.',
+      severidad: 'CRITICA',
+      accionLabel: 'Ver agenda',
+      accionRuta: '/agenda',
+    });
+  }
+  if (input.produccionesHoy === 0) {
+    alerts.push({
+      titulo: 'Producción pendiente',
+      detalle: 'No se registró producción hoy.',
+      severidad: 'MEDIA',
+      accionLabel: 'Registrar producción',
+      accionRuta: '/produccion',
+    });
+  }
+  if (input.registrosAlimentacionHoy === 0) {
+    alerts.push({
+      titulo: 'Alimentación pendiente',
+      detalle: 'No se registró alimentación hoy.',
+      severidad: 'MEDIA',
+      accionLabel: 'Registrar alimentación',
+      accionRuta: '/alimentacion',
+    });
+  }
+  if (input.controlesPendientes > 0) {
+    alerts.push({
+      titulo: 'Vacunación o control pendiente',
+      detalle: 'Hay controles sanitarios próximos o vencidos.',
+      severidad: 'MEDIA',
+      accionLabel: 'Ver vacunación',
+      accionRuta: '/vacunacion',
+    });
+  }
+  if (input.partosPendientes > 0) {
+    alerts.push({
+      titulo: 'Partos próximos',
+      detalle: 'Hay partos pendientes para seguimiento.',
+      severidad: 'INFO',
+      accionLabel: 'Ver agenda',
+      accionRuta: '/agenda',
+    });
+  }
+  if (input.secadosPendientes > 0) {
+    alerts.push({
+      titulo: 'Secados próximos',
+      detalle: 'Hay vacas a preparar para secado.',
+      severidad: 'INFO',
+      accionLabel: 'Ver agenda',
+      accionRuta: '/agenda',
+    });
+  }
+  if (input.insumosBajoMinimo > 0) {
+    alerts.push({
+      titulo: 'Stock bajo de alimento',
+      detalle: 'Avisar al administrador para revisar reposición.',
+      severidad: 'MEDIA',
+      accionLabel: 'Ver alimentación',
+      accionRuta: '/alimentacion',
+    });
+  }
+  if (input.eventosHoy === 0) {
+    alerts.push({
+      titulo: 'Sin eventos registrados',
+      detalle: 'Si hubo novedades, cargarlas durante la jornada.',
+      severidad: 'INFO',
+      accionLabel: 'Registrar evento',
+      accionRuta: '/eventos',
+    });
+  }
+
+  return alerts.slice(0, 5);
+}
+
 function endOfToday() {
   const date = new Date();
   date.setHours(23, 59, 59, 999);
@@ -525,6 +640,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
   const todayEnd = endOfToday();
   const { fechaDesde, fechaHasta } = resolvePeriodRange(periodo, customRange);
   const nextSanitaryLimit = addDays(todayEnd, 30);
+  const nextSevenDaysEnd = endOfDay(addDays(todayStart, 7));
 
   const [
     totalAnimales,
@@ -553,6 +669,12 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     tareasSanitariasVencidas,
     tareasSanitariasProximas,
     ultimosEventosSanitarios,
+    tareasVencidasDetalle,
+    tareasHoyDetalle,
+    tareasProximos7Dias,
+    produccionesHoy,
+    registrosAlimentacionHoy,
+    eventosHoy,
   ] = await Promise.all([
     countAnimales(),
     countAnimales({ activo: true, estadoAnimal: EstadoAnimal.ACTIVO }),
@@ -580,6 +702,12 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     countSanitaryTasks({ estado: EstadoTarea.PENDIENTE, tipoSanitario: { not: null }, fechaObjetivo: { lt: todayStart } }),
     countSanitaryTasks({ estado: EstadoTarea.PENDIENTE, tipoSanitario: { not: null }, fechaObjetivo: { gte: todayStart, lte: nextSanitaryLimit } }),
     findUltimosEventosSanitarios(),
+    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, fechaProgramada: { lt: todayStart } }, 5),
+    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, fechaProgramada: { gte: todayStart, lte: todayEnd } }, 5),
+    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, fechaProgramada: { gt: todayEnd, lte: nextSevenDaysEnd } }, 5),
+    countProduccionesForDashboard(todayStart, todayEnd),
+    countRegistrosAlimentacionForDashboard(todayStart, todayEnd),
+    countEventosForDashboard(todayStart, todayEnd),
   ]);
   const resumenProduccion = buildProductionSummary(produccionesPeriodo, lotesPeriodo, periodo);
   const resumenVentas = buildSalesSummary(ventasPeriodo, resumenProduccion.litrosProducidos, periodo);
@@ -595,6 +723,22 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     controlesPendientes: resumenSanidad.controlesPendientes,
     litrosProducidos: resumenProduccion.litrosProducidos,
     cantidadVentas: resumenVentas.cantidadVentas,
+  });
+  const tareasPrioritarias = [
+    ...tareasVencidasDetalle,
+    ...tareasHoyDetalle,
+    ...tareasProximos7Dias,
+  ].slice(0, 5).map(mapDashboardTask);
+  const alertasOperativas = buildOperationalAlerts({
+    tareasVencidas,
+    tareasHoy,
+    produccionesHoy,
+    registrosAlimentacionHoy,
+    eventosHoy,
+    insumosBajoMinimo: resumenAlimentacion.insumosBajoMinimo,
+    controlesPendientes: resumenSanidad.controlesPendientes,
+    partosPendientes,
+    secadosPendientes,
   });
 
   return {
@@ -628,6 +772,23 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
       vacasProduccion: rodeoGeneral.vacasProduccion,
       vacasSecasPreparto: rodeoGeneral.vacasSecasPreparto,
       vaquillonas: rodeoGeneral.vaquillonas,
+    },
+    tareasPrioritarias,
+    tareasHoyDetalle: tareasHoyDetalle.map(mapDashboardTask),
+    tareasProximos7Dias: tareasProximos7Dias.map(mapDashboardTask),
+    proximosTrabajos: {
+      partos: tareasProximos7Dias.filter((tarea) => tarea.tipo === TipoTarea.PARTO).slice(0, 3).map(mapDashboardTask),
+      secados: tareasProximos7Dias.filter((tarea) => tarea.tipo === TipoTarea.SECADO).slice(0, 3).map(mapDashboardTask),
+      tactos: [...tareasVencidasDetalle, ...tareasHoyDetalle, ...tareasProximos7Dias]
+        .filter((tarea) => tarea.tipo === TipoTarea.TACTO)
+        .slice(0, 3)
+        .map(mapDashboardTask),
+    },
+    alertasOperativas,
+    cargaDia: {
+      produccionRegistrada: produccionesHoy > 0,
+      alimentacionRegistrada: registrosAlimentacionHoy > 0,
+      eventosRegistrados: eventosHoy,
     },
     ultimosEventos: ultimosEventos.map((evento) => ({
       id: evento.id,

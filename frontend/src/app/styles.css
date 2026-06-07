@@ -911,6 +911,29 @@ a {
   border-color: #a7f3d0;
 }
 
+.employee-priority-panel .dashboard-card-heading {
+  align-items: center;
+}
+
+.employee-priority-critical {
+  border-color: #fecdd3;
+}
+
+.employee-priority-warning {
+  border-color: #fde68a;
+}
+
+.employee-priority-ok {
+  border-color: #bbf7d0;
+}
+
+.employee-priority-message {
+  color: var(--slate-700);
+  font-size: 18px;
+  font-weight: 900;
+  margin: 0;
+}
+
 .employee-kpi-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -943,6 +966,90 @@ a {
 .employee-quick-card strong {
   font-size: 13px;
   font-weight: 900;
+}
+
+.employee-task-list,
+.employee-work-groups,
+.employee-load-list {
+  display: grid;
+  gap: 12px;
+}
+
+.employee-task-card,
+.employee-load-list article {
+  align-items: center;
+  background: var(--slate-50);
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.employee-task-card strong,
+.employee-load-list strong {
+  color: var(--slate-900);
+  display: block;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.employee-task-card p,
+.employee-task-card span {
+  color: var(--slate-500);
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  margin: 4px 0 0;
+}
+
+.employee-work-group {
+  border: 1px solid var(--slate-200);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.employee-work-group h3 {
+  color: var(--slate-900);
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+
+.employee-work-item {
+  align-items: center;
+  border-top: 1px solid var(--slate-100);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto auto auto;
+  padding: 10px 0;
+}
+
+.employee-work-item:first-of-type {
+  border-top: 0;
+}
+
+.employee-work-item span,
+.employee-work-item small {
+  color: var(--slate-500);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.employee-work-item strong {
+  color: var(--slate-900);
+  font-size: 12px;
+}
+
+.employee-work-item a,
+.employee-load-list a {
+  color: var(--emerald-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.employee-load-list article {
+  justify-content: flex-start;
 }
 
 .dashboard-chart-card,

@@ -224,6 +224,46 @@ export interface DashboardAlertaGestion {
   accionRuta: string;
 }
 
+export interface DashboardTareaDetalle {
+  id: number;
+  tipoTarea: string;
+  fechaProyectada: string;
+  estado: string;
+  descripcion: string | null;
+  animal: {
+    id: number;
+    caravana: string;
+    lote: {
+      id: number;
+      nombre: string;
+    } | null;
+  } | null;
+  lote: {
+    id: number;
+    nombre: string;
+  } | null;
+}
+
+export interface DashboardAlertaOperativa {
+  titulo: string;
+  detalle: string;
+  severidad: 'CRITICA' | 'MEDIA' | 'INFO';
+  accionLabel: string;
+  accionRuta: string;
+}
+
+export interface DashboardCargaDia {
+  produccionRegistrada: boolean;
+  alimentacionRegistrada: boolean;
+  eventosRegistrados: number;
+}
+
+export interface DashboardProximosTrabajos {
+  partos: DashboardTareaDetalle[];
+  secados: DashboardTareaDetalle[];
+  tactos: DashboardTareaDetalle[];
+}
+
 export interface DashboardResumenRodeo {
   vacasProduccion: number;
   vacasSecasPreparto: number;
@@ -254,5 +294,11 @@ export interface DashboardResumen {
   resumenSanidad: DashboardResumenSanidad;
   resumenRodeo: DashboardResumenRodeo;
   alertasGestion: DashboardAlertaGestion[];
+  tareasPrioritarias: DashboardTareaDetalle[];
+  tareasHoyDetalle: DashboardTareaDetalle[];
+  tareasProximos7Dias: DashboardTareaDetalle[];
+  proximosTrabajos: DashboardProximosTrabajos;
+  alertasOperativas: DashboardAlertaOperativa[];
+  cargaDia: DashboardCargaDia;
   ultimosEventos: DashboardUltimoEvento[];
 }
