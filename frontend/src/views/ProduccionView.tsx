@@ -795,7 +795,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
             <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar historial de producción"><RefreshCcw size={18} /></button>
           </div>
         </div>
-        <form className="filters-form events-filters production-filters">
+        <form className="filters-form events-filters production-filters production-history-filters">
           <label className="filter-field"><span>Fecha desde</span><input type="date" value={filters.fechaDesde} onChange={(event) => setFilters({ ...filters, fechaDesde: event.target.value })} /></label>
           <label className="filter-field"><span>Fecha hasta</span><input type="date" value={filters.fechaHasta} onChange={(event) => setFilters({ ...filters, fechaHasta: event.target.value })} /></label>
           <label className="filter-field"><span>Lote</span><select value={filters.loteId} onChange={(event) => setFilters({ ...filters, loteId: event.target.value, animalId: '' })}><option value="">Todos</option>{lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}</select></label>
