@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { AppError } from '../errors/AppError';
-import { DashboardPeriodoInput, getDashboardResumen } from '../services/dashboard.service';
+import { DashboardPeriodoInput, getDashboardEmpleadoResumen, getDashboardResumen } from '../services/dashboard.service';
 
 function parsePeriodo(value: unknown): DashboardPeriodoInput {
   if (value === 'semana' || value === 'mes' || value === 'anio' || value === 'hoy') return value;
@@ -27,6 +27,8 @@ function parseDateOnly(value: unknown, fieldName: string) {
 }
 
 export async function getDashboardResumenController(request: Request, response: Response) {
+  if (!request.user) throw new AppError('Usuario no autenticado.', 401);
+
   const periodo = parsePeriodo(request.query.periodo);
   const customRange =
     periodo === 'personalizado'
@@ -41,6 +43,27 @@ export async function getDashboardResumenController(request: Request, response: 
   }
 
   const resumen = await getDashboardResumen(periodo, customRange);
+
+  response.status(200).json({ resumen });
+}
+
+export async function getDashboardEmpleadoController(request: Request, response: Response) {
+  if (!request.user) throw new AppError('Usuario no autenticado.', 401);
+
+  const periodo = parsePeriodo(request.query.periodo);
+  const customRange =
+    periodo === 'personalizado'
+      ? {
+          fechaDesde: parseDateOnly(request.query.fechaDesde, 'Fecha desde'),
+          fechaHasta: parseDateOnly(request.query.fechaHasta, 'Fecha hasta'),
+        }
+      : {};
+
+  if (customRange.fechaDesde && customRange.fechaHasta && customRange.fechaDesde > customRange.fechaHasta) {
+    throw new AppError('La fecha desde no puede ser mayor a la fecha hasta', 400);
+  }
+
+  const resumen = await getDashboardEmpleadoResumen(periodo, customRange);
 
   response.status(200).json({ resumen });
 }

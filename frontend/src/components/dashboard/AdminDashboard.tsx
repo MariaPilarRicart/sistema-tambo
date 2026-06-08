@@ -1,18 +1,22 @@
-import { useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertTriangle,
   BarChart3,
   ClipboardList,
   DollarSign,
   Droplets,
-  LucideIcon,
   PackageCheck,
+  ShoppingCart,
+  TrendingDown,
   Truck,
+  Users,
+  UserPlus,
   Utensils,
+  type LucideIcon,
 } from 'lucide-react';
 import { paths } from '../../routes/paths';
-import type { DashboardPeriodo, DashboardResumen } from '../../types/dashboard';
+import type { DashboardGroup, DashboardPeriodo, DashboardResumen, MetricTone } from '../../types/dashboard';
 
 interface AdminDashboardProps {
   periodo: DashboardPeriodo;
@@ -35,7 +39,30 @@ const periodOptions: Array<{ value: DashboardPeriodo; label: string }> = [
   { value: 'personalizado', label: 'Personalizado' },
 ];
 
-type AdminModalType = 'stock' | 'tareas' | 'sanidad' | 'leche';
+const monthNames = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+
+const donutColors = ['#10b981', '#2563eb', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6'];
+
+function toDateInput(value: string) {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('es-AR', {
@@ -53,36 +80,30 @@ function formatCurrency(value: number) {
   return new Intl.NumberFormat('es-AR', { currency: 'ARS', style: 'currency', maximumFractionDigits: 0 }).format(value);
 }
 
-function formatNullable(value: number | null, suffix = '') {
-  return value === null ? 'Sin datos' : formatNumber(value, suffix);
+function periodText(periodo: DashboardPeriodo, fechaDesde: string, fechaHasta: string) {
+  const start = new Date(fechaDesde);
+  if (periodo === 'hoy') return `Fecha: ${formatDate(fechaDesde)}`;
+  if (periodo === 'semana') return `Semana: ${formatDate(fechaDesde)} al ${formatDate(fechaHasta)}`;
+  if (periodo === 'mes') return `Mes: ${monthNames[start.getMonth()]} ${start.getFullYear()}`;
+  if (periodo === 'anio') return `Año: ${start.getFullYear()}`;
+  return `Período: ${formatDate(fechaDesde)} al ${formatDate(fechaHasta)}`;
 }
 
-function severityClass(severity: string) {
-  if (severity === 'CRITICA' || severity === 'CRITICO') return 'alert-critical';
-  if (severity === 'MEDIA' || severity === 'BAJO') return 'alert-warning';
-  if (severity === 'OK') return 'alert-success';
-  return 'alert-info';
-}
-
-function badgeClass(value: string) {
-  if (value === 'CRITICO') return 'badge-critical';
-  if (value === 'BAJO') return 'badge-warning';
-  return 'badge-success';
+function buildUrl(path: string, params: Record<string, string>) {
+  const query = new URLSearchParams(params);
+  return `${path}?${query.toString()}`;
 }
 
 function friendlyEnum(value: string | null | undefined) {
   if (!value) return '-';
   const labels: Record<string, string> = {
-    AFTOSA: 'Aftosa',
-    BRUCELOSIS: 'Brucelosis',
-    ANALISIS_BRUCELOSIS: 'Análisis de brucelosis',
-    ANALISIS_TUBERCULINA: 'Análisis de tuberculina',
     VACA_PRODUCCION: 'Vaca en producción',
     VACA_SECA: 'Vaca seca',
     PREPARTO: 'Preparto',
     NO_APLICA: 'No aplica',
     VACIA: 'Vacía',
     PRENADA: 'Preñada',
+    INSEMINADA: 'Inseminada',
     RECUPERACION: 'Recuperación',
     GUACHERA: 'Guachera',
     ESCUELITA: 'Escuelita',
@@ -90,182 +111,45 @@ function friendlyEnum(value: string | null | undefined) {
     VAQUILLONA: 'Vaquillona',
     TORO: 'Toro',
     BAJA: 'Baja',
-    ANIMAL: 'Animal',
-    LOTE: 'Lote',
-    CATEGORIA: 'Categoría',
-    PENDIENTE: 'Pendiente',
-    VENCIDA: 'Vencido',
-    PROXIMA: 'Próximo',
   };
   if (labels[value]) return labels[value];
   const readable = value.toLowerCase().replace(/_/g, ' ');
   return readable.charAt(0).toUpperCase() + readable.slice(1);
 }
 
-function trendText(value: string) {
-  if (value === 'EN_ALZA') return 'La producción muestra una mejora respecto a los primeros días del período.';
-  if (value === 'EN_BAJA') return 'La producción muestra una baja respecto a los primeros días del período.';
-  if (value === 'ESTABLE') return 'La producción se mantiene estable en el período.';
-  return 'No hay suficientes datos para analizar tendencia.';
-}
-
-function KpiCard({
-  description,
+function DashboardKpiCard({
   icon: Icon,
   onClick,
+  subtitle,
   title,
-  value,
   tone,
-  className = '',
+  value,
 }: {
-  description: string;
   icon: LucideIcon;
-  onClick?: () => void;
+  onClick: () => void;
+  subtitle: string;
   title: string;
+  tone: MetricTone;
   value: string;
-  tone: 'emerald' | 'blue' | 'indigo' | 'pink' | 'amber' | 'rose';
-  className?: string;
 }) {
-  const content = (
-    <>
+  return (
+    <button className={`metric-card dashboard-kpi-card dashboard-kpi-clickable dashboard-kpi-${tone}`} type="button" onClick={onClick}>
       <div className="dashboard-kpi-top">
         <div className={`metric-icon metric-icon-${tone}`}>
-          <Icon size={20} />
+          <Icon size={22} />
         </div>
         <h3>{value}</h3>
       </div>
       <strong>{title}</strong>
-      <p>{description}</p>
-    </>
-  );
-
-  if (onClick) {
-    return (
-      <button className={`metric-card dashboard-kpi-card dashboard-kpi-clickable dashboard-kpi-${tone} ${className}`} type="button" onClick={onClick}>
-        {content}
-      </button>
-    );
-  }
-
-  return (
-    <article className={`metric-card dashboard-kpi-card dashboard-kpi-${tone} ${className}`}>
-      {content}
-    </article>
+      <p>{subtitle}</p>
+    </button>
   );
 }
 
-function ManagementStatusCard({
-  action,
-  detail,
-  icon: Icon,
-  subtext,
-  title,
-  tone,
-}: {
-  action: ReactNode;
-  detail: string;
-  icon: LucideIcon;
-  subtext: string;
-  title: string;
-  tone: 'CRITICA' | 'MEDIA' | 'OK';
-}) {
-  return (
-    <article className={`alert-card dashboard-management-card ${severityClass(tone)}`}>
-      <Icon size={18} />
-      <div>
-        <strong>{title}</strong>
-        <p>{detail}</p>
-        <small>{subtext}</small>
-        {action}
-      </div>
-    </article>
-  );
-}
-
-function SectionCard({ action, children, description, id, title }: { action?: ReactNode; children: ReactNode; description: string; id?: string; title: string }) {
-  return (
-    <section className="panel dashboard-chart-card" id={id}>
-      <div className="dashboard-card-heading">
-        <div>
-          <h2>{title}</h2>
-          <p>{description}</p>
-        </div>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function SimpleBars({
-  emptyMessage,
-  series,
-}: {
-  emptyMessage: string;
-  series: Array<{ etiqueta: string; litrosProducidos: number; litrosNetos: number; litrosDescartados: number }>;
-}) {
-  const maxValue = Math.max(...series.map((item) => item.litrosProducidos), 1);
-
-  if (series.length === 0) return <p className="table-empty">{emptyMessage}</p>;
-
-  return (
-    <div className="dashboard-value-bars">
-      {series.map((item) => (
-        <div className="dashboard-value-row" key={item.etiqueta}>
-          <div className="dashboard-value-label">
-            <strong>{item.etiqueta}</strong>
-            <span>Producido: {formatNumber(item.litrosProducidos, ' L')} | Neto: {formatNumber(item.litrosNetos, ' L')}</span>
-          </div>
-          <div className="dashboard-value-track" aria-hidden="true">
-            <span style={{ width: `${(item.litrosProducidos / maxValue) * 100}%` }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ValueBars({
-  emptyMessage,
-  items,
-}: {
-  emptyMessage: string;
-  items: Array<{ label: string; value: number; detail?: string }>;
-}) {
-  const maxValue = Math.max(...items.map((item) => item.value), 1);
-  const visibleItems = items.filter((item) => item.value > 0);
-
-  if (visibleItems.length === 0) return <p className="table-empty">{emptyMessage}</p>;
-
-  return (
-    <div className="dashboard-value-bars">
-      {items.map((item) => (
-        <div className="dashboard-value-row" key={item.label}>
-          <div className="dashboard-value-label">
-            <strong>{item.label}</strong>
-            <span>{formatNumber(item.value, ' L')}{item.detail ? ` | ${item.detail}` : ''}</span>
-          </div>
-          <div className="dashboard-value-track" aria-hidden="true">
-            <span style={{ width: `${(item.value / maxValue) * 100}%` }} />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-type DistributionGroup = {
-  nombre: string;
-  total: number;
-};
-
-const donutColors = ['#10b981', '#2563eb', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6'];
-
-function topGroupsWithOthers(groups: DistributionGroup[], limit = 5) {
+function topGroupsWithOthers(groups: DashboardGroup[], limit = 5) {
   const sorted = [...groups].sort((a, b) => b.total - a.total);
   const visible = sorted.slice(0, limit);
   const othersTotal = sorted.slice(limit).reduce((total, item) => total + item.total, 0);
-
   return othersTotal > 0 ? [...visible, { nombre: 'Otros', total: othersTotal }] : visible;
 }
 
@@ -275,7 +159,7 @@ function DistributionBars({
   limit,
 }: {
   emptyMessage: string;
-  groups: DistributionGroup[];
+  groups: DashboardGroup[];
   limit?: number;
 }) {
   const visibleGroups = limit ? topGroupsWithOthers(groups, limit) : groups;
@@ -300,7 +184,7 @@ function DistributionBars({
   );
 }
 
-function DonutDistribution({ groups }: { groups: DistributionGroup[] }) {
+function DonutDistribution({ groups }: { groups: DashboardGroup[] }) {
   const total = groups.reduce((sum, item) => sum + item.total, 0);
 
   if (total === 0) return <p className="table-empty">Sin datos para mostrar.</p>;
@@ -348,60 +232,110 @@ export function AdminDashboard({
   onApplyCustomPeriod,
   onClearCustomPeriod,
 }: AdminDashboardProps) {
-  const [activeModal, setActiveModal] = useState<AdminModalType | null>(null);
-  const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad } = resumen;
-  const stockBajo = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual > 0 && insumo.stockActual < insumo.stockMinimo);
-  const agotados = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual === 0);
-  const totalAlertasStock = stockBajo.length + agotados.length;
-  const totalVencimientosCriticos = resumen.tareasVencidas + resumenSanidad.tareasSanitariasVencidas;
-  const agendaProximas = resumen.tareasHoy + resumen.tareasFuturas;
-  const agendaDetalle = [
-    ...resumen.tareasVencidasDetalle,
-    ...resumen.tareasHoyDetalle,
-    ...resumen.tareasProximos7Dias,
-  ].filter((tarea, index, tareas) => tareas.findIndex((item) => item.id === tarea.id) === index);
-  const lotesProximosLeche = resumenLeche.riesgoVencimiento.vence48Horas.lotes + resumenLeche.riesgoVencimiento.vence7Dias.lotes;
-  const litrosVencidosLeche = resumenLeche.vencida.litros;
-  const lotesVencidosLeche = resumenLeche.vencida.lotes;
-  const stockCardClass = agotados.length > 0
-    ? 'dashboard-stock-critical'
-    : stockBajo.length > 0
-      ? 'dashboard-stock-warning'
-      : 'dashboard-stock-ok';
-  const commercialReading = resumenVentas.cantidadVentas === 0
-    ? 'No se registraron ventas en el período seleccionado.'
-    : `Durante el período se vendieron ${formatNumber(resumenVentas.litrosVendidos, ' L')} por un total de ${formatCurrency(resumenVentas.facturacion)}.`;
-  const commercialContext = resumenVentas.litrosVendidos > resumenProduccion.litrosProducidos && resumenVentas.litrosVendidos > 0
-    ? 'Las ventas del período pueden corresponder a leche producida en días anteriores.'
-    : null;
-  const commercialSuggestion = resumenVentas.cantidadVentas === 0
-    ? 'No hay ventas registradas en el período.'
-    : resumenLeche.riesgoVencimiento.vence48Horas.lotes + resumenLeche.riesgoVencimiento.vence7Dias.lotes > 0
-      ? 'Revisar lotes próximos a vencer antes de registrar nuevas ventas.'
-      : resumenLeche.litrosDisponibles > 0
-        ? 'Hay leche disponible para comercializar.'
-        : 'Revisar el módulo de ventas para más detalle.';
-  const kpis = [
-    { title: 'Litros producidos', description: 'Producción total del período', value: formatNumber(resumenProduccion.litrosProducidos, ' L'), icon: Droplets, tone: 'blue' as const },
-    { title: 'Litros netos', description: 'Producción menos descarte', value: formatNumber(resumenProduccion.litrosNetos, ' L'), icon: PackageCheck, tone: 'emerald' as const },
-    { title: 'Descarte', description: `${formatNumber(resumenProduccion.litrosDescartados, ' L')} descartados`, value: formatNumber(resumenProduccion.porcentajeDescarte, '%'), icon: AlertTriangle, tone: 'amber' as const },
-    { title: 'Leche disponible', description: `${resumenLeche.lotesDisponibles} lotes disponibles`, value: formatNumber(resumenLeche.litrosDisponibles, ' L'), icon: Truck, tone: 'indigo' as const },
-    { title: 'Litros vendidos', description: `${resumenVentas.cantidadVentas} ventas`, value: formatNumber(resumenVentas.litrosVendidos, ' L'), icon: BarChart3, tone: 'pink' as const },
-    { title: 'Facturación', description: `Promedio ${formatNullable(resumenVentas.precioPromedioLitro, ' $/L')}`, value: formatCurrency(resumenVentas.facturacion), icon: DollarSign, tone: 'emerald' as const },
+  const navigate = useNavigate();
+  const periodParams = useMemo(() => ({
+    fechaDesde: toDateInput(resumen.fechaDesde),
+    fechaHasta: toDateInput(resumen.fechaHasta),
+  }), [resumen.fechaDesde, resumen.fechaHasta]);
+
+  const stockCritico = resumen.resumenAlimentacion.insumos.filter((insumo) => insumo.estado === 'BAJO' || insumo.estado === 'CRITICO').length;
+
+  const cards = [
     {
-      title: 'Stock',
-      description: totalAlertasStock > 0 ? 'Stock crítico' : 'Sin alertas críticas',
-      value: String(totalAlertasStock),
+      title: 'Cantidad de ventas',
+      value: formatNumber(resumen.resumenVentas.cantidadVentas),
+      subtitle: 'Ventas realizadas en el período.',
+      tone: 'blue' as MetricTone,
+      icon: ShoppingCart,
+      url: buildUrl(paths.sales, { section: 'historial', ...periodParams }),
+    },
+    {
+      title: 'Facturación',
+      value: formatCurrency(resumen.resumenVentas.facturacion),
+      subtitle: 'Importe total facturado.',
+      tone: 'emerald' as MetricTone,
+      icon: DollarSign,
+      url: buildUrl(paths.sales, { section: 'historial', ...periodParams }),
+    },
+    {
+      title: 'Nuevos clientes',
+      value: formatNumber(resumen.nuevosClientes),
+      subtitle: 'Clientes creados en el período.',
+      tone: 'indigo' as MetricTone,
+      icon: UserPlus,
+      url: buildUrl(paths.sales, { section: 'clientes', ...periodParams }),
+    },
+    {
+      title: 'Litros vendidos',
+      value: formatNumber(resumen.resumenVentas.litrosVendidos, ' L'),
+      subtitle: 'Litros vendidos en el período.',
+      tone: 'pink' as MetricTone,
+      icon: BarChart3,
+      url: buildUrl(paths.sales, { section: 'historial', ...periodParams }),
+    },
+    {
+      title: 'Litros producidos',
+      value: formatNumber(resumen.resumenProduccion.litrosProducidos, ' L'),
+      subtitle: 'Producción bruta registrada.',
+      tone: 'blue' as MetricTone,
+      icon: Droplets,
+      url: buildUrl(paths.production, { section: 'historial', ...periodParams }),
+    },
+    {
+      title: 'Litros netos',
+      value: formatNumber(resumen.resumenProduccion.litrosNetos, ' L'),
+      subtitle: 'Producción luego de descartes.',
+      tone: 'emerald' as MetricTone,
+      icon: PackageCheck,
+      url: buildUrl(paths.production, { section: 'historial', ...periodParams }),
+    },
+    {
+      title: 'Descarte',
+      value: formatNumber(resumen.resumenProduccion.litrosDescartados, ' L'),
+      subtitle: `${formatNumber(resumen.resumenProduccion.porcentajeDescarte, '%')} sobre producción bruta.`,
+      tone: 'amber' as MetricTone,
+      icon: TrendingDown,
+      url: buildUrl(paths.production, { section: 'historial', descartadosMayorA: '0', ...periodParams }),
+    },
+    {
+      title: 'Lotes vencidos',
+      value: formatNumber(resumen.lotesVencidosPeriodo),
+      subtitle: 'Lotes de leche vencidos.',
+      tone: 'rose' as MetricTone,
+      icon: Truck,
+      url: buildUrl(paths.production, { section: 'lotesLeche', estado: 'VENCIDO', ...periodParams }),
+    },
+    {
+      title: 'Animales activos',
+      value: formatNumber(resumen.animalesActivos),
+      subtitle: 'Total general activo.',
+      tone: 'emerald' as MetricTone,
+      icon: Users,
+      url: buildUrl(paths.herd, { section: 'animales', estado: 'ACTIVO' }),
+    },
+    {
+      title: 'Stock bajo / agotado',
+      value: formatNumber(stockCritico),
+      subtitle: 'Insumos con stock crítico.',
+      tone: stockCritico > 0 ? 'amber' as MetricTone : 'emerald' as MetricTone,
       icon: Utensils,
-      tone: agotados.length > 0 ? 'rose' as const : stockBajo.length > 0 ? 'amber' as const : 'emerald' as const,
-      className: stockCardClass,
+      url: buildUrl(paths.feed, { section: 'stock', estadoStock: 'CRITICO' }),
     },
     {
       title: 'Tareas vencidas',
-      description: 'Agenda + sanidad vencida',
-      value: String(totalVencimientosCriticos),
+      value: formatNumber(resumen.tareasVencidas),
+      subtitle: 'Tareas vencidas del período.',
+      tone: resumen.tareasVencidas > 0 ? 'rose' as MetricTone : 'emerald' as MetricTone,
+      icon: AlertTriangle,
+      url: buildUrl(paths.agenda, { estado: 'VENCIDA', ...periodParams }),
+    },
+    {
+      title: 'Tareas pendientes',
+      value: formatNumber(resumen.tareasPendientes),
+      subtitle: 'Tareas pendientes del período.',
+      tone: 'indigo' as MetricTone,
       icon: ClipboardList,
-      tone: totalVencimientosCriticos > 0 ? 'rose' as const : 'emerald' as const,
+      url: buildUrl(paths.agenda, { estado: 'PENDIENTE', ...periodParams }),
     },
   ];
 
@@ -410,7 +344,7 @@ export function AdminDashboard({
       <section className="dashboard-period-toolbar">
         <div>
           <h2>Tablero gerencial</h2>
-          <p>Período: {formatDate(resumen.fechaDesde)} al {formatDate(resumen.fechaHasta)}</p>
+          <p>{periodText(periodo, resumen.fechaDesde, resumen.fechaHasta)}</p>
         </div>
         <div className="dashboard-period-controls">
           <div className="dashboard-period-selector" aria-label="Seleccionar período">
@@ -438,192 +372,25 @@ export function AdminDashboard({
       </section>
 
       <div className="dashboard-kpi-grid">
-        {kpis.map((metric) => (
-          <KpiCard key={metric.title} {...metric} />
+        {cards.map((card) => (
+          <DashboardKpiCard
+            key={card.title}
+            icon={card.icon}
+            title={card.title}
+            value={card.value}
+            subtitle={card.subtitle}
+            tone={card.tone}
+            onClick={() => navigate(card.url)}
+          />
         ))}
       </div>
 
       <section className="panel">
         <div className="dashboard-card-heading">
           <div>
-            <h2>Estado de gestión</h2>
-            <p>Resumen de estados críticos y operativos del tambo.</p>
+            <h2>Situación actual del rodeo</h2>
+            <p>Distribución general de animales registrada en PostgreSQL.</p>
           </div>
-        </div>
-        <div className="dashboard-alert-grid">
-          <ManagementStatusCard
-            action={resumen.tareasVencidas > 0 ? (
-              <button className="dashboard-alert-action" type="button" onClick={() => setActiveModal('tareas')}>Ver detalle</button>
-            ) : (
-              <Link className="dashboard-alert-action" to={paths.agenda}>Ver agenda</Link>
-            )}
-            detail={resumen.tareasVencidas > 0
-              ? `Hay ${resumen.tareasVencidas} tareas de agenda vencidas.`
-              : agendaProximas > 0
-                ? `Hay ${agendaProximas} tareas próximas.`
-                : 'Agenda al día.'}
-            icon={ClipboardList}
-            subtext={resumen.tareasVencidas > 0
-              ? 'Revisar agenda y resolver pendientes hoy.'
-              : agendaProximas > 0
-                ? 'Organizar los próximos trabajos de agenda.'
-                : 'No hay tareas vencidas.'}
-            title="AGENDA"
-            tone={resumen.tareasVencidas > 0 ? 'CRITICA' : agendaProximas > 0 ? 'MEDIA' : 'OK'}
-          />
-
-          <ManagementStatusCard
-            action={<button className="dashboard-alert-action" type="button" onClick={() => setActiveModal('stock')}>Ver detalle</button>}
-            detail={agotados.length > 0
-              ? `${agotados.length} insumos agotados.`
-              : stockBajo.length > 0
-                ? `${stockBajo.length} insumos bajo mínimo.`
-                : 'Stock sin alertas críticas.'}
-            icon={Utensils}
-            subtext={agotados.length > 0
-              ? 'Reponer alimento de forma urgente.'
-              : stockBajo.length > 0
-                ? 'Planificar reposición de alimento.'
-                : 'No hay alimentos bajo mínimo.'}
-            title="STOCK DE ALIMENTOS"
-            tone={agotados.length > 0 ? 'CRITICA' : stockBajo.length > 0 ? 'MEDIA' : 'OK'}
-          />
-
-          <ManagementStatusCard
-            action={resumenSanidad.controlesPendientes > 0 ? (
-              <button className="dashboard-alert-action" type="button" onClick={() => setActiveModal('sanidad')}>Ver detalle</button>
-            ) : (
-              <Link className="dashboard-alert-action" to={paths.vaccination}>Ver vacunación</Link>
-            )}
-            detail={resumenSanidad.tareasSanitariasVencidas > 0
-              ? `${resumenSanidad.tareasSanitariasVencidas} controles sanitarios vencidos.`
-              : resumenSanidad.tareasSanitariasProximas > 0
-                ? `${resumenSanidad.tareasSanitariasProximas} controles próximos a vencer.`
-                : 'Sanidad al día.'}
-            icon={AlertTriangle}
-            subtext={resumenSanidad.tareasSanitariasVencidas > 0
-              ? 'Revisar vacunación hoy.'
-              : resumenSanidad.tareasSanitariasProximas > 0
-                ? 'Programar controles sanitarios.'
-                : 'No hay controles sanitarios vencidos.'}
-            title="SANIDAD"
-            tone={resumenSanidad.tareasSanitariasVencidas > 0 ? 'CRITICA' : resumenSanidad.tareasSanitariasProximas > 0 ? 'MEDIA' : 'OK'}
-          />
-
-          <ManagementStatusCard
-            action={<button className="dashboard-alert-action" type="button" onClick={() => setActiveModal('leche')}>Ver detalle</button>}
-            detail={litrosVencidosLeche > 0
-              ? `${formatNumber(litrosVencidosLeche, ' L')} de leche vencida.`
-              : lotesProximosLeche > 0
-                ? `${lotesProximosLeche} lotes próximos a vencer.`
-                : 'Leche disponible sin vencimientos críticos.'}
-            icon={Truck}
-            subtext={litrosVencidosLeche > 0
-              ? 'Retirar de disponibilidad o revisar lote.'
-              : lotesProximosLeche > 0
-                ? 'Priorizar venta o control de calidad.'
-                : `${formatNumber(resumenLeche.litrosDisponibles, ' L')} disponibles para venta.`}
-            title="LECHE"
-            tone={litrosVencidosLeche > 0 ? 'CRITICA' : lotesProximosLeche > 0 ? 'MEDIA' : 'OK'}
-          />
-        </div>
-      </section>
-
-      <div className="dashboard-two-column">
-        <SectionCard title="Producción interpretada" description="Litros producidos por día dentro del período seleccionado.">
-          <div className="dashboard-detail-grid">
-            <span>Producción total <strong>{formatNumber(resumenProduccion.litrosProducidos, ' L')}</strong></span>
-            <span>Producción neta <strong>{formatNumber(resumenProduccion.litrosNetos, ' L')}</strong></span>
-            <span>Litros descartados <strong>{formatNumber(resumenProduccion.litrosDescartados, ' L')}</strong></span>
-            <span>Porcentaje de descarte <strong>{formatNumber(resumenProduccion.porcentajeDescarte, '%')}</strong></span>
-            <span>Ordeñes registrados <strong>{resumenProduccion.cantidadRegistros}</strong></span>
-            <span>Vacas con producción <strong>{resumenProduccion.animalesConProduccion}</strong></span>
-            <span>Promedio diario producido <strong>{formatNullable(resumenProduccion.promedioDiarioProducido, ' L')}</strong></span>
-            <span>Promedio por vaca <strong>{formatNullable(resumenProduccion.promedioLitrosPorAnimal, ' L')}</strong></span>
-            <span>Mayor producción del período <strong>{resumenProduccion.diaMayorProduccion ? `${resumenProduccion.diaMayorProduccion.etiqueta} - ${formatNumber(resumenProduccion.diaMayorProduccion.litrosProducidos, ' L')}` : 'Sin datos'}</strong></span>
-            <span>Tendencia <strong>{friendlyEnum(resumenProduccion.tendencia)}</strong></span>
-          </div>
-          <h3 className="dashboard-subtitle">Evolución diaria de producción</h3>
-          <p className="dashboard-section-note">Cada barra representa los litros producidos en esa fecha y turno dentro del período seleccionado.</p>
-          <SimpleBars emptyMessage="Sin datos registrados para este período." series={resumenProduccion.series} />
-          <p className="dashboard-conclusion">{trendText(resumenProduccion.tendencia)}</p>
-          <p className="dashboard-section-note">
-            Último lote generado: {resumenProduccion.ultimoLote?.codigo ?? 'Sin datos'}.
-          </p>
-        </SectionCard>
-
-        <SectionCard
-          title="Movimiento comercial del período"
-          description="Evolución de ventas y lectura comercial del período seleccionado."
-          action={<Link className="panel-chip" to={paths.sales}>Ver ventas</Link>}
-        >
-          <h3 className="dashboard-subtitle">Ventas por período</h3>
-          <ValueBars
-            emptyMessage="Sin ventas registradas para este período."
-            items={resumenVentas.series.map((item) => ({
-              label: item.etiqueta,
-              value: item.litrosVendidos,
-              detail: formatCurrency(item.facturacion),
-            }))}
-          />
-          <p className="dashboard-conclusion">{commercialReading}</p>
-          {commercialContext && <p className="dashboard-section-note">{commercialContext}</p>}
-          {resumenVentas.ultimaVenta ? (
-            <p className="dashboard-section-note">
-              Última venta:<br />
-              Fecha: {formatDate(resumenVentas.ultimaVenta.fecha)}<br />
-              Cliente: {resumenVentas.ultimaVenta.cliente}<br />
-              Litros: {formatNumber(resumenVentas.ultimaVenta.litros, ' L')}<br />
-              Total: {formatCurrency(resumenVentas.ultimaVenta.total)}
-            </p>
-          ) : (
-            <p className="table-empty">Sin ventas registradas para este período.</p>
-          )}
-          <p className="dashboard-conclusion">{commercialSuggestion}</p>
-        </SectionCard>
-      </div>
-
-      <SectionCard
-        title="Riesgo de vencimiento de leche"
-        description="Resumen de leche disponible según cercanía de vencimiento."
-        action={<Link className="panel-chip" to={paths.production}>Ver producción</Link>}
-      >
-        <div className="dashboard-risk-grid">
-          <span>Vencen en las próximas 48 hs <strong>{formatNumber(resumenLeche.riesgoVencimiento.vence48Horas.litros, ' L')} disponibles</strong><small>{resumenLeche.riesgoVencimiento.vence48Horas.lotes} lotes afectados</small></span>
-          <span>Vencen en los próximos 7 días <strong>{formatNumber(resumenLeche.riesgoVencimiento.vence7Dias.litros, ' L')} disponibles</strong><small>{resumenLeche.riesgoVencimiento.vence7Dias.lotes} lotes afectados</small></span>
-          <span>Sin vencimiento inmediato <strong>{formatNumber(resumenLeche.riesgoVencimiento.sinRiesgo.litros, ' L')} disponibles</strong><small>{resumenLeche.riesgoVencimiento.sinRiesgo.lotes} lotes afectados</small></span>
-        </div>
-        {resumenLeche.riesgoVencimiento.urgentes.length === 0 ? (
-          <p className="table-empty">No hay lotes con leche disponible en riesgo inmediato.</p>
-        ) : (
-          <div className="dashboard-urgent-list">
-            {resumenLeche.riesgoVencimiento.urgentes.map((lote) => (
-              <div className="dashboard-urgent-row" key={lote.id}>
-                <strong>Lote {lote.codigo}</strong>
-                <span>Vence: {formatDate(lote.fechaVencimiento)}</span>
-                <span>Disponible: {formatNumber(lote.litrosDisponibles, ' L')}</span>
-                <small>Acción sugerida: {lote.accionSugerida}</small>
-              </div>
-            ))}
-          </div>
-        )}
-        <p className="dashboard-conclusion">Priorizar la venta de los lotes con vencimiento más cercano.</p>
-        <Link className="secondary-button dashboard-inline-action" to={paths.sales}>Registrar venta</Link>
-      </SectionCard>
-
-      <section className="panel">
-        <div className="dashboard-card-heading">
-          <div>
-            <h2>Situación general del rodeo</h2>
-            <p>Indicadores compactos y distribución general del rodeo.</p>
-          </div>
-          <Link className="panel-chip" to={paths.herd}>Ver rodeo</Link>
-        </div>
-        <div className="dashboard-detail-grid dashboard-herd-summary">
-          <span>Animales activos <strong>{resumen.animalesActivos}</strong></span>
-          <span>Animales inactivos <strong>{resumen.animalesInactivos}</strong></span>
-          <span>Tactos pendientes <strong>{resumen.tactosPendientes}</strong></span>
-          <span>Partos pendientes <strong>{resumen.partosPendientes}</strong></span>
         </div>
         <div className="dashboard-rodeo-grid">
           <article className="dashboard-rodeo-panel">
@@ -640,155 +407,6 @@ export function AdminDashboard({
           </article>
         </div>
       </section>
-
-      {activeModal && (
-        <div className="modal-backdrop" role="presentation" onClick={() => setActiveModal(null)}>
-          <section className="modal-panel admin-dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="admin-dashboard-modal-title" onClick={(event) => event.stopPropagation()}>
-            <div className="dashboard-card-heading">
-              <div>
-                <h2 id="admin-dashboard-modal-title">
-                  {activeModal === 'stock'
-                    ? 'Stock de alimentos'
-                    : activeModal === 'tareas'
-                      ? 'Agenda pendiente'
-                      : activeModal === 'sanidad'
-                        ? 'Controles sanitarios'
-                        : 'Leche disponible y vencimientos'}
-                </h2>
-                <p>Detalle para seguimiento y acción desde el módulo correspondiente.</p>
-              </div>
-              <button type="button" className="icon-button" onClick={() => setActiveModal(null)} aria-label="Cerrar modal">
-                X
-              </button>
-            </div>
-
-            {activeModal === 'stock' && (
-              <div className="admin-modal-sections">
-                <section>
-                  <h3>Alimentos bajo mínimo</h3>
-                  {stockBajo.length === 0 ? (
-                    <p className="table-empty">No hay alimentos bajo mínimo.</p>
-                  ) : (
-                    <div className="dashboard-urgent-list">
-                      {stockBajo.map((insumo) => (
-                        <div className="dashboard-urgent-row" key={insumo.id}>
-                          <strong>{insumo.alimento}</strong>
-                          <span>Stock actual: {formatNumber(insumo.stockActual)} {insumo.unidad}</span>
-                          <span>Punto mínimo: {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
-                          <span className="badge badge-warning">Bajo</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-                <section>
-                  <h3>Alimentos agotados</h3>
-                  {agotados.length === 0 ? (
-                    <p className="table-empty">No hay alimentos agotados.</p>
-                  ) : (
-                    <div className="dashboard-urgent-list">
-                      {agotados.map((insumo) => (
-                        <div className="dashboard-urgent-row" key={insumo.id}>
-                          <strong>{insumo.alimento}</strong>
-                          <span>Stock actual: {formatNumber(insumo.stockActual)} {insumo.unidad}</span>
-                          <span>Punto mínimo: {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
-                          <span className="badge badge-critical">Agotado</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-                <Link className="secondary-button dashboard-inline-action" to={paths.feed}>Ver alimentación</Link>
-              </div>
-            )}
-
-            {activeModal === 'tareas' && (
-              agendaDetalle.length === 0 ? (
-                <p className="table-empty">No hay tareas de agenda pendientes.</p>
-              ) : (
-                <div className="dashboard-urgent-list">
-                  {agendaDetalle.map((tarea) => (
-                    <div className="dashboard-urgent-row" key={tarea.id}>
-                      <strong>{friendlyEnum(tarea.tipoTarea)}</strong>
-                      <span>{tarea.animal ? `Animal #${tarea.animal.caravana}` : 'Sin animal'}</span>
-                      <span>{tarea.animal?.lote?.nombre ?? tarea.lote?.nombre ?? 'Sin lote'}</span>
-                      <small>Fecha: {formatDate(tarea.fechaProyectada)} | Estado: {friendlyEnum(tarea.estado)}</small>
-                      <Link className="secondary-button" to={paths.agenda}>Ver agenda</Link>
-                    </div>
-                  ))}
-                </div>
-              )
-            )}
-
-            {activeModal === 'sanidad' && (
-              resumenSanidad.tareas.length === 0 ? (
-                <p className="table-empty">No hay controles sanitarios pendientes.</p>
-              ) : (
-                <div className="dashboard-urgent-list">
-                  {resumenSanidad.tareas.map((tarea) => (
-                    <div className="dashboard-urgent-row" key={tarea.id}>
-                      <strong>{friendlyEnum(tarea.tipo)}</strong>
-                      <span>{friendlyEnum(tarea.lote ?? tarea.categoria ?? tarea.alcance)}</span>
-                      <span>Vence: {formatDate(tarea.fechaObjetivo)}</span>
-                      <span className={`badge ${tarea.estado === 'VENCIDA' ? 'badge-critical' : 'badge-warning'}`}>{friendlyEnum(tarea.estado)}</span>
-                      <Link className="secondary-button" to={paths.vaccination}>Ver vacunación</Link>
-                    </div>
-                  ))}
-                </div>
-              )
-            )}
-
-            {activeModal === 'leche' && (
-              <div className="admin-modal-sections">
-                <section>
-                  <h3>Lotes vencidos</h3>
-                  {resumenLeche.vencida.lotesDetalle.length === 0 ? (
-                    <p className="table-empty">No hay leche vencida con litros disponibles.</p>
-                  ) : (
-                    <div className="dashboard-urgent-list">
-                      {resumenLeche.vencida.lotesDetalle.map((lote) => (
-                        <div className="dashboard-urgent-row" key={lote.id}>
-                          <strong>Lote {lote.codigo}</strong>
-                          <span>Venció: {formatDate(lote.fechaVencimiento)}</span>
-                          <span>Disponible: {formatNumber(lote.litrosDisponibles, ' L')}</span>
-                          <small>Acción sugerida: {lote.accionSugerida}</small>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-                <section>
-                  <h3>Lotes próximos a vencer</h3>
-                  {resumenLeche.riesgoVencimiento.urgentes.length === 0 ? (
-                    <p className="table-empty">No hay lotes próximos a vencer.</p>
-                  ) : (
-                    <div className="dashboard-urgent-list">
-                      {resumenLeche.riesgoVencimiento.urgentes.map((lote) => (
-                        <div className="dashboard-urgent-row" key={lote.id}>
-                          <strong>Lote {lote.codigo}</strong>
-                          <span>Vence: {formatDate(lote.fechaVencimiento)}</span>
-                          <span>Disponible: {formatNumber(lote.litrosDisponibles, ' L')}</span>
-                          <small>Acción sugerida: {lote.accionSugerida}</small>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </section>
-                <div className="dashboard-detail-grid">
-                  <span>Lotes vencidos <strong>{lotesVencidosLeche}</strong></span>
-                  <span>Litros vencidos <strong>{formatNumber(litrosVencidosLeche, ' L')}</strong></span>
-                  <span>Lotes próximos <strong>{lotesProximosLeche}</strong></span>
-                  <span>Leche disponible <strong>{formatNumber(resumenLeche.litrosDisponibles, ' L')}</strong></span>
-                </div>
-                <div className="dashboard-modal-actions">
-                  <Link className="secondary-button dashboard-inline-action" to={paths.production}>Ver producción</Link>
-                  <Link className="secondary-button dashboard-inline-action" to={paths.sales}>Registrar venta</Link>
-                </div>
-              </div>
-            )}
-          </section>
-        </div>
-      )}
     </>
   );
 }

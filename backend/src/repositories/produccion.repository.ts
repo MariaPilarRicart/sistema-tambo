@@ -60,10 +60,13 @@ export interface ProduccionFilters {
   loteId?: number;
   loteLecheId?: number;
   turno?: TurnoOrdene;
+  descartadosMayorA?: number;
+  activo?: boolean;
 }
 
 function buildWhere(filters: ProduccionFilters): Prisma.ProduccionAnimalWhereInput {
   return {
+    activo: filters.activo,
     fechaHora:
       filters.fechaDesde || filters.fechaHasta
         ? {
@@ -73,6 +76,7 @@ function buildWhere(filters: ProduccionFilters): Prisma.ProduccionAnimalWhereInp
         : undefined,
     animalId: filters.animalId,
     loteLecheId: filters.loteLecheId,
+    litrosDescartados: filters.descartadosMayorA !== undefined ? { gt: filters.descartadosMayorA } : undefined,
     turno: filters.turno,
     animal: filters.loteId ? { loteId: filters.loteId } : undefined,
   };
@@ -82,7 +86,7 @@ async function recalculateLoteLecheTotals(tx: Prisma.TransactionClient, loteLech
   const [loteLeche, totals] = await Promise.all([
     tx.loteLeche.findUnique({ where: { id: loteLecheId }, select: { litrosDescartados: true } }),
     tx.produccionAnimal.aggregate({
-      where: { loteLecheId },
+      where: { loteLecheId, activo: true },
       _sum: {
         litrosProducidos: true,
       },
@@ -124,15 +128,16 @@ export async function createProduccionAnimal(data: {
   });
 }
 
-export async function deleteProduccionAnimal(id: number) {
+export async function deactivateProduccionAnimal(id: number) {
   return prisma.$transaction(async (tx) => {
-    const deleted = await tx.produccionAnimal.delete({
+    const deactivated = await tx.produccionAnimal.update({
       where: { id },
+      data: { activo: false },
       include: produccionAnimalInclude,
     });
 
-    await recalculateLoteLecheTotals(tx, deleted.loteLecheId);
-    return deleted;
+    await recalculateLoteLecheTotals(tx, deactivated.loteLecheId);
+    return deactivated;
   });
 }
 
@@ -197,6 +202,7 @@ export function findLoteLecheWithProducciones(id: number) {
     where: { id },
     include: {
       producciones: {
+        where: { activo: true },
         include: produccionAnimalInclude,
         orderBy: [{ fechaHora: 'asc' }, { id: 'asc' }],
       },
@@ -216,7 +222,7 @@ export function findLoteLecheWithProducciones(id: number) {
 
 export function findLotesLeche() {
   return prisma.loteLeche.findMany({
-    orderBy: [{ fechaProduccion: 'desc' }, { id: 'desc' }],
+    orderBy: [{ estado: 'asc' }, { fechaProduccion: 'desc' }, { id: 'desc' }],
     include: {
       ventaDetalles: {
         select: {
@@ -244,15 +250,16 @@ export function updateLoteLeche(id: number, data: Prisma.LoteLecheUpdateInput) {
   });
 }
 
-export function deleteLoteLeche(id: number) {
-  return prisma.loteLeche.delete({
+export function deactivateLoteLeche(id: number) {
+  return prisma.loteLeche.update({
     where: { id },
+    data: { estado: 'INACTIVO' },
   });
 }
 
 export function countProduccionesByLoteLeche(loteLecheId: number) {
   return prisma.produccionAnimal.count({
-    where: { loteLecheId },
+    where: { loteLecheId, activo: true },
   });
 }
 

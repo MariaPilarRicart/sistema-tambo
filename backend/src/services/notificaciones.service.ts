@@ -72,7 +72,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
   const today = todayStart();
   const nextSevenDays = addDays(today, 7);
 
-  const [vaccinationSummary, stockAgotado, stockBajo, partosProximos, lotesLecheVencidos] = await Promise.all([
+  const [vaccinationSummary, stockAgotado, stockBajo, agendaVencidas, partosProximos, lotesLecheVencidos] = await Promise.all([
     getVaccinationSummary(),
     prisma.insumoAlimentacion.count({
       where: {
@@ -89,6 +89,16 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
     }),
     prisma.agendaTarea.count({
       where: {
+        estado: EstadoTarea.PENDIENTE,
+        tipoSanitario: null,
+        OR: [
+          { fechaObjetivo: { lt: today } },
+          { fechaObjetivo: null, fechaProgramada: { lt: today } },
+        ],
+      },
+    }),
+    prisma.agendaTarea.count({
+      where: {
         tipo: TipoTarea.PARTO,
         estado: EstadoTarea.PENDIENTE,
         animal: {
@@ -96,10 +106,10 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
           estadoAnimal: EstadoAnimal.ACTIVO,
         },
         OR: [
-          { fechaObjetivo: { gte: today, lte: nextSevenDays } },
+          { fechaObjetivo: { gt: today, lte: nextSevenDays } },
           {
             fechaObjetivo: null,
-            fechaProgramada: { gte: today, lte: nextSevenDays },
+            fechaProgramada: { gt: today, lte: nextSevenDays },
           },
         ],
       },
@@ -137,6 +147,18 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
     ));
   }
 
+  if (agendaVencidas > 0) {
+    notifications.push(notification(
+      'agenda-vencida',
+      agendaVencidas,
+      'Tareas vencidas',
+      `Hay ${agendaVencidas} tareas de agenda vencidas.`,
+      'ALTA',
+      3,
+      '/agenda?estado=VENCIDA',
+    ));
+  }
+
   if (partosProximos > 0) {
     notifications.push(notification(
       'partos-proximos',
@@ -144,7 +166,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       'Parto próximo',
       `Hay ${partosProximos} partos próximos.`,
       'MEDIA',
-      3,
+      4,
       '/agenda?tipo=PARTO',
     ));
   }
@@ -156,7 +178,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       'Lotes de leche vencidos',
       `Hay ${lotesLecheVencidos} lotes de leche vencidos.`,
       'ALTA',
-      4,
+      5,
       '/produccion?section=lotesLeche&estado=VENCIDO',
     ));
   }
@@ -168,7 +190,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       'Stock bajo',
       `Hay ${stockBajo} insumos con stock bajo.`,
       'MEDIA',
-      5,
+      6,
       '/alimentacion?section=stock&estadoStock=BAJO',
     ));
   }
@@ -180,7 +202,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       'Vacunas pendientes',
       `Tenés ${vaccinationSummary.pendientes} vacunaciones pendientes.`,
       'BAJA',
-      6,
+      7,
       '/vacunacion?section=pendientes&estado=PENDIENTE',
     ));
   }

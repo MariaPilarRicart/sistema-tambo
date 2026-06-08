@@ -16,6 +16,7 @@ import { AlimentosStockPanel } from '../components/ui/AlimentosStockPanel';
 import { ReglasAlimentacionPanel } from '../components/ui/ReglasAlimentacionPanel';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { useScrollToSection } from '../hooks/useScrollToSection';
+import { formatDate } from '../utils/display';
 import type {
   AlimentacionResumen,
   Alimento,
@@ -39,10 +40,6 @@ type DetalleForm = SugerenciaAlimentacion['detalles'][number] & {
 
 const today = new Date().toISOString().slice(0, 10);
 const movimientoOptions = ['TODOS', 'ENTRADA', 'BAJA', 'CONSUMO', 'MODIFICACION'] as const;
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString();
-}
 
 function formatNumber(value: number | null | undefined) {
   if (value === null || value === undefined) return '-';
@@ -123,6 +120,16 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
+
+  useEffect(() => {
+    if (searchParams.get('section') !== 'historial') return;
+    setHistFilters((current) => ({
+      ...current,
+      fechaDesde: searchParams.get('fechaDesde') ?? current.fechaDesde,
+      fechaHasta: searchParams.get('fechaHasta') ?? current.fechaHasta,
+      usuarioId: searchParams.get('usuarioId') === 'me' ? String(currentUser?.id ?? '') : searchParams.get('usuarioId') ?? current.usuarioId,
+    }));
+  }, [currentUser?.id, searchParams]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadData(), 250);
@@ -314,7 +321,15 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
         onUnauthorized={onUnauthorized}
         onChanged={() => loadData()}
         isAdmin={isAdmin}
-        initialStockFilter={searchParams.get('estadoStock') === 'AGOTADO' ? 'AGOTADO' : searchParams.get('estadoStock') === 'BAJO' ? 'BAJO' : ''}
+        initialStockFilter={
+          searchParams.get('estadoStock') === 'CRITICO'
+            ? 'CRITICO'
+            : searchParams.get('estadoStock') === 'AGOTADO'
+              ? 'AGOTADO'
+              : searchParams.get('estadoStock') === 'BAJO'
+                ? 'BAJO'
+                : ''
+        }
       />
 
       {isAdmin && <section className="panel" id="movimientos-stock-section">

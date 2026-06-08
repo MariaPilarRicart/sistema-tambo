@@ -66,7 +66,7 @@ export function AgendaTaskActions({
   const [isSaving, setIsSaving] = useState(false);
 
   const isAdmin = currentUser?.role === 'ADMIN';
-  const canAct = task.estado === 'PENDIENTE';
+  const canAct = task.estadoCalculado === 'PENDIENTE';
 
   function handleRequestError(requestError: unknown, fallback: string) {
     if (requestError instanceof ApiError && requestError.statusCode === 401) {

@@ -3,21 +3,12 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCcw } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { getAnimalFicha } from '../services/animalesService';
+import { formatDate, formatDateTime, statusClass } from '../utils/display';
 import type { AnimalFicha } from '../types/animales';
 
 interface AnimalFichaPageProps {
   authToken: string | null;
   onUnauthorized: () => void;
-}
-
-function formatDate(value: string | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleDateString();
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) return '-';
-  return new Date(value).toLocaleString();
 }
 
 function InfoItem({ label, value }: { label: string; value: string | number | null | undefined }) {
@@ -229,7 +220,7 @@ export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPagePr
                     <tr key={tarea.id}>
                       <td>{formatDate(tarea.fechaProgramada)}</td>
                       <td>{tarea.tipo}</td>
-                      <td><span className={`status-pill ${tarea.estado === 'PENDIENTE' ? 'status-active' : 'status-inactive'}`}>{tarea.estado}</span></td>
+                      <td><span className={`status-pill ${statusClass(tarea.estadoCalculado)}`}>{tarea.estadoCalculado}</span></td>
                       <td>{tarea.descripcion || '-'}</td>
                     </tr>
                   ))}

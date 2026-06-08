@@ -86,7 +86,7 @@ const emptyAnimalForm: AnimalFormValues = {
 
 const emptyEventoForm: EventoFormValues = {
   tipo: 'CELO',
-  fecha: new Date().toISOString().slice(0, 10),
+  fecha: localDateInput(new Date()),
   observaciones: '',
   resultadoTacto: 'POSITIVO',
 };
@@ -95,6 +95,14 @@ const emptyDeactivateForm: AnimalDeactivateValues = {
   estadoAnimal: 'VENDIDO',
   observacionesBaja: '',
 };
+
+function localDateInput(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 interface HerdPageProps {
   authToken: string | null;
@@ -125,6 +133,16 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
   const isAdmin = currentUser?.role === 'ADMIN';
   const canCreateAnimal = currentUser?.role === 'ADMIN' || currentUser?.role === 'EMPLEADO';
   const activeLotes = useMemo(() => lotes.filter((lote) => lote.activo), [lotes]);
+  const visibleAnimales = useMemo(() => {
+    const fechaNacimientoDesde = searchParams.get('fechaNacimientoDesde');
+    const fechaNacimientoHasta = searchParams.get('fechaNacimientoHasta');
+    return animales.filter((animal) => {
+      const fechaNacimiento = localDateInput(animal.fechaNacimiento);
+      if (fechaNacimientoDesde && fechaNacimiento < fechaNacimientoDesde) return false;
+      if (fechaNacimientoHasta && fechaNacimiento > fechaNacimientoHasta) return false;
+      return true;
+    });
+  }, [animales, searchParams]);
 
   function handleRequestError(requestError: unknown) {
     if (requestError instanceof ApiError && requestError.statusCode === 401) {
@@ -165,6 +183,22 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
+  useEffect(() => {
+    if (searchParams.get('section') !== 'animales') return;
+
+    const estado = searchParams.get('estado');
+    const nextFilters = {
+      ...emptyFilters,
+      categoriaAnimal: searchParams.get('categoriaAnimal') ?? '',
+      estadoReproductivo: searchParams.get('estadoReproductivo') ?? '',
+      estadoAnimal: searchParams.get('estadoAnimal') ?? (estado === 'ACTIVO' ? 'ACTIVO' : ''),
+      activo: estado === 'ACTIVO' ? 'true' : searchParams.get('activo') ?? '',
+    };
+
+    setFilters(nextFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   function resetForm() {
     setEditingAnimal(null);
     setFormValues(emptyAnimalForm);
@@ -187,7 +221,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
     setFormValues({
       caravana: animal.caravana,
       nombre: animal.nombre ?? '',
-      fechaNacimiento: animal.fechaNacimiento.slice(0, 10),
+      fechaNacimiento: localDateInput(animal.fechaNacimiento),
       raza: animal.raza ?? '',
       categoriaAnimal: animal.categoriaAnimal,
       estadoReproductivo: animal.estadoReproductivo,
@@ -203,7 +237,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
 
   function startRegisteringEvent(animal: Animal) {
     setEventAnimal(animal);
-    setEventFormValues({ ...emptyEventoForm, fecha: new Date().toISOString().slice(0, 10) });
+    setEventFormValues({ ...emptyEventoForm, fecha: localDateInput(new Date()) });
     setError('');
     setSuccess('');
   }
@@ -370,7 +404,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
       : searchParams.get('section') === 'animales'
         ? 'animales-section'
         : null,
-    [searchParams, animales.length, lotes.length],
+    [searchParams, visibleAnimales.length, lotes.length],
   );
 
   return (
@@ -398,7 +432,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
           <div className="panel-header">
             <div>
               <h2>Animales</h2>
-              <p>{animales.length} de {allAnimales.length} animales registrados.</p>
+              <p>{visibleAnimales.length} de {allAnimales.length} animales registrados.</p>
             </div>
             <div className="header-actions">
               {canCreateAnimal && (
@@ -459,7 +493,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                   </tr>
                 </thead>
                 <tbody>
-                  {animales.map((animal) => (
+                  {visibleAnimales.map((animal) => (
                     <tr key={animal.id}>
                       <td className="animal-identity-cell">
                         <Link

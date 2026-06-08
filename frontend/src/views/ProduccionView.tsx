@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { BarChart3, Droplets, Edit2, Milk, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
+import { BarChart3, Droplets, Edit2, Milk, Plus, RefreshCcw, RotateCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { useScrollToSection } from '../hooks/useScrollToSection';
+import { statusClass } from '../utils/display';
 import { getAnimales } from '../services/animalesService';
 import { getLotes } from '../services/lotesService';
 import {
@@ -123,6 +124,7 @@ const estadoLoteLecheLabels: Record<EstadoLoteLeche, string> = {
   DISPONIBLE: 'Disponible',
   VENDIDO: 'Vendido',
   VENCIDO: 'Vencido',
+  INACTIVO: 'Inactivo',
 };
 
 const categoriaLabels: Record<CategoriaAnimal, string> = {
@@ -156,6 +158,10 @@ interface ProduccionViewProps {
   authToken: string | null;
   currentUser: AuthUser | null;
   onUnauthorized: () => void;
+}
+
+interface PendingDeleteConfirmation {
+  onConfirm: () => Promise<void>;
 }
 
 function formatDateTime(value: string) {
@@ -239,11 +245,20 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingDeleteConfirmation, setPendingDeleteConfirmation] = useState<PendingDeleteConfirmation | null>(null);
 
   useEffect(() => {
     const estadoLoteLeche = searchParams.get('estadoLoteLeche') ?? searchParams.get('estado');
-    if (estadoLoteLeche === 'DISPONIBLE' || estadoLoteLeche === 'VENDIDO' || estadoLoteLeche === 'VENCIDO') {
+    if (estadoLoteLeche === 'DISPONIBLE' || estadoLoteLeche === 'VENDIDO' || estadoLoteLeche === 'VENCIDO' || estadoLoteLeche === 'INACTIVO') {
       setLoteLecheFilters((current) => ({ ...current, estado: estadoLoteLeche }));
+    }
+    if (searchParams.get('section') === 'historial') {
+      setFilters((current) => ({
+        ...current,
+        fechaDesde: searchParams.get('fechaDesde') ?? current.fechaDesde,
+        fechaHasta: searchParams.get('fechaHasta') ?? current.fechaHasta,
+        descartadosMayorA: searchParams.get('descartadosMayorA') ?? current.descartadosMayorA,
+      }));
     }
   }, [searchParams]);
 
@@ -270,10 +285,24 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         !loteLecheFilters.calidad ||
         (loteLecheFilters.calidad === 'CON_DATOS' && hasQualityData) ||
         (loteLecheFilters.calidad === 'SIN_DATOS' && !hasQualityData);
+      const fechaDesde = searchParams.get('fechaDesde');
+      const fechaHasta = searchParams.get('fechaHasta');
+      const fechaVencimiento = lote.fechaVencimiento.slice(0, 10);
+      const fechaMatch =
+        searchParams.get('section') !== 'lotesLeche' ||
+        ((!fechaDesde || fechaVencimiento >= fechaDesde) && (!fechaHasta || fechaVencimiento <= fechaHasta));
 
-      return searchMatch && estadoMatch && disponibilidadMatch && calidadMatch;
+      return searchMatch && estadoMatch && disponibilidadMatch && calidadMatch && fechaMatch;
+    }).sort((left, right) => {
+      const leftInactive = left.estado === 'INACTIVO' ? 1 : 0;
+      const rightInactive = right.estado === 'INACTIVO' ? 1 : 0;
+      if (leftInactive !== rightInactive) return leftInactive - rightInactive;
+      const leftSold = left.estado === 'VENDIDO' ? 1 : 0;
+      const rightSold = right.estado === 'VENDIDO' ? 1 : 0;
+      if (leftSold !== rightSold) return leftSold - rightSold;
+      return new Date(right.fechaProduccion).getTime() - new Date(left.fechaProduccion).getTime();
     });
-  }, [loteLecheFilters, lotesLeche]);
+  }, [loteLecheFilters, lotesLeche, searchParams]);
   const selectedLoteAnimals = useMemo(
     () =>
       animales.filter(
@@ -447,36 +476,71 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
     setLoteLecheFilters(emptyLoteLecheFilters);
   }
 
-  async function handleDeleteRegistro(registro: ProduccionAnimal) {
+  function handleDeleteRegistro(registro: ProduccionAnimal) {
     if (!authToken) return onUnauthorized();
-    setIsSaving(true);
-    setError('');
-    setSuccess('');
+    setPendingDeleteConfirmation({
+      onConfirm: async () => {
+        setIsSaving(true);
+        setError('');
+        setSuccess('');
 
-    try {
-      await deleteProduccion(authToken, registro.id);
-      setSuccess('Registro eliminado correctamente.');
-      await loadData();
-    } catch (deleteError) {
-      handleRequestError(deleteError, 'No se pudo eliminar el registro.');
-    } finally {
-      setIsSaving(false);
-    }
+        try {
+          await deleteProduccion(authToken, registro.id);
+          setSuccess('Registro dado de baja correctamente.');
+          await loadData();
+          await refreshActiveStats();
+        } catch (deleteError) {
+          handleRequestError(deleteError, 'No se pudo dar de baja el registro.');
+        } finally {
+          setIsSaving(false);
+        }
+      },
+    });
   }
 
-  async function handleDeleteLoteLeche(loteLeche: LoteLeche) {
+  function handleDeleteLoteLeche(loteLeche: LoteLeche) {
+    if (!authToken) return onUnauthorized();
+    setPendingDeleteConfirmation({
+      onConfirm: async () => {
+        setIsSaving(true);
+        setError('');
+        setSuccess('');
+
+        try {
+          await deleteLoteLeche(authToken, loteLeche.id);
+          setSuccess('Lote de leche dado de baja correctamente.');
+          await loadData();
+          await refreshNextCode();
+          if (statsLoteLecheId === String(loteLeche.id)) await loadLoteLecheStats(String(loteLeche.id));
+        } catch (deleteError) {
+          handleRequestError(deleteError, 'No se pudo dar de baja el lote de leche.');
+        } finally {
+          setIsSaving(false);
+        }
+      },
+    });
+  }
+
+  async function confirmPendingDelete() {
+    if (!pendingDeleteConfirmation) return;
+    const action = pendingDeleteConfirmation.onConfirm;
+    setPendingDeleteConfirmation(null);
+    await action();
+  }
+  async function handleReactivateLoteLeche(loteLeche: LoteLeche) {
     if (!authToken) return onUnauthorized();
     setIsSaving(true);
     setError('');
     setSuccess('');
 
     try {
-      await deleteLoteLeche(authToken, loteLeche.id);
-      setSuccess('Lote de leche eliminado correctamente.');
+      const values = { ...loteLecheToEditValues(loteLeche), estado: 'DISPONIBLE' as EstadoLoteLeche };
+      const updated = await updateLoteLeche(authToken, loteLeche.id, values);
+      setSuccess(`Lote ${updated.codigo} reactivado correctamente.`);
       await loadData();
-      await refreshNextCode();
-    } catch (deleteError) {
-      handleRequestError(deleteError, 'No se pudo eliminar el lote de leche.');
+      if (statsLoteLecheId === String(updated.id)) await loadLoteLecheStats(String(updated.id));
+    } catch (reactivateError) {
+      handleRequestError(reactivateError, 'No se pudo reactivar el lote de leche.');
     } finally {
       setIsSaving(false);
     }
@@ -609,6 +673,30 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
+      {pendingDeleteConfirmation && (
+        <div className="modal-backdrop">
+          <section className="panel modal-panel animal-form-modal">
+            <div className="panel-header">
+              <div>
+                <h2>Dar de baja registro</h2>
+                <p>¿Seguro que querés dar de baja este registro?</p>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setPendingDeleteConfirmation(null)} aria-label="Cerrar confirmación">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-actions animal-form-actions">
+              <button type="button" className="secondary-button" onClick={() => setPendingDeleteConfirmation(null)} disabled={isSaving}>
+                Cancelar
+              </button>
+              <button type="button" className="primary-button" onClick={() => void confirmPendingDelete()} disabled={isSaving}>
+                Confirmar
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       <div className="operative-summary-grid production-summary-grid">
         <article className="metric-card operative-card">
           <div className="metric-icon metric-icon-emerald"><Milk size={20} /></div>
@@ -673,9 +761,9 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
             <thead><tr><th>Código</th><th>Estado</th><th>Fechas</th><th>Disponibilidad</th><th>Calidad</th><th>Acciones</th></tr></thead>
             <tbody>
               {visibleLotesLeche.map((loteLeche) => (
-                <tr key={loteLeche.id}>
+                <tr key={loteLeche.id} className={loteLeche.estado === 'INACTIVO' ? 'stock-inactive-row' : undefined}>
                   <td><strong>{loteLeche.codigo}</strong><span>{loteLeche.descripcion || '-'}</span></td>
-                  <td><span className={`status-pill ${loteLeche.estado === 'DISPONIBLE' ? 'status-active' : 'status-inactive'}`}>{estadoLoteLecheLabels[loteLeche.estado]}</span></td>
+                  <td><span className={`status-pill ${statusClass(loteLeche.estado)}`}>{estadoLoteLecheLabels[loteLeche.estado]}</span></td>
                   <td><strong>{formatDate(loteLeche.fechaProduccion)}</strong><span>Vence {formatDate(loteLeche.fechaVencimiento)}</span></td>
                   <td><strong>{formatLiters(loteLeche.litrosDisponibles ?? loteLeche.litrosNetos)}</strong><span>Neto {formatLiters(loteLeche.litrosNetos)} / Vendido {formatLiters(loteLeche.litrosVendidos ?? 0)}</span></td>
                   <td><strong>Prot. {formatNumber(loteLeche.proteina, '%')}</strong><span>RB {formatNumber(loteLeche.recuentoBacteriano)} / Temp. {formatNumber(loteLeche.temperatura, ' °C')}</span></td>
@@ -683,7 +771,11 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                     {isAdmin && (
                       <div className="table-actions">
                         <button type="button" onClick={() => openEditLoteLeche(loteLeche)} aria-label="Editar lote de leche"><Edit2 size={16} /></button>
-                        <button type="button" onClick={() => void handleDeleteLoteLeche(loteLeche)} aria-label="Eliminar lote de leche"><Trash2 size={16} /></button>
+                        {loteLeche.estado === 'INACTIVO' ? (
+                          <button type="button" onClick={() => void handleReactivateLoteLeche(loteLeche)} aria-label="Reactivar lote de leche"><RotateCcw size={16} /></button>
+                        ) : (
+                          <button type="button" onClick={() => void handleDeleteLoteLeche(loteLeche)} aria-label="Dar de baja lote de leche"><Trash2 size={16} /></button>
+                        )}
                       </div>
                     )}
                   </td>
@@ -718,7 +810,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
               <thead><tr><th>Fecha y hora</th><th>Caravana</th><th>Lote</th><th>Lote de leche</th><th>Turno</th><th>Producidos</th><th>Descartados</th><th>Netos</th><th>Motivo</th><th>Usuario</th><th>Acciones</th></tr></thead>
               <tbody>
                 {registros.map((registro) => (
-                  <tr key={registro.id}>
+                  <tr key={registro.id} className={!registro.activo ? 'stock-inactive-row' : undefined}>
                     <td>{formatDateTime(registro.fechaHora)}</td>
                     <td><strong>{registro.animal.caravana}</strong><span>{categoriaLabels[registro.animal.categoriaAnimal]}</span></td>
                     <td>{registro.animal.lote.nombre}</td>
@@ -729,7 +821,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                     <td><strong>{formatLiters(netLiters(registro))}</strong></td>
                     <td>{registro.motivoDescarte ? motivoLabels[registro.motivoDescarte] : '-'}</td>
                     <td>{registro.usuario?.nombre ?? '-'}</td>
-                    <td>{isAdmin && <button type="button" className="icon-button" onClick={() => void handleDeleteRegistro(registro)} aria-label="Eliminar registro"><Trash2 size={16} /></button>}</td>
+                    <td>{isAdmin && registro.activo && <button type="button" className="icon-button" onClick={() => void handleDeleteRegistro(registro)} aria-label="Dar de baja registro"><Trash2 size={16} /></button>}</td>
                   </tr>
                 ))}
                 {registros.length === 0 && <tr><td colSpan={11}>Sin registros de producción.</td></tr>}

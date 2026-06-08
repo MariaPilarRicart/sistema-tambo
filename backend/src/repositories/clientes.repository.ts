@@ -14,10 +14,14 @@ const clienteSelect = {
   updatedAt: true,
 } satisfies Prisma.ClienteSelect;
 
-export function findClientes(search?: string, activo?: boolean) {
+export function findClientes(search?: string, activo?: boolean, fechaDesde?: Date, fechaHasta?: Date) {
   return prisma.cliente.findMany({
     where: {
       activo,
+      fechaAlta: {
+        gte: fechaDesde,
+        lte: fechaHasta,
+      },
       OR: search
         ? [
             { cuit: { contains: search, mode: 'insensitive' } },

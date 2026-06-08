@@ -11,6 +11,7 @@ import {
   getRodeoSummaryCounts,
   updateAnimal,
 } from '../repositories/animales.repository';
+import { withEstadoCalculado } from './tareas-state.service';
 
 const CARAVANA_EXISTS_MESSAGE = 'No puede agregar dos animales con el mismo número de caravana';
 const ESTADOS_BAJA: EstadoAnimal[] = [
@@ -79,7 +80,8 @@ function parseDate(value: unknown) {
     throw new AppError('Fecha de nacimiento es obligatoria.', 400);
   }
 
-  const date = new Date(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 9, 0, 0, 0) : new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     throw new AppError('Fecha de nacimiento invalida.', 400);
@@ -160,7 +162,10 @@ export async function getAnimalFicha(idParam: string) {
     throw new AppError('Animal no encontrado.', 404);
   }
 
-  return animal;
+  return {
+    ...animal,
+    tareas: animal.tareas.map((tarea) => withEstadoCalculado(tarea)),
+  };
 }
 
 export async function createNewAnimal(input: Record<string, unknown>) {

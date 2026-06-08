@@ -8,6 +8,7 @@ import { ApiError } from '../services/apiClient';
 import { getAnimales } from '../services/animalesService';
 import { getLotes } from '../services/lotesService';
 import { getReglasSanitarias, type ReglaSanitaria } from '../services/reglasSanitariasService';
+import { compareByDateStatusName, formatDate, statusClass } from '../utils/display';
 import {
   getVaccinationHistory,
   getVaccinationSummary,
@@ -70,10 +71,6 @@ interface VaccinationPageProps {
   onUnauthorized: () => void;
 }
 
-function formatDate(value: string | null | undefined) {
-  return value ? new Date(value).toLocaleDateString('es-AR') : '-';
-}
-
 function formatTipoSanitario(value: string | null | undefined) {
   if (!value) return '-';
   const labels: Record<string, string> = {
@@ -110,13 +107,6 @@ function formatCategoria(value: CategoriaAnimal | null | undefined) {
     BAJA: 'Baja',
   };
   return labels[value] ?? value.replaceAll('_', ' ');
-}
-
-function statusClass(estado: EstadoSanitario) {
-  if (estado === 'REALIZADA') return 'status-active';
-  if (estado === 'VENCIDA') return 'status-inactive';
-  if (estado === 'PROGRAMADA') return 'status-warning';
-  return 'status-active';
 }
 
 function animalLink(animal: VaccinationHistoryItem['animal']) {
@@ -170,11 +160,16 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
     [animals],
   );
   const visiblePendingHistory = useMemo(() => pendingHistory.filter((item) => {
+    const fechaDesde = searchParams.get('fechaDesde');
+    const fechaHasta = searchParams.get('fechaHasta');
+    const itemDate = item.fechaObjetivo.slice(0, 10);
     if (pendingFilters.loteId && String(item.animal.lote.id) !== pendingFilters.loteId) return false;
     if (pendingFilters.categoria && item.animal.categoriaAnimal !== pendingFilters.categoria) return false;
     if (pendingFilters.tipo && item.tipoSanitario !== pendingFilters.tipo) return false;
+    if (fechaDesde && itemDate < fechaDesde) return false;
+    if (fechaHasta && itemDate > fechaHasta) return false;
     return true;
-  }), [pendingFilters, pendingHistory]);
+  }), [pendingFilters, pendingHistory, searchParams]);
   const visibleTaskIds = useMemo(
     () => visiblePendingHistory.flatMap((item) => item.tareaIds),
     [visiblePendingHistory],
@@ -266,7 +261,12 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
   useEffect(() => {
     const estado = searchParams.get('estado');
     if (!estadoOptions.includes(estado as EstadoSanitario)) return;
-    const nextFilters = { ...emptyFilters, estado: estado as EstadoSanitario };
+    const nextFilters = {
+      ...emptyFilters,
+      estado: estado as EstadoSanitario,
+      fechaObjetivoDesde: searchParams.get('fechaDesde') ?? '',
+      fechaObjetivoHasta: searchParams.get('fechaHasta') ?? '',
+    };
     setFilters(nextFilters);
     void loadData(nextFilters);
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -5,7 +5,7 @@ import { createAlimento, getAlimentos, updateAlimento } from '../../services/ali
 import { useDataChangedRefresh } from '../../hooks/useDataChangedRefresh';
 import type { Alimento, AlimentoFormValues, EstadoStockAlimentacion, TipoAlimento } from '../../types/alimentacion';
 
-type EstadoFilter = '' | EstadoStockAlimentacion;
+type EstadoFilter = '' | EstadoStockAlimentacion | 'CRITICO';
 
 const tipoAlimentoOptions: TipoAlimento[] = ['SILO', 'BALANCEADO', 'FIBRA', 'SUPLEMENTO', 'SALES', 'OTRO'];
 
@@ -39,7 +39,9 @@ function getStockEstado(alimento: Alimento): EstadoStockAlimentacion {
 }
 
 function matchesEstado(alimento: Alimento, filter: EstadoFilter) {
-  return !filter || getStockEstado(alimento) === filter;
+  const estado = getStockEstado(alimento);
+  if (filter === 'CRITICO') return estado === 'BAJO' || estado === 'AGOTADO';
+  return !filter || estado === filter;
 }
 
 function statusClass(estado: EstadoStockAlimentacion) {
@@ -219,7 +221,7 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAd
         </div>
         <form className="filters-form events-filters production-filters">
           <label className="filter-field"><span>Buscar</span><input value={filters.buscar} onChange={(event) => setFilters({ ...filters, buscar: event.target.value })} placeholder="Nombre" /></label>
-          <label className="filter-field"><span>Estado</span><select value={filters.estado} onChange={(event) => setFilters({ ...filters, estado: event.target.value as EstadoFilter })}><option value="">Todos</option><option value="NORMAL">Normal</option><option value="BAJO">Bajo</option><option value="AGOTADO">Agotado</option><option value="INACTIVO">Inactivo</option></select></label>
+          <label className="filter-field"><span>Estado</span><select value={filters.estado} onChange={(event) => setFilters({ ...filters, estado: event.target.value as EstadoFilter })}><option value="">Todos</option><option value="NORMAL">Normal</option><option value="BAJO">Bajo</option><option value="AGOTADO">Agotado</option><option value="CRITICO">Bajo o agotado</option><option value="INACTIVO">Inactivo</option></select></label>
           <label className="filter-field"><span>Tipo</span><select value={filters.tipoAlimento} onChange={(event) => setFilters({ ...filters, tipoAlimento: event.target.value })}><option value="">Todos</option>{availableTypes.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}</select></label>
           <button type="button" className="secondary-button" onClick={clearFilters}>Limpiar</button>
         </form>

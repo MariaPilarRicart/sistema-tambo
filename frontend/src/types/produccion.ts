@@ -3,7 +3,7 @@ import type { UserRole } from './auth';
 import type { Lote } from './lotes';
 
 export type TurnoOrdene = 'MANANA' | 'TARDE' | 'NOCHE';
-export type EstadoLoteLeche = 'DISPONIBLE' | 'VENDIDO' | 'VENCIDO';
+export type EstadoLoteLeche = 'DISPONIBLE' | 'VENDIDO' | 'VENCIDO' | 'INACTIVO';
 
 export type MotivoDescarteLeche =
   | 'MASTITIS'
@@ -52,6 +52,7 @@ export interface ProduccionAnimal {
   litrosDescartados: number | string;
   motivoDescarte: MotivoDescarteLeche | null;
   observacionDescarte: string | null;
+  activo: boolean;
   createdAt: string;
   updatedAt: string;
   animal: Pick<Animal, 'id' | 'caravana' | 'nombre' | 'categoriaAnimal' | 'estadoReproductivo' | 'activo' | 'estadoAnimal' | 'loteId'> & {
@@ -73,6 +74,7 @@ export interface ProduccionFilters {
   loteId: string;
   loteLecheId: string;
   turno: string;
+  descartadosMayorA?: string;
 }
 
 export interface ProduccionFormValues {

@@ -1,19 +1,63 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  ClipboardList,
+  Baby,
+  ClipboardCheck,
+  Droplets,
   HeartPulse,
+  ShieldCheck,
+  Stethoscope,
+  Syringe,
   Utensils,
+  Users,
+  type LucideIcon,
 } from 'lucide-react';
 import { paths } from '../../routes/paths';
-import type { DashboardResumen, DashboardResumenSanidad, DashboardTareaDetalle } from '../../types/dashboard';
+import type { DashboardEmpleadoResumen, DashboardPeriodo, MetricTone } from '../../types/dashboard';
 
 interface EmployeeDashboardProps {
-  resumen: DashboardResumen;
+  periodo: DashboardPeriodo;
+  fechaDesde: string;
+  fechaHasta: string;
+  periodoError: string;
+  resumen: DashboardEmpleadoResumen;
+  onPeriodoChange: (periodo: DashboardPeriodo) => void;
+  onFechaDesdeChange: (fecha: string) => void;
+  onFechaHastaChange: (fecha: string) => void;
+  onApplyCustomPeriod: () => void;
+  onClearCustomPeriod: () => void;
 }
 
-type SummaryModalKey = 'overdue' | 'today' | 'next7';
-type FeedingModalKey = 'records' | 'stock' | 'empty';
+const periodOptions: Array<{ value: DashboardPeriodo; label: string }> = [
+  { value: 'hoy', label: 'Hoy' },
+  { value: 'semana', label: 'Semana' },
+  { value: 'mes', label: 'Mes' },
+  { value: 'anio', label: 'Año' },
+  { value: 'personalizado', label: 'Personalizado' },
+];
+
+const monthNames = [
+  'Enero',
+  'Febrero',
+  'Marzo',
+  'Abril',
+  'Mayo',
+  'Junio',
+  'Julio',
+  'Agosto',
+  'Septiembre',
+  'Octubre',
+  'Noviembre',
+  'Diciembre',
+];
+
+function toDateInput(value: string) {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('es-AR', {
@@ -23,391 +67,219 @@ function formatDate(value: string) {
   });
 }
 
-function friendlyText(value: string) {
-  return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
 function formatNumber(value: number, suffix = '') {
   return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(value)}${suffix}`;
 }
 
-function taskPlace(task: DashboardTareaDetalle) {
-  if (task.animal?.lote?.nombre) return task.animal.lote.nombre;
-  if (task.lote?.nombre) return task.lote.nombre;
-  return 'Sin lote';
+function periodText(periodo: DashboardPeriodo, fechaDesde: string, fechaHasta: string) {
+  const start = new Date(fechaDesde);
+  if (periodo === 'hoy') return `Fecha: ${formatDate(fechaDesde)}`;
+  if (periodo === 'semana') return `Semana: ${formatDate(fechaDesde)} al ${formatDate(fechaHasta)}`;
+  if (periodo === 'mes') return `Mes: ${monthNames[start.getMonth()]} ${start.getFullYear()}`;
+  if (periodo === 'anio') return `Año: ${start.getFullYear()}`;
+  return `Período: ${formatDate(fechaDesde)} al ${formatDate(fechaHasta)}`;
 }
 
-function taskBadge(task: DashboardTareaDetalle) {
-  const type = task.tipoTarea.toUpperCase();
-  if (type.includes('AFTOSA') || type.includes('BRUCELOSIS') || type.includes('TUBERCULINA') || type.includes('VACUN') || type.includes('CLINICO')) {
-    return 'Vacunación';
-  }
-  if (type.includes('ALIMENT')) return 'Alimentación';
-  if (type.includes('PRODUC')) return 'Producción';
-  return 'Agenda';
+function buildUrl(path: string, params: Record<string, string>) {
+  const query = new URLSearchParams(params);
+  return `${path}?${query.toString()}`;
 }
 
-function isAgendaTask(task: DashboardTareaDetalle) {
-  return taskBadge(task) === 'Agenda';
-}
-
-function startOfToday() {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return today;
-}
-
-function addDays(date: Date, days: number) {
-  const nextDate = new Date(date);
-  nextDate.setDate(nextDate.getDate() + days);
-  return nextDate;
-}
-
-function isToday(value: string) {
-  const today = startOfToday();
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date.getTime() === today.getTime();
-}
-
-function sanitaryStatus(fechaObjetivo: string) {
-  const today = startOfToday();
-  const dueDate = new Date(fechaObjetivo);
-  dueDate.setHours(0, 0, 0, 0);
-  return dueDate < today ? 'Vencida' : 'Próxima a vencer';
-}
-
-function SanitaryList({ tasks }: { tasks: DashboardResumenSanidad['tareas'] }) {
-  const today = startOfToday();
-  const nextFifteenDays = addDays(today, 15);
-  const visibleTasks = [...tasks]
-    .filter((task) => {
-      const dueDate = new Date(task.fechaObjetivo);
-      dueDate.setHours(0, 0, 0, 0);
-      return dueDate >= today && dueDate <= nextFifteenDays;
-    })
-    .sort((a, b) => {
-      return new Date(a.fechaObjetivo).getTime() - new Date(b.fechaObjetivo).getTime();
-    });
-  const hasMore = visibleTasks.length > 5;
-
-  if (visibleTasks.length === 0) return <p className="table-empty">Sin vencimientos sanitarios próximos.</p>;
-
-  return (
-    <div className="employee-task-list">
-      {visibleTasks.slice(0, 5).map((task) => (
-        <article className="employee-task-card" key={task.id}>
-          <div>
-            <div className="employee-task-title">
-              <strong>{friendlyText(task.tipo)}</strong>
-              <span>Vacunación</span>
-            </div>
-            <p>Lote: {task.lote ?? 'Sin lote'}</p>
-            <small>Vence: {formatDate(task.fechaObjetivo)}</small>
-            <small>Estado: {sanitaryStatus(task.fechaObjetivo)}</small>
-          </div>
-          <Link className="secondary-button" to={paths.vaccination}>Ver vacunación</Link>
-        </article>
-      ))}
-      {hasMore && <p className="dashboard-section-note">Hay más vencimientos sanitarios pendientes de revisión.</p>}
-    </div>
-  );
-}
-
-function FeedingModal({
-  exhaustedItems,
-  lowStockItems,
-  onClose,
-  records,
-  type,
-}: {
-  exhaustedItems: DashboardResumen['resumenAlimentacion']['insumos'];
-  lowStockItems: DashboardResumen['resumenAlimentacion']['insumos'];
-  onClose: () => void;
-  records: DashboardResumen['resumenAlimentacion']['ultimosRegistros'];
-  type: FeedingModalKey;
-}) {
-  const title = type === 'records'
-    ? 'Alimentaciones registradas hoy'
-    : type === 'stock'
-      ? 'Alimentos con stock bajo'
-      : 'Alimentos agotados';
-  const stockItems = type === 'empty' ? exhaustedItems : lowStockItems;
-
-  return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <section className="modal-panel employee-summary-modal" role="dialog" aria-modal="true" aria-labelledby="employee-feed-modal-title" onClick={(event) => event.stopPropagation()}>
-        <div className="dashboard-card-heading">
-          <div>
-            <h2 id="employee-feed-modal-title">{title}</h2>
-            <p>Detalle disponible desde el módulo Alimentación.</p>
-          </div>
-          <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar modal">
-            X
-          </button>
-        </div>
-        {type === 'records' && records.length === 0 && (
-          <p className="table-empty">No hay alimentaciones registradas hoy.</p>
-        )}
-        {type === 'records' && records.length > 0 && (
-          <div className="employee-task-list">
-            {records.map((record) => (
-              <article className="employee-task-card" key={record.id}>
-                <div>
-                  <div className="employee-task-title">
-                    <strong>{record.lote}</strong>
-                    <span>Alimentación</span>
-                  </div>
-                  {record.racion && record.racion !== 'Sin racion' && record.racion !== 'Sin ración' && <p>Ración: {record.racion}</p>}
-                  <small>Fecha: {formatDate(record.fecha)}</small>
-                  <small>Cantidad: {formatNumber(record.cantidadKg, ' kg')}</small>
-                </div>
-                <Link className="secondary-button" to={paths.feed}>Ver alimentación</Link>
-              </article>
-            ))}
-          </div>
-        )}
-        {type !== 'records' && stockItems.length === 0 && (
-          <p className="table-empty">{type === 'stock' ? 'No hay alimentos bajo mínimo.' : 'No hay alimentos agotados.'}</p>
-        )}
-        {type !== 'records' && stockItems.length > 0 && (
-          <div className="employee-task-list">
-            {stockItems.map((item) => (
-              <article className="employee-task-card" key={item.id}>
-                <div>
-                  <div className="employee-task-title">
-                    <strong>{item.alimento}</strong>
-                    <span>{friendlyText(item.estado)}</span>
-                  </div>
-                  <small>Stock actual: {formatNumber(item.stockActual)} {item.unidad}</small>
-                  <small>Punto mínimo: {formatNumber(item.stockMinimo)} {item.unidad}</small>
-                  <small>Estado: {friendlyText(item.estado)}</small>
-                </div>
-                <Link className="secondary-button" to={paths.feed}>Ver alimentación</Link>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
-
-function FeedingSection({
-  onOpenModal,
-  resumen,
-}: {
-  onOpenModal: (type: FeedingModalKey) => void;
-  resumen: DashboardResumen;
-}) {
-  const lowStockItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado !== 'OK');
-  const exhaustedItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado === 'CRITICO');
-  const recordsToday = resumen.resumenAlimentacion.ultimosRegistros.filter((record) => isToday(record.fecha));
-  const fedLots = new Set(recordsToday.map((record) => record.lote)).size;
-  const hasLowStock = lowStockItems.length > 0;
-  const hasExhausted = exhaustedItems.length > 0;
-
-  return (
-    <section className="panel">
-      <div className="dashboard-card-heading">
-        <div>
-          <h2>Alimentación del día</h2>
-          <p>Control de carga diaria y stock de alimento.</p>
-        </div>
-      </div>
-      <div className="employee-feed-grid">
-        <button className={`employee-feed-card employee-feed-button ${recordsToday.length > 0 ? 'employee-feed-ok' : 'employee-feed-warning'}`} type="button" onClick={() => onOpenModal('records')}>
-          <Utensils size={18} />
-          <div>
-            <span>Alimentaciones registradas hoy</span>
-            <strong>{recordsToday.length > 0 ? `${recordsToday.length} cargas - ${fedLots} lotes` : 'Sin alimentaciones registradas hoy'}</strong>
-            <p>Consultá el detalle de cargas registradas.</p>
-          </div>
-        </button>
-        <button className={`employee-feed-card ${hasLowStock ? 'employee-feed-button employee-feed-warning' : 'employee-feed-ok'}`} type="button" onClick={() => hasLowStock && onOpenModal('stock')} disabled={!hasLowStock}>
-          <Utensils size={18} />
-          <div>
-            <span>Stock de alimentos</span>
-            <strong>{hasLowStock ? `Stock bajo: ${lowStockItems.length}` : 'Sin alertas críticas'}</strong>
-            {hasLowStock ? (
-              <p>Hay alimentos por debajo del mínimo.</p>
-            ) : (
-              <p>No hay alimentos bajo mínimo.</p>
-            )}
-          </div>
-        </button>
-        <button className={`employee-feed-card ${hasExhausted ? 'employee-feed-button employee-feed-danger' : 'employee-feed-ok'}`} type="button" onClick={() => hasExhausted && onOpenModal('empty')} disabled={!hasExhausted}>
-          <ClipboardList size={18} />
-          <div>
-            <span>Agotados</span>
-            <strong>{hasExhausted ? `Agotados: ${exhaustedItems.length}` : '0'}</strong>
-            <p>{hasExhausted ? 'Hay insumos sin stock disponible.' : 'No hay insumos agotados.'}</p>
-          </div>
-        </button>
-      </div>
-      <div className="employee-feed-actions">
-        <Link className="secondary-button" to={paths.feed}>Registrar alimentación</Link>
-        <Link className="secondary-button" to={paths.feed}>Ver alimentación</Link>
-      </div>
-    </section>
-  );
-}
-
-function TaskList({
-  emptyMessage,
-  limit = 5,
-  tasks,
-}: {
-  emptyMessage: string;
-  limit?: number;
-  tasks: DashboardTareaDetalle[];
-}) {
-  if (tasks.length === 0) return <p className="table-empty">{emptyMessage}</p>;
-
-  return (
-    <div className="employee-task-list">
-      {tasks.slice(0, limit).map((task) => (
-        <article className="employee-task-card" key={task.id}>
-          <div>
-            <div className="employee-task-title">
-              <strong>{friendlyText(task.tipoTarea)}</strong>
-              <span>{taskBadge(task)}</span>
-            </div>
-            <p>
-              {task.animal ? `Animal #${task.animal.caravana}` : 'Sin animal'} | Lote {taskPlace(task)}
-            </p>
-            <small>Vence: {formatDate(task.fechaProyectada)}</small>
-            <small>Estado: {friendlyText(task.estado)}</small>
-          </div>
-          <Link className="secondary-button" to={paths.agenda}>Ver agenda</Link>
-        </article>
-      ))}
-    </div>
-  );
-}
-
-function SummaryCard({
+function DashboardKpiCard({
+  icon: Icon,
   onClick,
+  subtitle,
   title,
+  tone,
   value,
 }: {
+  icon: LucideIcon;
   onClick: () => void;
+  subtitle: string;
   title: string;
-  value: number;
+  tone: MetricTone;
+  value: string;
 }) {
   return (
-    <button className="employee-summary-card" type="button" onClick={onClick}>
-      <strong>{value}</strong>
-      <span>{title}</span>
+    <button className={`metric-card dashboard-kpi-card dashboard-kpi-clickable dashboard-kpi-${tone}`} type="button" onClick={onClick}>
+      <div className="dashboard-kpi-top">
+        <div className={`metric-icon metric-icon-${tone}`}>
+          <Icon size={22} />
+        </div>
+        <h3>{value}</h3>
+      </div>
+      <strong>{title}</strong>
+      <p>{subtitle}</p>
     </button>
   );
 }
 
-export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
-  const [activeModal, setActiveModal] = useState<SummaryModalKey | null>(null);
-  const [activeFeedingModal, setActiveFeedingModal] = useState<FeedingModalKey | null>(null);
-  const agendaOverdueTasks = resumen.tareasVencidasDetalle.filter(isAgendaTask);
-  const agendaTodayTasks = resumen.tareasHoyDetalle.filter(isAgendaTask);
-  const agendaNextSevenDaysTasks = resumen.tareasProximos7Dias.filter(isAgendaTask);
-  const summary: Array<{ key: SummaryModalKey; title: string; value: number; tasks: DashboardTareaDetalle[] }> = [
-    { key: 'overdue', title: 'Tareas vencidas', value: agendaOverdueTasks.length, tasks: agendaOverdueTasks },
-    { key: 'today', title: 'Tareas para hoy', value: agendaTodayTasks.length, tasks: agendaTodayTasks },
-    { key: 'next7', title: 'Proximos 7 dias', value: agendaNextSevenDaysTasks.length, tasks: agendaNextSevenDaysTasks },
+export function EmployeeDashboard({
+  fechaDesde,
+  fechaHasta,
+  onApplyCustomPeriod,
+  onClearCustomPeriod,
+  onFechaDesdeChange,
+  onFechaHastaChange,
+  onPeriodoChange,
+  periodo,
+  periodoError,
+  resumen,
+}: EmployeeDashboardProps) {
+  const navigate = useNavigate();
+  const periodParams = useMemo(() => ({
+    fechaDesde: toDateInput(resumen.fechaDesde),
+    fechaHasta: toDateInput(resumen.fechaHasta),
+  }), [resumen.fechaDesde, resumen.fechaHasta]);
+
+  const cards = [
+    {
+      title: 'Animales activos',
+      value: formatNumber(resumen.animalesActivos),
+      subtitle: 'Total general activo.',
+      tone: 'emerald' as MetricTone,
+      icon: Users,
+      url: buildUrl(paths.herd, { section: 'animales', estadoAnimal: 'ACTIVO', activo: 'true' }),
+    },
+    {
+      title: 'Vacas preñadas',
+      value: formatNumber(resumen.vacasPrenadas),
+      subtitle: 'Total actual.',
+      tone: 'pink' as MetricTone,
+      icon: HeartPulse,
+      url: buildUrl(paths.herd, { section: 'animales', estadoReproductivo: 'PRENADA' }),
+    },
+    {
+      title: 'Vacas inseminadas',
+      value: formatNumber(resumen.vacasInseminadas),
+      subtitle: 'Total actual.',
+      tone: 'indigo' as MetricTone,
+      icon: Stethoscope,
+      url: buildUrl(paths.herd, { section: 'animales', estadoReproductivo: 'INSEMINADA' }),
+    },
+    {
+      title: 'Vacas secas',
+      value: formatNumber(resumen.vacasSecas),
+      subtitle: 'Total actual.',
+      tone: 'amber' as MetricTone,
+      icon: ShieldCheck,
+      url: buildUrl(paths.herd, { section: 'animales', categoriaAnimal: 'VACA_SECA' }),
+    },
+    {
+      title: 'Nacimientos',
+      value: formatNumber(resumen.nacimientos),
+      subtitle: 'Animales nacidos en el periodo.',
+      tone: 'amber' as MetricTone,
+      icon: Baby,
+      url: buildUrl(paths.herd, {
+        section: 'animales',
+        fechaNacimientoDesde: periodParams.fechaDesde,
+        fechaNacimientoHasta: periodParams.fechaHasta,
+      }),
+    },
+    {
+      title: 'Partos pendientes',
+      value: formatNumber(resumen.partosPendientes),
+      subtitle: 'Partos pendientes actuales.',
+      tone: 'indigo' as MetricTone,
+      icon: Baby,
+      url: buildUrl(paths.agenda, { tipo: 'PARTO', estado: 'PENDIENTE' }),
+    },
+    {
+      title: 'Tactos pendientes',
+      value: formatNumber(resumen.tactosPendientes),
+      subtitle: 'Tactos pendientes actuales.',
+      tone: 'emerald' as MetricTone,
+      icon: Stethoscope,
+      url: buildUrl(paths.agenda, { tipo: 'TACTO', estado: 'PENDIENTE' }),
+    },
+    {
+      title: 'Secados pendientes',
+      value: formatNumber(resumen.secadosPendientes),
+      subtitle: 'Secados pendientes actuales.',
+      tone: 'blue' as MetricTone,
+      icon: ClipboardCheck,
+      url: buildUrl(paths.agenda, { tipo: 'SECADO', estado: 'PENDIENTE' }),
+    },
+    {
+      title: 'Vacunas pendientes',
+      value: formatNumber(resumen.vacunacionPendiente),
+      subtitle: 'Vacunas pendientes actuales.',
+      tone: 'pink' as MetricTone,
+      icon: Syringe,
+      url: buildUrl(paths.vaccination, { section: 'pendientes', estado: 'PENDIENTE' }),
+    },
+    {
+      title: 'Vacunas vencidas',
+      value: formatNumber(resumen.vacunasVencidas),
+      subtitle: 'Vacunas vencidas actuales.',
+      tone: 'rose' as MetricTone,
+      icon: Syringe,
+      url: buildUrl(paths.vaccination, { section: 'historial', estado: 'VENCIDA' }),
+    },
+    {
+      title: 'Alimentaciones registradas',
+      value: formatNumber(resumen.alimentacionesRegistradas),
+      subtitle: 'Cargas de todos los usuarios.',
+      tone: 'emerald' as MetricTone,
+      icon: Utensils,
+      url: buildUrl(paths.feed, { section: 'historial', ...periodParams }),
+    },
+    {
+      title: 'Lotes de leche vencidos',
+      value: formatNumber(resumen.lotesVencidos),
+      subtitle: 'Lotes de leche vencidos.',
+      tone: 'amber' as MetricTone,
+      icon: Droplets,
+      url: buildUrl(paths.production, { section: 'lotesLeche', estado: 'VENCIDO', ...periodParams }),
+    },
   ];
-  const modalSummary = summary.find((item) => item.key === activeModal);
-  const feedingRecordsToday = resumen.resumenAlimentacion.ultimosRegistros.filter((record) => isToday(record.fecha));
-  const lowStockItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado !== 'OK');
-  const exhaustedItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado === 'CRITICO');
-  const sanitaryTasks = resumen.resumenSanidad.tareas;
 
   return (
     <>
-      <section className="panel">
-        <div className="dashboard-card-heading">
-          <div>
-            <h2>Resumen operativo</h2>
-            <p>Indicadores principales de trabajo diario.</p>
-          </div>
+      <section className="dashboard-period-toolbar">
+        <div>
+          <h2>Tablero operativo</h2>
+          <p>{periodText(periodo, resumen.fechaDesde, resumen.fechaHasta)}</p>
         </div>
-        <div className="employee-summary-grid">
-          {summary.map((item) => (
-            <SummaryCard
-              key={item.title}
-              title={item.title}
-              value={item.value}
-              onClick={() => setActiveModal(item.key)}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section className="panel employee-primary-panel">
-        <div className="dashboard-card-heading">
-          <div>
-            <h2>Vacunaciones próximas a vencer</h2>
-            <p>Certificados sanitarios que requieren revisión.</p>
-          </div>
-          <Link className="panel-chip" to={paths.vaccination}>Ver vacunación</Link>
-        </div>
-        <SanitaryList tasks={sanitaryTasks} />
-      </section>
-
-      <FeedingSection resumen={resumen} onOpenModal={setActiveFeedingModal} />
-
-      <section className="panel">
-        <div className="dashboard-card-heading">
-          <div>
-            <h2>Registros del dia</h2>
-            <p>Estado simple de registros diarios.</p>
-          </div>
-        </div>
-        <div className="employee-load-list">
-          <article>
-            <HeartPulse size={18} />
-            <div>
-              <strong>{resumen.cargaDia.produccionRegistrada ? 'Produccion registrada hoy' : 'Produccion pendiente de carga'}</strong>
-              <Link to={paths.production}>{resumen.cargaDia.produccionRegistrada ? 'Ver produccion' : 'Registrar produccion'}</Link>
-            </div>
-          </article>
-          <article>
-            <ClipboardList size={18} />
-            <div>
-              <strong>{resumen.cargaDia.eventosRegistrados > 0 ? 'Hay eventos registrados hoy' : 'Sin eventos registrados hoy'}</strong>
-              <Link to={paths.events}>{resumen.cargaDia.eventosRegistrados > 0 ? 'Ver eventos' : 'Registrar evento'}</Link>
-            </div>
-          </article>
-        </div>
-      </section>
-
-      {modalSummary && (
-        <div className="modal-backdrop" role="presentation" onClick={() => setActiveModal(null)}>
-          <section className="modal-panel employee-summary-modal" role="dialog" aria-modal="true" aria-labelledby="employee-summary-modal-title" onClick={(event) => event.stopPropagation()}>
-            <div className="dashboard-card-heading">
-              <div>
-                <h2 id="employee-summary-modal-title">{modalSummary.title}</h2>
-                <p>Detalle operativo de agenda.</p>
-              </div>
-              <button type="button" className="icon-button" onClick={() => setActiveModal(null)} aria-label="Cerrar modal">
-                X
+        <div className="dashboard-period-controls">
+          <div className="dashboard-period-selector" aria-label="Seleccionar periodo">
+            {periodOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={periodo === option.value ? 'dashboard-period-active' : ''}
+                onClick={() => onPeriodoChange(option.value)}
+              >
+                {option.label}
               </button>
+            ))}
+          </div>
+          {periodo === 'personalizado' && (
+            <div className="dashboard-custom-period">
+              <input type="date" value={fechaDesde} onChange={(event) => onFechaDesdeChange(event.target.value)} />
+              <input type="date" value={fechaHasta} onChange={(event) => onFechaHastaChange(event.target.value)} />
+              <button type="button" className="secondary-button" onClick={onApplyCustomPeriod}>Aplicar</button>
+              <button type="button" className="secondary-button" onClick={onClearCustomPeriod}>Limpiar</button>
             </div>
-            <TaskList
-              emptyMessage="No hay tareas de agenda para mostrar."
-              limit={modalSummary.tasks.length}
-              tasks={modalSummary.tasks}
-            />
-          </section>
+          )}
+          {periodoError && <div className="form-error">{periodoError}</div>}
         </div>
-      )}
-      {activeFeedingModal && (
-        <FeedingModal
-          exhaustedItems={exhaustedItems}
-          lowStockItems={lowStockItems}
-          records={feedingRecordsToday}
-          type={activeFeedingModal}
-          onClose={() => setActiveFeedingModal(null)}
-        />
-      )}
+      </section>
+
+      <div className="dashboard-kpi-grid">
+        {cards.map((card) => (
+          <DashboardKpiCard
+            key={card.title}
+            icon={card.icon}
+            title={card.title}
+            value={card.value}
+            subtitle={card.subtitle}
+            tone={card.tone}
+            onClick={() => navigate(card.url)}
+          />
+        ))}
+      </div>
     </>
   );
 }

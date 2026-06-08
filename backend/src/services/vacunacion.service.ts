@@ -29,7 +29,8 @@ type AlcanceTipo = 'ANIMAL' | 'LOTE' | 'CATEGORIA';
 
 function parseDate(value: unknown, fieldName = 'Fecha programada') {
   if (typeof value !== 'string' || !value) throw new AppError(`${fieldName} es obligatoria.`, 400);
-  const date = new Date(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date(value);
   if (Number.isNaN(date.getTime())) throw new AppError(`${fieldName} inválida.`, 400);
   date.setHours(9, 0, 0, 0);
   return date;

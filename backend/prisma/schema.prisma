@@ -129,6 +129,7 @@ enum EstadoLoteLeche {
   DISPONIBLE
   VENDIDO
   VENCIDO
+  INACTIVO
 }
 
 model Usuario {
@@ -546,6 +547,7 @@ model ProduccionAnimal {
   litrosDescartados   Decimal              @default(0) @db.Decimal(10, 2)
   motivoDescarte      MotivoDescarteLeche?
   observacionDescarte String?
+  activo              Boolean              @default(true)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
@@ -559,5 +561,6 @@ model ProduccionAnimal {
   @@index([fechaHora])
   @@index([turno])
   @@index([usuarioId])
+  @@index([activo])
   @@map("producciones_animales")
 }

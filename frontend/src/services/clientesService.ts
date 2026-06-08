@@ -32,10 +32,17 @@ function buildEditPayload(values: ClienteEditValues) {
   };
 }
 
-export async function getClientes(token: string, search = '', activo?: boolean) {
+export async function getClientes(
+  token: string,
+  search = '',
+  activo?: boolean,
+  filters: { fechaDesde?: string; fechaHasta?: string } = {},
+) {
   const params = new URLSearchParams();
   if (search.trim()) params.set('search', search.trim());
   if (activo !== undefined) params.set('activo', String(activo));
+  if (filters.fechaDesde) params.set('fechaDesde', filters.fechaDesde);
+  if (filters.fechaHasta) params.set('fechaHasta', filters.fechaHasta);
   const query = params.toString();
   const response = await apiRequest<ClientesResponse>(`/api/clientes${query ? `?${query}` : ''}`, { token });
   return response.clientes;

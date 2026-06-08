@@ -1,11 +1,10 @@
 import { EstadoLoteLeche, MotivoDescarteLeche, Prisma, TurnoOrdene } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 import {
-  countProduccionesByLoteLeche,
   createLoteLeche,
   createProduccionAnimal,
-  deleteLoteLeche,
-  deleteProduccionAnimal,
+  deactivateLoteLeche,
+  deactivateProduccionAnimal,
   findAnimalForProduccion,
   findLoteById,
   findLoteLecheById,
@@ -56,6 +55,13 @@ function parseTurno(value: unknown) {
   return value;
 }
 
+function parseOptionalNumber(value: unknown, fieldName: string) {
+  if (value === undefined || value === null || value === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) throw new AppError(`${fieldName} inválido.`, 400);
+  return parsed;
+}
+
 function parseRequiredTurno(value: unknown) {
   const turno = parseTurno(value);
   if (!turno) throw new AppError('Turno es obligatorio.', 400);
@@ -64,7 +70,12 @@ function parseRequiredTurno(value: unknown) {
 
 function parseEstadoLoteLeche(value: unknown) {
   if (value === undefined || value === null || value === '') return undefined;
-  if (value !== EstadoLoteLeche.DISPONIBLE && value !== EstadoLoteLeche.VENDIDO && value !== EstadoLoteLeche.VENCIDO) {
+  if (
+    value !== EstadoLoteLeche.DISPONIBLE &&
+    value !== EstadoLoteLeche.VENDIDO &&
+    value !== EstadoLoteLeche.VENCIDO &&
+    value !== EstadoLoteLeche.INACTIVO
+  ) {
     throw new AppError('Estado del lote de leche inválido.', 400);
   }
   return value;
@@ -204,6 +215,7 @@ function parseFilters(input: Record<string, unknown>): ProduccionFilters {
     loteId: parseOptionalId(input.loteId, 'loteId'),
     loteLecheId: parseOptionalId(input.loteLecheId, 'loteLecheId'),
     turno: parseTurno(input.turno),
+    descartadosMayorA: parseOptionalNumber(input.descartadosMayorA, 'descartadosMayorA'),
   };
 }
 
@@ -305,9 +317,8 @@ export async function deleteExistingLoteLeche(idParam: string) {
   const id = parseId(idParam, 'Id de lote de leche');
   const existing = await findLoteLecheById(id);
   if (!existing) throw new AppError('Lote de leche no encontrado.', 404);
-  const producciones = await countProduccionesByLoteLeche(id);
-  if (producciones > 0) throw new AppError('No se puede eliminar el lote porque tiene registros de producción asociados.', 400);
-  return deleteLoteLeche(id);
+  if (existing.estado === EstadoLoteLeche.INACTIVO) return existing;
+  return deactivateLoteLeche(id);
 }
 
 export async function listProducciones(query: Record<string, unknown>) {
@@ -359,13 +370,14 @@ export async function deleteExistingProduccion(idParam: string) {
   const id = parseId(idParam, 'Id de producción');
   const existing = await findProduccionAnimalById(id);
   if (!existing) throw new AppError('Registro de producción no encontrado.', 404);
-  return deleteProduccionAnimal(id);
+  if (!existing.activo) return existing;
+  return deactivateProduccionAnimal(id);
 }
 
 export async function getResumenProduccion() {
   const todayStart = startOfDay(new Date());
   const todayEnd = endOfDay(todayStart);
-  const registrosHoy = await findProduccionesAnimales({ fechaDesde: todayStart, fechaHasta: todayEnd });
+  const registrosHoy = await findProduccionesAnimales({ fechaDesde: todayStart, fechaHasta: todayEnd, activo: true });
   return {
     ...summarizeRecords(registrosHoy),
     alertaDescarte: registrosHoy.some((item) => toNumber(item.litrosDescartados) > 0),
@@ -378,7 +390,7 @@ export async function getProduccionPorAnimal(idParam: string) {
   const animal = await findAnimalForProduccion(animalId);
   if (!animal) throw new AppError('Animal no encontrado.', 404);
 
-  const historial = await findProduccionesAnimalesAsc({ animalId });
+  const historial = await findProduccionesAnimalesAsc({ animalId, activo: true });
   const resumen = summarizeRecords(historial);
   const quality = qualityFromLotes(historial);
   const orderedByNet = [...historial].sort((a, b) => produccionNeta(a) - produccionNeta(b));
@@ -408,7 +420,7 @@ export async function getProduccionPorLote(idParam: string) {
   const lote = await findLoteById(loteId);
   if (!lote) throw new AppError('Lote no encontrado.', 404);
 
-  const registros = await findProduccionesAnimalesAsc({ loteId });
+  const registros = await findProduccionesAnimalesAsc({ loteId, activo: true });
   const resumen = summarizeRecords(registros);
   const quality = qualityFromLotes(registros);
   const porAnimal = new Map<number, { animal: ProduccionAnimalWithRelations['animal']; total: number; descartado: number; registros: number }>();

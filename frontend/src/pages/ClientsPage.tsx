@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Edit2, Eye, Power, RefreshCcw, Save, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { createCliente, getCliente, getClientes, updateCliente, updateClienteEstado } from '../services/clientesService';
+import { compareByStatusThenName, formatDate, statusClass } from '../utils/display';
 import type { AuthUser } from '../types/auth';
 import type { Cliente, ClienteCreateValues, ClienteDetalle, ClienteEditValues } from '../types/clientes';
 
@@ -20,10 +21,6 @@ function editValuesFromCliente(cliente: Cliente): ClienteEditValues {
     email: cliente.email ?? '',
     activo: cliente.activo,
   };
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString('es-AR');
 }
 
 function formatLiters(value: number | string | null | undefined) {
@@ -218,7 +215,12 @@ export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsP
             <table className="users-table">
               <thead><tr><th>CUIT</th><th>Razón social</th><th>Dirección</th><th>Teléfono</th><th>Email</th><th>Fecha alta</th><th>Estado</th><th>Acciones</th></tr></thead>
               <tbody>
-                {clientes.map((cliente) => (
+                {[...clientes].sort((left, right) => compareByStatusThenName(
+                  left,
+                  right,
+                  (item) => (item.activo ? 'ACTIVO' : 'INACTIVO'),
+                  (item) => item.razonSocial,
+                )).map((cliente) => (
                   <tr key={cliente.id}>
                     <td><strong>{cliente.cuit}</strong></td>
                     <td>{cliente.razonSocial}</td>
@@ -226,7 +228,7 @@ export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsP
                     <td>{cliente.telefono || '-'}</td>
                     <td>{cliente.email || '-'}</td>
                     <td>{formatDate(cliente.fechaAlta)}</td>
-                    <td><span className={`status-pill ${cliente.activo ? 'status-active' : 'status-inactive'}`}>{cliente.activo ? 'ACTIVO' : 'INACTIVO'}</span></td>
+                    <td><span className={`status-pill ${statusClass(cliente.activo ? 'ACTIVO' : 'INACTIVO')}`}>{cliente.activo ? 'ACTIVO' : 'INACTIVO'}</span></td>
                     <td>
                       <div className="table-actions">
                         <button type="button" onClick={() => void openClienteDetalle(cliente)} aria-label={`Ver detalle de ${cliente.razonSocial}`}><Eye size={16} /></button>

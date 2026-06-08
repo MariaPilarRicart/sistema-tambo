@@ -1,5 +1,5 @@
 import type { Lote } from './lotes';
-import type { EstadoTarea, TipoTarea } from './agenda';
+import type { EstadoTarea, EstadoTareaCalculado, TipoTarea } from './agenda';
 import type { UserRole } from './auth';
 import type { TipoEvento } from './eventos';
 
@@ -107,6 +107,7 @@ export interface AnimalFicha extends Animal {
     fechaProgramada: string;
     fechaRealizacion: string | null;
     estado: EstadoTarea;
+    estadoCalculado: EstadoTareaCalculado;
     descripcion: string | null;
     eventoOrigenId: number | null;
     eventoCierreId: number | null;

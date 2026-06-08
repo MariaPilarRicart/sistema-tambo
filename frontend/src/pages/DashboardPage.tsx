@@ -3,9 +3,10 @@ import { RefreshCcw } from 'lucide-react';
 import { AdminDashboard } from '../components/dashboard/AdminDashboard';
 import { EmployeeDashboard } from '../components/dashboard/EmployeeDashboard';
 import { ApiError } from '../services/apiClient';
-import { getDashboardResumen } from '../services/dashboardService';
+import { getDashboardAdmin, getDashboardEmpleado } from '../services/dashboardService';
+import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import type { AuthUser } from '../types/auth';
-import type { DashboardPeriodo, DashboardResumen } from '../types/dashboard';
+import type { DashboardEmpleadoResumen, DashboardPeriodo, DashboardResumen } from '../types/dashboard';
 
 interface DashboardPageProps {
   authToken: string | null;
@@ -15,6 +16,7 @@ interface DashboardPageProps {
 
 export function DashboardPage({ authToken, currentUser, onUnauthorized }: DashboardPageProps) {
   const [resumen, setResumen] = useState<DashboardResumen | null>(null);
+  const [resumenEmpleado, setResumenEmpleado] = useState<DashboardEmpleadoResumen | null>(null);
   const [periodo, setPeriodo] = useState<DashboardPeriodo>('hoy');
   const [fechaDesde, setFechaDesde] = useState('');
   const [fechaHasta, setFechaHasta] = useState('');
@@ -23,7 +25,7 @@ export function DashboardPage({ authToken, currentUser, onUnauthorized }: Dashbo
   const [isLoading, setIsLoading] = useState(false);
 
   async function loadDashboard() {
-    if (!authToken) return;
+    if (!authToken || !currentUser) return;
     if (periodo === 'personalizado') {
       if (!fechaDesde || !fechaHasta) {
         setPeriodoError('Seleccioná fecha desde y fecha hasta');
@@ -40,11 +42,14 @@ export function DashboardPage({ authToken, currentUser, onUnauthorized }: Dashbo
     setPeriodoError('');
 
     try {
-      setResumen(await getDashboardResumen(
-        authToken,
-        periodo,
-        periodo === 'personalizado' ? { fechaDesde, fechaHasta } : undefined,
-      ));
+      const range = periodo === 'personalizado' ? { fechaDesde, fechaHasta } : undefined;
+      if (currentUser?.role === 'EMPLEADO') {
+        setResumen(null);
+        setResumenEmpleado(await getDashboardEmpleado(authToken, periodo, range));
+      } else {
+        setResumenEmpleado(null);
+        setResumen(await getDashboardAdmin(authToken, periodo, range));
+      }
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.statusCode === 401) {
         onUnauthorized();
@@ -60,7 +65,9 @@ export function DashboardPage({ authToken, currentUser, onUnauthorized }: Dashbo
   useEffect(() => {
     void loadDashboard();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken, periodo]);
+  }, [authToken, periodo, currentUser?.role]);
+
+  useDataChangedRefresh(() => loadDashboard(), [authToken, currentUser?.role, periodo, fechaDesde, fechaHasta]);
 
   function handlePeriodoChange(nextPeriodo: DashboardPeriodo) {
     setPeriodo(nextPeriodo);
@@ -114,7 +121,25 @@ export function DashboardPage({ authToken, currentUser, onUnauthorized }: Dashbo
           }}
         />
       )}
-      {resumen && currentUser?.role === 'EMPLEADO' && <EmployeeDashboard resumen={resumen} />}
+      {resumenEmpleado && currentUser?.role === 'EMPLEADO' && (
+        <EmployeeDashboard
+          periodo={periodo}
+          fechaDesde={fechaDesde}
+          fechaHasta={fechaHasta}
+          periodoError={periodoError}
+          resumen={resumenEmpleado}
+          onFechaDesdeChange={setFechaDesde}
+          onFechaHastaChange={setFechaHasta}
+          onPeriodoChange={handlePeriodoChange}
+          onApplyCustomPeriod={() => void loadDashboard()}
+          onClearCustomPeriod={() => {
+            setFechaDesde('');
+            setFechaHasta('');
+            setPeriodoError('');
+            setPeriodo('hoy');
+          }}
+        />
+      )}
     </div>
   );
 }

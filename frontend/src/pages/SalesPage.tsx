@@ -1,7 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Edit2, Eye, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
+import { useScrollToSection } from '../hooks/useScrollToSection';
+import { compareByStatusThenName, formatDate, statusClass } from '../utils/display';
 import { createCliente, getCliente, getClientes, updateCliente, updateClienteEstado } from '../services/clientesService';
 import { createVenta, getLotesDisponiblesVenta, getVenta, getVentas } from '../services/ventasService';
 import type { AuthUser } from '../types/auth';
@@ -55,10 +58,6 @@ function editValuesFromCliente(cliente: Cliente): ClienteEditValues {
   };
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleDateString('es-AR');
-}
-
 function formatLiters(value: number | string | null | undefined) {
   return `${Number(value ?? 0).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })} l`;
 }
@@ -78,6 +77,7 @@ interface SalesPageProps {
 }
 
 export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageProps) {
+  const [searchParams] = useSearchParams();
   const [ventaClientes, setVentaClientes] = useState<Cliente[]>([]);
   const [clienteSearch, setClienteSearch] = useState('');
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
@@ -112,6 +112,15 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   const precioPorLitro = Number(ventaForm.precioPorLitro || 0);
   const clienteQuery = clienteSearch.trim();
   const showClienteDropdown = !selectedCliente && clienteQuery.length >= 2;
+  const sortedClientes = useMemo(
+    () => [...clientes].sort((left, right) => compareByStatusThenName(
+      left,
+      right,
+      (cliente) => (cliente.activo ? 'ACTIVO' : 'INACTIVO'),
+      (cliente) => cliente.razonSocial,
+    )),
+    [clientes],
+  );
   const totals = useMemo(
     () =>
       ventaForm.detalles.reduce(
@@ -155,7 +164,10 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     setIsClientsLoading(true);
     setError('');
     try {
-      setClientes(await getClientes(authToken, nextSearch));
+      setClientes(await getClientes(authToken, nextSearch, undefined, {
+        fechaDesde: searchParams.get('section') === 'clientes' ? searchParams.get('fechaDesde') ?? undefined : undefined,
+        fechaHasta: searchParams.get('section') === 'clientes' ? searchParams.get('fechaHasta') ?? undefined : undefined,
+      }));
     } catch (loadError) {
       handleRequestError(loadError, 'No se pudieron cargar los clientes.');
     } finally {
@@ -197,10 +209,28 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, filters]);
 
+  useEffect(() => {
+    if (searchParams.get('section') !== 'historial') return;
+    setFilters((current) => ({
+      ...current,
+      fechaDesde: searchParams.get('fechaDesde') ?? current.fechaDesde,
+      fechaHasta: searchParams.get('fechaHasta') ?? current.fechaHasta,
+    }));
+  }, [searchParams]);
+
   useDataChangedRefresh(() => {
     void loadSalesData(filters);
     void loadClientes(clientesSearch);
-  }, [authToken, filters, clientesSearch]);
+  }, [authToken, filters, clientesSearch, searchParams]);
+
+  useScrollToSection(
+    searchParams.get('section') === 'clientes'
+      ? 'listado-clientes-section'
+      : searchParams.get('section') === 'historial'
+        ? 'historial-ventas-section'
+        : null,
+    [searchParams, ventas.length, clientes.length],
+  );
 
   function resetVentaForm() {
     setVentaForm({ ...emptyVentaForm, fechaVenta: localDateValue(), detalles: [{ ...emptyDetail }] });
@@ -401,7 +431,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
       {success && <div className="form-success">{success}</div>}
       {hasDuplicateLotes && showVentaModal && <div className="form-warning">{duplicateLoteMessage}</div>}
 
-      <section className="panel">
+      <section className="panel" id="historial-ventas-section">
         <div className="panel-header">
           <div>
             <h2>Historial de ventas</h2>
@@ -455,11 +485,11 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
         )}
       </section>
 
-      <section className="panel">
+      <section className="panel" id="listado-clientes-section">
         <div className="panel-header">
           <div>
             <h2>Listado de clientes</h2>
-            <p>{clientes.length} clientes encontrados.</p>
+            <p>{sortedClientes.length} clientes encontrados.</p>
           </div>
           <div className="header-actions">
             {isAdmin && <button type="button" className="secondary-button" onClick={openClienteModal}><Plus size={16} />Nuevo cliente</button>}
@@ -482,7 +512,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             <table className="users-table">
               <thead><tr><th>CUIT</th><th>Razón social</th><th>Dirección</th><th>Teléfono</th><th>Email</th><th>Fecha alta</th><th>Estado</th><th>Acciones</th></tr></thead>
               <tbody>
-                {clientes.map((cliente) => (
+                {sortedClientes.map((cliente) => (
                   <tr key={cliente.id}>
                     <td><strong>{cliente.cuit}</strong></td>
                     <td>{cliente.razonSocial}</td>
@@ -490,7 +520,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                     <td>{cliente.telefono || '-'}</td>
                     <td>{cliente.email || '-'}</td>
                     <td>{formatDate(cliente.fechaAlta)}</td>
-                    <td><span className={`status-pill ${cliente.activo ? 'status-active' : 'status-inactive'}`}>{cliente.activo ? 'ACTIVO' : 'INACTIVO'}</span></td>
+                    <td><span className={`status-pill ${statusClass(cliente.activo ? 'ACTIVO' : 'INACTIVO')}`}>{cliente.activo ? 'ACTIVO' : 'INACTIVO'}</span></td>
                     <td>
                       <div className="table-actions">
                         <button type="button" onClick={() => void openClienteDetalle(cliente)} aria-label={`Ver detalle de ${cliente.razonSocial}`}><Eye size={16} /></button>
@@ -504,7 +534,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                     </td>
                   </tr>
                 ))}
-                {clientes.length === 0 && <tr><td colSpan={8}>Sin clientes cargados.</td></tr>}
+                {sortedClientes.length === 0 && <tr><td colSpan={8}>Sin clientes cargados.</td></tr>}
               </tbody>
             </table>
           </div>

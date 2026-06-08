@@ -21,6 +21,17 @@ function parseOptionalBoolean(value: unknown, fieldName: string) {
   throw new AppError(`${fieldName} inválido.`, 400);
 }
 
+function parseOptionalDate(value: unknown, fieldName: string, endOfDay = false) {
+  if (value === undefined || value === null || value === '') return undefined;
+  if (typeof value !== 'string') throw new AppError(`${fieldName} inválida.`, 400);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) throw new AppError(`${fieldName} inválida.`, 400);
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(date.getTime())) throw new AppError(`${fieldName} inválida.`, 400);
+  date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+  return date;
+}
+
 function normalizeRequiredString(value: unknown, fieldName: string) {
   if (typeof value !== 'string' || !value.trim()) throw new AppError(`${fieldName} es obligatorio.`, 400);
   return value.trim();
@@ -54,7 +65,10 @@ function resumenCliente(ventas: NonNullable<Awaited<ReturnType<typeof findClient
 export function listClientes(query: Record<string, unknown> = {}) {
   const search = typeof query.search === 'string' && query.search.trim() ? query.search.trim() : undefined;
   const activo = parseOptionalBoolean(query.activo, 'Filtro activo');
-  return findClientes(search, activo);
+  const fechaDesde = parseOptionalDate(query.fechaDesde, 'Fecha desde');
+  const fechaHasta = parseOptionalDate(query.fechaHasta, 'Fecha hasta', true);
+  if (fechaDesde && fechaHasta && fechaDesde > fechaHasta) throw new AppError('La fecha desde no puede ser mayor a la fecha hasta.', 400);
+  return findClientes(search, activo, fechaDesde, fechaHasta);
 }
 
 export async function getCliente(idParam: string) {

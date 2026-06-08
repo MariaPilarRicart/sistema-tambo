@@ -292,7 +292,10 @@ export interface DashboardResumen {
   animalesPorEstadoReproductivo: DashboardGroup[];
   animalesPorCategoria: DashboardGroup[];
   animalesPorLote: DashboardGroup[];
+  nuevosClientes: number;
+  lotesVencidosPeriodo: number;
   tareasVencidas: number;
+  tareasPendientes: number;
   tareasHoy: number;
   tareasFuturas: number;
   tactosPendientes: number;
@@ -313,4 +316,22 @@ export interface DashboardResumen {
   alertasOperativas: DashboardAlertaOperativa[];
   cargaDia: DashboardCargaDia;
   ultimosEventos: DashboardUltimoEvento[];
+}
+
+export interface DashboardEmpleadoResumen {
+  periodo: DashboardPeriodo;
+  fechaDesde: string;
+  fechaHasta: string;
+  animalesActivos: number;
+  vacasPrenadas: number;
+  vacasInseminadas: number;
+  vacasSecas: number;
+  tactosPendientes: number;
+  secadosPendientes: number;
+  partosPendientes: number;
+  vacunacionPendiente: number;
+  nacimientos: number;
+  vacunasVencidas: number;
+  alimentacionesRegistradas: number;
+  lotesVencidos: number;
 }

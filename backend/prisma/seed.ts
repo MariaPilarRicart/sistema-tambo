@@ -24,8 +24,8 @@ import { randomUUID } from 'crypto';
 const prisma = new PrismaClient();
 
 const SEED_PREFIX = 'Seed demo';
-const SEED_FACTURAS = ['F-SEED-0001', 'F-SEED-0002', 'F-SEED-0003'];
-const SEED_LOTES_LECHE = ['LT-SEED-001', 'LT-SEED-002', 'LT-SEED-003', 'LT-SEED-004', 'LT-SEED-005'];
+const SEED_FACTURA_PREFIX = 'F-SEED-';
+const SEED_LOTE_LECHE_PREFIX = 'LT-SEED-';
 
 const physicalLotes = [
   ['Lote 001', 'Vacas en produccion de alta rotacion'],
@@ -72,6 +72,10 @@ const clientes = [
   ['30-70000002-9', 'Cooperativa Lechera Sur', 'Ruta 18 Km 12, Perez', '341-555-1002', 'administracion@cooplsur.com'],
   ['30-70000003-7', 'Distribuidora La Granja', 'San Martin 847, Funes', '341-555-1003', 'ventas@lagranja.com'],
   ['30-70000004-5', 'Queseria Don Pedro', 'Belgrano 220, Roldan', '341-555-1004', 'pedidos@donpedro.com'],
+  ['30-70000005-3', 'Tambo Modelo Centro', 'Mitre 510, Rosario', '341-555-1005', 'compras@tambomodelo.com'],
+  ['30-70000006-1', 'Alimentos del Litoral', 'Ruta 9 Km 321, Carcarana', '341-555-1006', 'ventas@litoral.com'],
+  ['30-70000007-9', 'Lacteos San Martin', 'San Martin 1200, Casilda', '341-555-1007', 'admin@lacteossm.com'],
+  ['30-70000008-7', 'Quesos La Esperanza', 'Belgrano 760, Zavalla', '341-555-1008', 'pedidos@esperanza.com'],
 ] as const;
 
 function daysFromToday(days: number, hour = 9) {
@@ -97,6 +101,22 @@ function dateYearsAgo(years: number) {
 
 function toDecimal(value: number) {
   return new Prisma.Decimal(value);
+}
+
+function atDateTime(value: Date, hour = 9) {
+  const date = new Date(value);
+  date.setHours(hour, 0, 0, 0);
+  return date;
+}
+
+function dateThisYear(monthIndex: number, day: number, hour = 9) {
+  const now = new Date();
+  return new Date(now.getFullYear(), monthIndex, day, hour, 0, 0, 0);
+}
+
+function dateYearsAgoInMonth(years: number, monthIndex: number, day: number, hour = 9) {
+  const now = new Date();
+  return new Date(now.getFullYear() - years, monthIndex, day, hour, 0, 0, 0);
 }
 
 async function seedUsers() {
@@ -191,14 +211,14 @@ async function deleteSeededDemoData() {
   await prisma.ventaDetalle.deleteMany({
     where: {
       OR: [
-        { venta: { numeroFactura: { in: SEED_FACTURAS } } },
-        { loteLeche: { codigo: { in: SEED_LOTES_LECHE } } },
+        { venta: { numeroFactura: { startsWith: SEED_FACTURA_PREFIX } } },
+        { loteLeche: { codigo: { startsWith: SEED_LOTE_LECHE_PREFIX } } },
       ],
     },
   });
-  await prisma.venta.deleteMany({ where: { numeroFactura: { in: SEED_FACTURAS } } });
-  await prisma.produccionAnimal.deleteMany({ where: { loteLeche: { codigo: { in: SEED_LOTES_LECHE } } } });
-  await prisma.loteLeche.deleteMany({ where: { codigo: { in: SEED_LOTES_LECHE } } });
+  await prisma.venta.deleteMany({ where: { numeroFactura: { startsWith: SEED_FACTURA_PREFIX } } });
+  await prisma.produccionAnimal.deleteMany({ where: { loteLeche: { codigo: { startsWith: SEED_LOTE_LECHE_PREFIX } } } });
+  await prisma.loteLeche.deleteMany({ where: { codigo: { startsWith: SEED_LOTE_LECHE_PREFIX } } });
   await prisma.agendaTarea.deleteMany({ where: { descripcion: { startsWith: SEED_PREFIX } } });
   await prisma.evento.deleteMany({ where: { observaciones: { startsWith: SEED_PREFIX } } });
   await prisma.registroAlimentacion.deleteMany({ where: { observaciones: { startsWith: SEED_PREFIX } } });
@@ -472,6 +492,10 @@ async function seedAgendaEventos(usuarioId: number) {
     ['1006', TipoTarea.PARTO, 12, EstadoTarea.PENDIENTE, 'Parto esperado en preparto'],
     ['1007', TipoTarea.ALTA_POST_PARTO, 18, EstadoTarea.PENDIENTE, 'Alta post parto y control productivo'],
     ['1004', TipoTarea.CONTROL_CLINICO, -1, EstadoTarea.PENDIENTE, 'Control clinico vencido'],
+    ['1001', TipoTarea.PARTO, 0, EstadoTarea.PENDIENTE, 'Parto pendiente de hoy para validar estado'],
+    ['1002', TipoTarea.TACTO, 0, EstadoTarea.PENDIENTE, 'Tacto pendiente de hoy para validar estado'],
+    ['1008', TipoTarea.SECADO, -2, EstadoTarea.PENDIENTE, 'Secado vencido para validar estado'],
+    ['1003', TipoTarea.PARTO, -4, EstadoTarea.REALIZADA, 'Parto realizado para validar estado'],
   ] as const;
 
   for (const [caravana, tipo, days, estado, descripcion] of tareasGenerales) {
@@ -483,6 +507,7 @@ async function seedAgendaEventos(usuarioId: number) {
         animalId: animal.id,
         tipo,
         fechaProgramada: daysFromToday(days),
+        fechaRealizacion: estado === EstadoTarea.REALIZADA ? daysFromToday(days + 1) : null,
         estado,
         descripcion: `${SEED_PREFIX}: ${descripcion}`,
       },
@@ -652,69 +677,104 @@ async function seedVacunacionSanitaria(usuarioId: number) {
   }
 }
 
-async function seedProduccion(usuarioId: number) {
-  const lotesLeche = [
-    ['LT-SEED-001', -3, 4, EstadoLoteLeche.DISPONIBLE, 'Lote disponible de alta calidad'],
-    ['LT-SEED-002', -2, 5, EstadoLoteLeche.DISPONIBLE, 'Lote con descarte por mastitis'],
-    ['LT-SEED-003', -1, 6, EstadoLoteLeche.DISPONIBLE, 'Lote disponible para venta parcial'],
-    ['LT-SEED-004', -7, 1, EstadoLoteLeche.DISPONIBLE, 'Lote vendido para reportes'],
-    ['LT-SEED-005', -12, -2, EstadoLoteLeche.VENCIDO, 'Lote vencido para filtros'],
-  ] as const;
+type ProduccionScenario = {
+  codigo: string;
+  fecha: Date;
+  estado?: EstadoLoteLeche;
+  registros: Array<{
+    caravana: string;
+    turno: TurnoOrdene;
+    litrosProducidos: number;
+    litrosDescartados: number;
+    motivoDescarte: MotivoDescarteLeche | null;
+  }>;
+};
 
-  for (const [codigo, prodOffset, vencOffset, estado, observacionesCalidad] of lotesLeche) {
+function buildProduccionScenarios(): ProduccionScenario[] {
+  const relativeDays = [0, 0, 0, -1, -2, -3, -5, -10, -15, -20];
+  const currentYearMonths = [0, 1, 2, 3, 4];
+  const previousYearMonths = [1, 4, 7, 10];
+  const historicMonths = [2, 8];
+  const dates = [
+    ...relativeDays.map((days, index) => daysFromToday(days, 6 + (index % 3))),
+    ...currentYearMonths.map((month, index) => dateThisYear(month, 6 + index * 3, 7)),
+    ...previousYearMonths.map((month, index) => dateYearsAgoInMonth(1, month, 8 + index * 4, 7)),
+    ...historicMonths.map((month, index) => dateYearsAgoInMonth(2, month, 10 + index * 8, 7)),
+  ];
+  const caravanas = ['1001', '1002', '1003', '1004', '1007', '1008'];
+  const turnos = [TurnoOrdene.MANANA, TurnoOrdene.TARDE, TurnoOrdene.NOCHE];
+  const motivos = [null, MotivoDescarteLeche.MASTITIS, null, MotivoDescarteLeche.MALA_CALIDAD, null, MotivoDescarteLeche.ANTIBIOTICO, null, MotivoDescarteLeche.OTRO];
+
+  return dates.map((fecha, index) => ({
+    codigo: `${SEED_LOTE_LECHE_PREFIX}${String(index + 1).padStart(3, '0')}`,
+    fecha,
+    estado: index === 8 || index === 15 ? EstadoLoteLeche.VENCIDO : EstadoLoteLeche.DISPONIBLE,
+    registros: [0, 1, 2].map((offset) => {
+      const motivoDescarte = motivos[(index + offset) % motivos.length];
+      return {
+        caravana: caravanas[(index + offset) % caravanas.length],
+        turno: turnos[offset % turnos.length],
+        litrosProducidos: 18 + ((index + offset) % 7) * 1.7,
+        litrosDescartados: motivoDescarte ? 0.8 + ((index + offset) % 3) * 0.4 : 0,
+        motivoDescarte,
+      };
+    }),
+  }));
+}
+
+async function seedProduccion(usuarioIds: number[]) {
+  const users = usuarioIds.length > 0 ? usuarioIds : [(await prisma.usuario.findFirstOrThrow()).id];
+  const scenarios = buildProduccionScenarios();
+
+  for (const scenario of scenarios) {
     await prisma.loteLeche.create({
       data: {
-        codigo,
-        descripcion: `${SEED_PREFIX}: ${observacionesCalidad}`,
-        fechaProduccion: daysFromToday(prodOffset, 6),
-        fechaVencimiento: daysFromToday(vencOffset, 23),
-        estado,
-        grasa: toDecimal(3.45),
-        proteina: toDecimal(3.18),
-        recuentoBacteriano: 35000 + Math.abs(prodOffset) * 1000,
-        recuentoCelulasSomaticas: 180000 + Math.abs(prodOffset) * 5000,
-        temperatura: toDecimal(3.8),
-        observacionesCalidad,
+        codigo: scenario.codigo,
+        descripcion: `${SEED_PREFIX}: lote historico ${scenario.codigo}`,
+        fechaProduccion: atDateTime(scenario.fecha, 6),
+        fechaVencimiento: atDateTime(daysFromToday(0), 23),
+        estado: scenario.estado ?? EstadoLoteLeche.DISPONIBLE,
+        grasa: toDecimal(3.35 + (Number(scenario.codigo.slice(-1)) % 5) * 0.05),
+        proteina: toDecimal(3.1 + (Number(scenario.codigo.slice(-1)) % 4) * 0.04),
+        recuentoBacteriano: 32000 + Number(scenario.codigo.slice(-3)) * 350,
+        recuentoCelulasSomaticas: 170000 + Number(scenario.codigo.slice(-3)) * 1200,
+        temperatura: toDecimal(3.7),
+        observacionesCalidad: `${SEED_PREFIX}: calidad para pruebas de reportes`,
       },
     });
   }
 
   const lotesByCode = new Map((await prisma.loteLeche.findMany()).map((lote) => [lote.codigo, lote.id]));
   const animalsByCaravana = new Map((await prisma.animal.findMany()).map((animal) => [animal.caravana, animal.id]));
-  const registros = [
-    ['1001', 'LT-SEED-001', -3, TurnoOrdene.MANANA, 22.5, 0, null],
-    ['1002', 'LT-SEED-001', -3, TurnoOrdene.TARDE, 18.2, 1.2, MotivoDescarteLeche.MALA_CALIDAD],
-    ['1003', 'LT-SEED-002', -2, TurnoOrdene.MANANA, 20.4, 0, null],
-    ['1004', 'LT-SEED-002', -2, TurnoOrdene.TARDE, 17.7, 0.8, MotivoDescarteLeche.MASTITIS],
-    ['1007', 'LT-SEED-003', -1, TurnoOrdene.MANANA, 21.3, 0, null],
-    ['1008', 'LT-SEED-003', -1, TurnoOrdene.TARDE, 19.8, 0, null],
-    ['1001', 'LT-SEED-004', -7, TurnoOrdene.MANANA, 23.1, 0, null],
-    ['1002', 'LT-SEED-004', -7, TurnoOrdene.TARDE, 18.9, 0, null],
-    ['1003', 'LT-SEED-005', -12, TurnoOrdene.MANANA, 19.5, 1.5, MotivoDescarteLeche.TEMPERATURA_FUERA_DE_RANGO],
-  ] as const;
+  let registroIndex = 0;
 
-  for (const [caravana, loteCodigo, days, turno, litrosProducidos, litrosDescartados, motivoDescarte] of registros) {
-    const animalId = animalsByCaravana.get(caravana);
-    const loteLecheId = lotesByCode.get(loteCodigo);
-    if (!animalId || !loteLecheId) continue;
+  for (const scenario of scenarios) {
+    const loteLecheId = lotesByCode.get(scenario.codigo);
+    if (!loteLecheId) continue;
 
-    await prisma.produccionAnimal.create({
-      data: {
-        animalId,
-        loteLecheId,
-        usuarioId,
-        fechaHora: daysFromToday(days, turno === TurnoOrdene.MANANA ? 6 : 17),
-        turno,
-        litrosProducidos: toDecimal(litrosProducidos),
-        litrosDescartados: toDecimal(litrosDescartados),
-        motivoDescarte,
-        observacionDescarte: motivoDescarte ? `${SEED_PREFIX}: descarte controlado` : null,
-      },
-    });
+    for (const registro of scenario.registros) {
+      const animalId = animalsByCaravana.get(registro.caravana);
+      if (!animalId) continue;
+
+      await prisma.produccionAnimal.create({
+        data: {
+          animalId,
+          loteLecheId,
+          usuarioId: users[registroIndex % users.length],
+          fechaHora: atDateTime(scenario.fecha, registro.turno === TurnoOrdene.MANANA ? 6 : registro.turno === TurnoOrdene.TARDE ? 16 : 22),
+          turno: registro.turno,
+          litrosProducidos: toDecimal(registro.litrosProducidos),
+          litrosDescartados: toDecimal(registro.litrosDescartados),
+          motivoDescarte: registro.motivoDescarte,
+          observacionDescarte: registro.motivoDescarte ? `${SEED_PREFIX}: descarte controlado para pruebas` : null,
+        },
+      });
+      registroIndex += 1;
+    }
   }
 
-  for (const codigo of SEED_LOTES_LECHE) {
-    const loteLeche = await prisma.loteLeche.findUnique({ where: { codigo } });
+  for (const scenario of scenarios) {
+    const loteLeche = await prisma.loteLeche.findUnique({ where: { codigo: scenario.codigo } });
     if (!loteLeche) continue;
 
     const totals = await prisma.produccionAnimal.aggregate({
@@ -727,6 +787,7 @@ async function seedProduccion(usuarioId: number) {
     await prisma.loteLeche.update({
       where: { id: loteLeche.id },
       data: {
+        fechaVencimiento: atDateTime(new Date(loteLeche.fechaProduccion.getTime() + 8 * 24 * 60 * 60 * 1000), 23),
         litrosTotales,
         litrosDescartados,
         litrosNetos: litrosTotales.minus(litrosDescartados),
@@ -736,7 +797,18 @@ async function seedProduccion(usuarioId: number) {
 }
 
 async function seedClientes() {
-  for (const [cuit, razonSocial, direccion, telefono, email] of clientes) {
+  const fechasAlta = [
+    daysFromToday(0, 10),
+    daysFromToday(-2, 10),
+    daysFromToday(-12, 10),
+    dateThisYear(0, 12, 10),
+    dateThisYear(2, 18, 10),
+    dateThisYear(4, 20, 10),
+    dateYearsAgoInMonth(1, 5, 14, 10),
+    dateYearsAgoInMonth(1, 10, 7, 10),
+  ];
+
+  for (const [index, [cuit, razonSocial, direccion, telefono, email]] of clientes.entries()) {
     await prisma.cliente.upsert({
       where: { cuit },
       update: {
@@ -744,6 +816,7 @@ async function seedClientes() {
         direccion,
         telefono,
         email,
+        fechaAlta: fechasAlta[index] ?? daysFromToday(-30),
         activo: true,
       },
       create: {
@@ -752,6 +825,7 @@ async function seedClientes() {
         direccion,
         telefono,
         email,
+        fechaAlta: fechasAlta[index] ?? daysFromToday(-30),
         activo: true,
       },
     });
@@ -762,21 +836,46 @@ async function seedVentas(usuarioId: number) {
   const clientesByCuit = new Map((await prisma.cliente.findMany()).map((cliente) => [cliente.cuit, cliente.id]));
   const lotesByCode = new Map((await prisma.loteLeche.findMany()).map((lote) => [lote.codigo, lote]));
 
-  const ventas = [
-    ['30-70000001-1', 'F-SEED-0001', -6, 310, [['LT-SEED-004', 42]]],
-    ['30-70000002-9', 'F-SEED-0002', -1, 315, [['LT-SEED-001', 20]]],
-    ['30-70000003-7', 'F-SEED-0003', 0, 320, [['LT-SEED-003', 25]]],
-  ] as const;
+  const fechasVenta = [
+    daysFromToday(0, 9),
+    daysFromToday(0, 11),
+    daysFromToday(0, 13),
+    daysFromToday(0, 15),
+    daysFromToday(-1, 10),
+    daysFromToday(-2, 10),
+    daysFromToday(-3, 10),
+    daysFromToday(-5, 10),
+    daysFromToday(-10, 10),
+    daysFromToday(-15, 10),
+    daysFromToday(-20, 10),
+    dateThisYear(0, 12, 10),
+    dateThisYear(1, 14, 10),
+    dateThisYear(2, 16, 10),
+    dateThisYear(3, 18, 10),
+    dateThisYear(4, 20, 10),
+    dateYearsAgoInMonth(1, 0, 11, 10),
+    dateYearsAgoInMonth(1, 3, 17, 10),
+    dateYearsAgoInMonth(1, 6, 21, 10),
+    dateYearsAgoInMonth(1, 9, 25, 10),
+    dateYearsAgoInMonth(2, 2, 13, 10),
+    dateYearsAgoInMonth(2, 8, 19, 10),
+  ];
+  const clienteCuits = clientes.map(([cuit]) => cuit);
 
-  for (const [clienteCuit, numeroFactura, days, precioPorLitroValue, detallesInput] of ventas) {
+  for (const [index, fechaVenta] of fechasVenta.entries()) {
+    const clienteCuit = clienteCuits[index % clienteCuits.length];
+    const numeroFactura = `${SEED_FACTURA_PREFIX}${String(index + 1).padStart(4, '0')}`;
+    const loteCodigo = `${SEED_LOTE_LECHE_PREFIX}${String(index + 1).padStart(3, '0')}`;
+    const precioPorLitroValue = 300 + (index % 8) * 12;
+    const litrosVenta = 18 + (index % 6) * 3;
     const clienteId = clientesByCuit.get(clienteCuit);
     if (!clienteId) continue;
 
     const precioPorLitro = toDecimal(precioPorLitroValue);
-    const detalles = detallesInput.flatMap(([codigo, litros]) => {
+    const detalles = [loteCodigo].flatMap((codigo) => {
       const lote = lotesByCode.get(codigo);
       if (!lote) return [];
-      const litrosVendidos = toDecimal(litros);
+      const litrosVendidos = toDecimal(Math.min(litrosVenta, Math.max(Number(lote.litrosNetos) - 2, 1)));
       return [{
         loteLecheId: lote.id,
         litrosVendidos,
@@ -793,7 +892,7 @@ async function seedVentas(usuarioId: number) {
       data: {
         clienteId,
         numeroFactura,
-        fechaVenta: daysFromToday(days, 11),
+        fechaVenta,
         precioPorLitro,
         totalLitros,
         precioTotal,
@@ -802,14 +901,14 @@ async function seedVentas(usuarioId: number) {
         detalles: { create: detalles },
       },
     });
-  }
 
-  const soldLote = await prisma.loteLeche.findUnique({ where: { codigo: 'LT-SEED-004' } });
-  if (soldLote) {
-    await prisma.loteLeche.update({
-      where: { id: soldLote.id },
-      data: { estado: EstadoLoteLeche.VENDIDO, fechaVenta: daysFromToday(-6, 11) },
-    });
+    const lote = lotesByCode.get(loteCodigo);
+    if (lote && index % 9 === 0) {
+      await prisma.loteLeche.update({
+        where: { id: lote.id },
+        data: { estado: EstadoLoteLeche.VENDIDO, fechaVenta },
+      });
+    }
   }
 }
 
@@ -834,14 +933,17 @@ async function main() {
   await seedAnimals();
   await deleteSeededDemoData();
 
-  const admin = await prisma.usuario.findUniqueOrThrow({ where: { username: 'admin' } });
+  const [admin, empleado] = await Promise.all([
+    prisma.usuario.findUniqueOrThrow({ where: { username: 'admin' } }),
+    prisma.usuario.findUniqueOrThrow({ where: { username: 'empleado' } }),
+  ]);
 
   await seedAlimentacion(admin.id);
   await seedReglasAlimentacion();
   await seedAgendaEventos(admin.id);
   await seedReglasSanitarias();
   await seedVacunacionSanitaria(admin.id);
-  await seedProduccion(admin.id);
+  await seedProduccion([admin.id, empleado.id]);
   await seedClientes();
   await seedVentas(admin.id);
   await validateSeedCredentials();

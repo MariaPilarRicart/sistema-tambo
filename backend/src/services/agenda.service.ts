@@ -6,6 +6,7 @@ import {
   findAgendaTaskById,
   findPendingAgenda,
 } from '../repositories/agenda.repository';
+import { calculateEstadoTarea, matchesEstadoCalculado, withEstadoCalculado, type EstadoTareaCalculado, type TareaConFechas } from './tareas-state.service';
 
 function parseId(value: unknown, fieldName: string) {
   const parsed = Number(value);
@@ -17,7 +18,8 @@ function parseId(value: unknown, fieldName: string) {
   return parsed;
 }
 
-function parseEstadoTarea(value: unknown) {
+function parseEstadoTarea(value: unknown): EstadoTareaCalculado {
+  if (value === 'VENCIDA' || value === 'PROGRAMADA') return value;
   if (Object.values(EstadoTarea).includes(value as EstadoTarea)) {
     return value as EstadoTarea;
   }
@@ -43,18 +45,57 @@ function parseOptionalDate(value: unknown, fieldName: string) {
   return date;
 }
 
+function startOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function endOfDay(date: Date) {
+  const next = new Date(date);
+  next.setHours(23, 59, 59, 999);
+  return next;
+}
+
+function taskMatchesDateRange(task: TareaConFechas, fechaDesde?: Date, fechaHasta?: Date) {
+  if (!fechaDesde && !fechaHasta) return true;
+
+  const from = fechaDesde ? startOfDay(fechaDesde) : undefined;
+  const to = fechaHasta ? endOfDay(fechaHasta) : undefined;
+  const estadoCalculado = calculateEstadoTarea(task);
+  const fechaProgramada = startOfDay(task.fechaProgramada);
+  const fechaObjetivo = startOfDay(task.fechaObjetivo ?? task.fechaProgramada);
+  const fechaRealizacion = task.fechaRealizacion ? startOfDay(task.fechaRealizacion) : null;
+
+  if (estadoCalculado === 'PENDIENTE') {
+    if (from && fechaObjetivo < from) return false;
+    if (to && fechaProgramada > to) return false;
+    return true;
+  }
+
+  const referenceDate = estadoCalculado === 'REALIZADA' && fechaRealizacion ? fechaRealizacion : fechaObjetivo;
+  if (from && referenceDate < from) return false;
+  if (to && referenceDate > to) return false;
+  return true;
+}
+
 export function listAgenda(query: Record<string, unknown>) {
-  return findAgenda({
-    estado: query.estado ? parseEstadoTarea(query.estado) : undefined,
+  const estado = query.estado ? parseEstadoTarea(query.estado) : undefined;
+  const fechaDesde = parseOptionalDate(query.fechaDesde, 'fechaDesde');
+  const fechaHasta = parseOptionalDate(query.fechaHasta, 'fechaHasta');
+  const tareas = findAgenda({
+    estado: estado === 'VENCIDA' || estado === 'PROGRAMADA' ? undefined : estado,
     tipo: query.tipo ? parseTipoTarea(query.tipo) : undefined,
     animalId: query.animalId ? parseId(query.animalId, 'animalId') : undefined,
-    fechaDesde: parseOptionalDate(query.fechaDesde, 'fechaDesde'),
-    fechaHasta: parseOptionalDate(query.fechaHasta, 'fechaHasta'),
   });
+  return tareas.then((items) => items
+    .map((item) => withEstadoCalculado(item))
+    .filter((item) => matchesEstadoCalculado(item, estado))
+    .filter((item) => taskMatchesDateRange(item, fechaDesde, fechaHasta)));
 }
 
 export function listPendingAgenda() {
-  return findPendingAgenda();
+  return findPendingAgenda().then((items) => items.map((item) => withEstadoCalculado(item)));
 }
 
 export async function getAgendaTask(idParam: string) {
@@ -65,7 +106,7 @@ export async function getAgendaTask(idParam: string) {
     throw new AppError('Tarea de agenda no encontrada.', 404);
   }
 
-  return task;
+  return withEstadoCalculado(task);
 }
 
 function normalizeOptionalString(value: unknown, fieldName: string) {
@@ -82,7 +123,7 @@ export async function cancelExistingAgendaTask(idParam: string, input: Record<st
     throw new AppError('Tarea de agenda no encontrada.', 404);
   }
 
-  if (task.estado !== EstadoTarea.PENDIENTE) {
+  if (withEstadoCalculado(task).estadoCalculado !== EstadoTarea.PENDIENTE) {
     throw new AppError('Solo se pueden cancelar tareas pendientes.', 400);
   }
 

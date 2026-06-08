@@ -6,11 +6,34 @@ import { getAgendaPendiente } from '../services/agendaService';
 import { AgendaTaskActions } from '../components/ui/AgendaTaskActions';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { useScrollToSection } from '../hooks/useScrollToSection';
+import { compareByDateStatusName, formatDate, statusClass } from '../utils/display';
 import type { AgendaTarea, TipoTarea } from '../types/agenda';
 import type { AuthUser } from '../types/auth';
 
 const taskOrder: TipoTarea[] = ['TACTO', 'SECADO', 'PARTO', 'ALTA_POST_PARTO', 'VACUNACION', 'CONTROL_CLINICO'];
 const today = new Date().toISOString().slice(0, 10);
+
+function dateOnly(value: string) {
+  return value.slice(0, 10);
+}
+
+function taskMatchesRange(task: AgendaTarea, fechaDesde?: string | null, fechaHasta?: string | null) {
+  if (!fechaDesde && !fechaHasta) return true;
+  const fechaProgramada = dateOnly(task.fechaProgramada);
+  const fechaObjetivo = dateOnly(task.fechaObjetivo ?? task.fechaProgramada);
+  const fechaRealizada = task.fechaRealizacion ? dateOnly(task.fechaRealizacion) : null;
+
+  if (task.estadoCalculado === 'PENDIENTE') {
+    if (fechaDesde && fechaObjetivo < fechaDesde) return false;
+    if (fechaHasta && fechaProgramada > fechaHasta) return false;
+    return true;
+  }
+
+  const referenceDate = task.estadoCalculado === 'REALIZADA' && fechaRealizada ? fechaRealizada : fechaObjetivo;
+  if (fechaDesde && referenceDate < fechaDesde) return false;
+  if (fechaHasta && referenceDate > fechaHasta) return false;
+  return true;
+}
 
 interface AgendaPageProps {
   authToken: string | null;
@@ -27,13 +50,32 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
 
   const agendaVisible = useMemo(() => {
     const tipoFilter = searchParams.get('tipo') as TipoTarea | null;
-    return tipoFilter && taskOrder.includes(tipoFilter)
-      ? agenda.filter((task) => task.tipo === tipoFilter)
-      : agenda;
+    const estadoFilter = searchParams.get('estado');
+    const fechaDesde = searchParams.get('fechaDesde');
+    const fechaHasta = searchParams.get('fechaHasta');
+    const excluirTipo = searchParams.get('excluirTipo') as TipoTarea | null;
+
+    return agenda
+      .filter((task) => {
+        if (tipoFilter && taskOrder.includes(tipoFilter) && task.tipo !== tipoFilter) return false;
+        if (excluirTipo && task.tipo === excluirTipo) return false;
+        if (estadoFilter && task.estadoCalculado !== estadoFilter) return false;
+        if (!taskMatchesRange(task, fechaDesde, fechaHasta)) return false;
+        return true;
+      })
+      .sort((left, right) =>
+        compareByDateStatusName(
+          left,
+          right,
+          (task) => task.fechaObjetivo ?? task.fechaProgramada,
+          (task) => task.estadoCalculado,
+          (task) => `${task.tipo} ${task.animal.caravana}`,
+        ),
+      );
   }, [agenda, searchParams]);
 
   const agendaDelDia = useMemo(
-    () => agendaVisible.filter((task) => task.fechaProgramada.slice(0, 10) === selectedDate),
+    () => agendaVisible.filter((task) => taskMatchesRange(task, selectedDate, selectedDate)),
     [agendaVisible, selectedDate],
   );
 
@@ -72,8 +114,14 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
+  useEffect(() => {
+    const fechaDesde = searchParams.get('fechaDesde');
+    const fechaHasta = searchParams.get('fechaHasta');
+    if (fechaDesde && fechaDesde === fechaHasta) setSelectedDate(fechaDesde);
+  }, [searchParams]);
+
   useDataChangedRefresh(() => loadAgenda(), [authToken]);
-  useScrollToSection(searchParams.get('tipo') || searchParams.get('estado') ? 'eventos-section' : null, [searchParams, agendaVisible.length]);
+  useScrollToSection(searchParams.get('tipo') || searchParams.get('estado') ? 'agenda-listado-section' : null, [searchParams, agendaVisible.length]);
 
   return (
     <div className="settings-page">
@@ -126,11 +174,11 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
               <tbody>
                 {agendaDelDia.map((task) => (
                   <tr key={task.id}>
-                    <td>{new Date(task.fechaProgramada).toLocaleDateString()}</td>
+                    <td>{formatDate(task.fechaObjetivo ?? task.fechaProgramada)}</td>
                     <td>{task.tipo}</td>
                     <td><strong>#{task.animal.caravana}</strong><span>{task.animal.categoriaAnimal}</span></td>
                     <td>{task.animal.lote.nombre}</td>
-                    <td><span className="status-pill status-active">{task.estado}</span></td>
+                    <td><span className={`status-pill ${statusClass(task.estadoCalculado)}`}>{task.estadoCalculado}</span></td>
                     <td>
                       <AgendaTaskActions
                         authToken={authToken}
@@ -157,7 +205,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
         </section>
       )}
 
-      <div className="agenda-groups">
+      <div className="agenda-groups" id="agenda-listado-section">
         {groupedAgenda.map((group) => (
           <section className="panel" key={group.tipo}>
             <div className="panel-header">
@@ -180,10 +228,10 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
                 <tbody>
                   {group.tasks.map((task) => (
                     <tr key={task.id}>
-                      <td>{new Date(task.fechaProgramada).toLocaleDateString()}</td>
+                      <td>{formatDate(task.fechaObjetivo ?? task.fechaProgramada)}</td>
                       <td><strong>#{task.animal.caravana}</strong><span>{task.animal.categoriaAnimal}</span></td>
                       <td>{task.animal.lote.nombre}</td>
-                      <td><span className="status-pill status-active">{task.estado}</span></td>
+                      <td><span className={`status-pill ${statusClass(task.estadoCalculado)}`}>{task.estadoCalculado}</span></td>
                       <td>
                         <AgendaTaskActions
                           authToken={authToken}

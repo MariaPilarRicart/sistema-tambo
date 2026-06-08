@@ -5,6 +5,22 @@ export function countAnimales(where?: Prisma.AnimalWhereInput) {
   return prisma.animal.count({ where });
 }
 
+export function countClientesForDashboard(fechaDesde: Date, fechaHasta: Date) {
+  return prisma.cliente.count({
+    where: { fechaAlta: { gte: fechaDesde, lte: fechaHasta } },
+  });
+}
+
+export function countLotesLecheVencidosForDashboard(fechaDesde: Date, fechaHasta: Date) {
+  return prisma.loteLeche.count({
+    where: { estado: EstadoLoteLeche.VENCIDO, fechaVencimiento: { gte: fechaDesde, lte: fechaHasta } },
+  });
+}
+
+export function countDashboardAgendaTasks(where: Prisma.AgendaTareaWhereInput) {
+  return prisma.agendaTarea.count({ where });
+}
+
 export async function countRodeoGeneralForDashboard() {
   const [vacasProduccion, vacasSecasPreparto, vaquillonas] = await Promise.all([
     prisma.animal.count({ where: { activo: true, estadoAnimal: 'ACTIVO', categoriaAnimal: 'VACA_PRODUCCION' } }),
@@ -99,7 +115,7 @@ export function findAgendaTasksForDashboard(where: Prisma.AgendaTareaWhereInput,
 
 export function countProduccionesForDashboard(fechaDesde: Date, fechaHasta: Date) {
   return prisma.produccionAnimal.count({
-    where: { fechaHora: { gte: fechaDesde, lte: fechaHasta } },
+    where: { activo: true, fechaHora: { gte: fechaDesde, lte: fechaHasta } },
   });
 }
 
@@ -117,7 +133,7 @@ export function countEventosForDashboard(fechaDesde: Date, fechaHasta: Date) {
 
 export function findProduccionesByDateRange(fechaDesde: Date, fechaHasta: Date) {
   return prisma.produccionAnimal.findMany({
-    where: { fechaHora: { gte: fechaDesde, lte: fechaHasta } },
+    where: { activo: true, fechaHora: { gte: fechaDesde, lte: fechaHasta } },
     orderBy: { fechaHora: 'asc' },
     select: {
       id: true,

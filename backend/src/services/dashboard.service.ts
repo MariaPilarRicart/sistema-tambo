@@ -1,7 +1,11 @@
-import { EstadoAnimal, EstadoLoteLeche, EstadoTarea, TipoTarea } from '@prisma/client';
+import { CategoriaAnimal, EstadoAnimal, EstadoLoteLeche, EstadoReproductivo, EstadoTarea, Prisma, TipoTarea } from '@prisma/client';
+import { prisma } from '../config/prisma';
 import {
   countAnimales,
+  countClientesForDashboard,
+  countDashboardAgendaTasks,
   countEventosForDashboard,
+  countLotesLecheVencidosForDashboard,
   countProduccionesForDashboard,
   countRodeoGeneralForDashboard,
   countRegistrosAlimentacionForDashboard,
@@ -23,6 +27,7 @@ import {
   groupAnimalesByEstadoReproductivo,
   groupAnimalesByLote,
 } from '../repositories/dashboard.repository';
+import { listVaccinationHistory } from './vacunacion.service';
 
 export type DashboardPeriodo = 'hoy' | 'semana' | 'mes' | 'anio';
 export type DashboardPeriodoInput = DashboardPeriodo | 'personalizado';
@@ -30,6 +35,24 @@ export type DashboardPeriodoInput = DashboardPeriodo | 'personalizado';
 interface CustomDateRange {
   fechaDesde?: Date;
   fechaHasta?: Date;
+}
+
+export interface DashboardEmpleadoResumen {
+  periodo: DashboardPeriodoInput;
+  fechaDesde: string;
+  fechaHasta: string;
+  animalesActivos: number;
+  vacasPrenadas: number;
+  vacasInseminadas: number;
+  vacasSecas: number;
+  tactosPendientes: number;
+  secadosPendientes: number;
+  partosPendientes: number;
+  vacunacionPendiente: number;
+  nacimientos: number;
+  vacunasVencidas: number;
+  alimentacionesRegistradas: number;
+  lotesVencidos: number;
 }
 
 function startOfToday() {
@@ -62,7 +85,7 @@ function addDays(date: Date, days: number) {
   return nextDate;
 }
 
-function resolvePeriodRange(periodo: DashboardPeriodoInput, customRange: CustomDateRange = {}) {
+export function resolvePeriodRange(periodo: DashboardPeriodoInput, customRange: CustomDateRange = {}) {
   const now = new Date();
 
   if (periodo === 'personalizado' && customRange.fechaDesde && customRange.fechaHasta) {
@@ -217,6 +240,82 @@ function buildProductionSummary(
   };
 }
 
+export async function getDashboardEmpleadoResumen(periodo: DashboardPeriodoInput = 'hoy', customRange: CustomDateRange = {}): Promise<DashboardEmpleadoResumen> {
+  const { fechaDesde, fechaHasta } = resolvePeriodRange(periodo, customRange);
+  const todayStart = startOfToday();
+  const todayEnd = endOfToday();
+  const taskDateRange = {
+    gte: fechaDesde,
+    lte: fechaHasta,
+  };
+
+  const [
+    animalesActivos,
+    vacasPrenadas,
+    vacasInseminadas,
+    vacasSecas,
+    tactosPendientes,
+    secadosPendientes,
+    partosPendientes,
+    vacunacionesPeriodo,
+    nacimientos,
+    alimentacionesRegistradas,
+    lotesVencidos,
+  ] = await Promise.all([
+    prisma.animal.count({
+      where: { activo: true, estadoAnimal: EstadoAnimal.ACTIVO },
+    }),
+    prisma.animal.count({
+      where: { activo: true, estadoAnimal: EstadoAnimal.ACTIVO, estadoReproductivo: EstadoReproductivo.PRENADA },
+    }),
+    prisma.animal.count({
+      where: { activo: true, estadoAnimal: EstadoAnimal.ACTIVO, estadoReproductivo: EstadoReproductivo.INSEMINADA },
+    }),
+    prisma.animal.count({
+      where: { activo: true, estadoAnimal: EstadoAnimal.ACTIVO, categoriaAnimal: CategoriaAnimal.VACA_SECA },
+    }),
+    prisma.agendaTarea.count({
+      where: openTaskWhere({ tipo: TipoTarea.TACTO, tipoSanitario: null }, effectiveTaskDateBetween(todayStart, todayEnd)),
+    }),
+    prisma.agendaTarea.count({
+      where: openTaskWhere({ tipo: TipoTarea.SECADO, tipoSanitario: null }, effectiveTaskDateBetween(todayStart, todayEnd)),
+    }),
+    prisma.agendaTarea.count({
+      where: openTaskWhere({ tipo: TipoTarea.PARTO, tipoSanitario: null }, effectiveTaskDateBetween(todayStart, todayEnd)),
+    }),
+    listVaccinationHistory({}),
+    prisma.animal.count({
+      where: { fechaNacimiento: taskDateRange },
+    }),
+    prisma.registroAlimentacion.count({
+      where: { fecha: taskDateRange },
+    }),
+    prisma.loteLeche.count({
+      where: { estado: EstadoLoteLeche.VENCIDO, fechaVencimiento: taskDateRange },
+    }),
+  ]);
+  const vacunacionPendiente = vacunacionesPeriodo.registros.filter((task) => task.estado === 'PENDIENTE').length;
+  const vacunasVencidas = vacunacionesPeriodo.registros.filter((task) => task.estado === 'VENCIDA').length;
+
+  return {
+    periodo,
+    fechaDesde: fechaDesde.toISOString(),
+    fechaHasta: fechaHasta.toISOString(),
+    animalesActivos,
+    vacasPrenadas,
+    vacasInseminadas,
+    vacasSecas,
+    tactosPendientes,
+    secadosPendientes,
+    partosPendientes,
+    vacunacionPendiente,
+    nacimientos,
+    vacunasVencidas,
+    alimentacionesRegistradas,
+    lotesVencidos,
+  };
+}
+
 function buildSalesSummary(
   ventas: Awaited<ReturnType<typeof findVentasByDateRange>>,
   litrosProducidos: number,
@@ -341,7 +440,7 @@ function buildFeedingSummary(
   const insumosMapped = insumos.map((insumo) => {
     const stockActual = toNumber(insumo.stockActual);
     const stockMinimo = toNumber(insumo.stockMinimo);
-    const estado = stockActual === 0 ? 'CRITICO' : stockActual < stockMinimo ? 'BAJO' : 'OK';
+    const estado = stockActual <= 0 ? 'CRITICO' : stockActual <= stockMinimo ? 'BAJO' : 'OK';
 
     return {
       id: insumo.id,
@@ -662,6 +761,31 @@ function mapGroup<T extends string>(items: Array<Record<string, unknown>>, key: 
   }));
 }
 
+function effectiveTaskDateBetween(fechaDesde: Date, fechaHasta: Date): Prisma.AgendaTareaWhereInput {
+  return {
+    OR: [
+      { AND: [{ fechaObjetivo: { not: null } }, { fechaProgramada: { lte: fechaHasta } }, { fechaObjetivo: { gte: fechaDesde } }] },
+      { fechaObjetivo: null, fechaProgramada: { gte: fechaDesde, lte: fechaHasta } },
+    ],
+  };
+}
+
+function effectiveTaskDateBefore(fecha: Date): Prisma.AgendaTareaWhereInput {
+  return {
+    OR: [
+      { fechaObjetivo: { lt: fecha } },
+      { fechaObjetivo: null, fechaProgramada: { lt: fecha } },
+    ],
+  };
+}
+
+function openTaskWhere(...conditions: Prisma.AgendaTareaWhereInput[]): Prisma.AgendaTareaWhereInput {
+  return {
+    estado: EstadoTarea.PENDIENTE,
+    AND: conditions,
+  };
+}
+
 export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy', customRange: CustomDateRange = {}) {
   const todayStart = startOfToday();
   const todayEnd = endOfToday();
@@ -703,6 +827,10 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     produccionesHoy,
     registrosAlimentacionHoy,
     eventosHoy,
+    nuevosClientes,
+    lotesVencidosPeriodo,
+    tareasPendientesPeriodo,
+    tareasVencidasPeriodo,
   ] = await Promise.all([
     countAnimales(),
     countAnimales({ activo: true, estadoAnimal: EstadoAnimal.ACTIVO }),
@@ -711,12 +839,17 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     groupAnimalesByEstadoReproductivo(),
     groupAnimalesByCategoria(),
     groupAnimalesByLote(),
-    countTareas({ estado: EstadoTarea.PENDIENTE, fechaProgramada: { lt: todayStart } }),
-    countTareas({ estado: EstadoTarea.PENDIENTE, fechaProgramada: { gte: todayStart, lte: todayEnd } }),
-    countTareas({ estado: EstadoTarea.PENDIENTE, fechaProgramada: { gt: todayEnd } }),
-    countTareas({ estado: EstadoTarea.PENDIENTE, tipo: TipoTarea.TACTO }),
-    countTareas({ estado: EstadoTarea.PENDIENTE, tipo: TipoTarea.SECADO }),
-    countTareas({ estado: EstadoTarea.PENDIENTE, tipo: TipoTarea.PARTO }),
+    countTareas(openTaskWhere(effectiveTaskDateBefore(todayStart))),
+    countTareas(openTaskWhere(effectiveTaskDateBetween(todayStart, todayEnd))),
+    countTareas(openTaskWhere({
+      OR: [
+        { fechaObjetivo: { gt: todayEnd } },
+        { fechaObjetivo: null, fechaProgramada: { gt: todayEnd } },
+      ],
+    })),
+    countTareas(openTaskWhere({ tipo: TipoTarea.TACTO }, effectiveTaskDateBetween(todayStart, todayEnd))),
+    countTareas(openTaskWhere({ tipo: TipoTarea.SECADO }, effectiveTaskDateBetween(todayStart, todayEnd))),
+    countTareas(openTaskWhere({ tipo: TipoTarea.PARTO }, effectiveTaskDateBetween(todayStart, todayEnd))),
     findUltimosEventos(),
     countRodeoGeneralForDashboard(),
     findProduccionesByDateRange(fechaDesde, fechaHasta),
@@ -730,12 +863,23 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     countSanitaryTasks({ estado: EstadoTarea.PENDIENTE, tipoSanitario: { not: null }, fechaObjetivo: { lt: todayStart } }),
     countSanitaryTasks({ estado: EstadoTarea.PENDIENTE, tipoSanitario: { not: null }, fechaObjetivo: { gte: todayStart, lte: nextSanitaryLimit } }),
     findUltimosEventosSanitarios(),
-    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipo: { in: agendaTaskTypes }, tipoSanitario: null, fechaProgramada: { lt: todayStart } }),
-    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipo: { in: agendaTaskTypes }, tipoSanitario: null, fechaProgramada: { gte: todayStart, lte: todayEnd } }),
-    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipo: { in: agendaTaskTypes }, tipoSanitario: null, fechaProgramada: { gt: todayEnd, lte: nextSevenDaysEnd } }),
+    findAgendaTasksForDashboard(openTaskWhere({ tipo: { in: agendaTaskTypes }, tipoSanitario: null }, effectiveTaskDateBefore(todayStart))),
+    findAgendaTasksForDashboard(openTaskWhere({ tipo: { in: agendaTaskTypes }, tipoSanitario: null }, effectiveTaskDateBetween(todayStart, todayEnd))),
+    findAgendaTasksForDashboard(openTaskWhere({
+      tipo: { in: agendaTaskTypes },
+      tipoSanitario: null,
+      OR: [
+        { fechaObjetivo: { gt: todayEnd, lte: nextSevenDaysEnd } },
+        { fechaObjetivo: null, fechaProgramada: { gt: todayEnd, lte: nextSevenDaysEnd } },
+      ],
+    })),
     countProduccionesForDashboard(todayStart, todayEnd),
     countRegistrosAlimentacionForDashboard(todayStart, todayEnd),
     countEventosForDashboard(todayStart, todayEnd),
+    countClientesForDashboard(fechaDesde, fechaHasta),
+    countLotesLecheVencidosForDashboard(fechaDesde, fechaHasta),
+    countDashboardAgendaTasks(openTaskWhere(effectiveTaskDateBetween(fechaDesde, fechaHasta), effectiveTaskDateBetween(todayStart, todayEnd))),
+    countDashboardAgendaTasks(openTaskWhere(effectiveTaskDateBetween(fechaDesde, fechaHasta), effectiveTaskDateBefore(todayStart))),
   ]);
   const resumenProduccion = buildProductionSummary(produccionesPeriodo, lotesPeriodo, periodo);
   const resumenVentas = buildSalesSummary(ventasPeriodo, resumenProduccion.litrosProducidos, periodo);
@@ -790,9 +934,12 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
       nombre: lote.nombre,
       total: lote._count.animales,
     })),
-    tareasVencidas: agendaTareasVencidas,
+    nuevosClientes,
+    lotesVencidosPeriodo,
+    tareasVencidas: tareasVencidasPeriodo,
     tareasHoy: agendaTareasHoy,
     tareasFuturas: agendaTareasFuturas,
+    tareasPendientes: tareasPendientesPeriodo,
     tactosPendientes,
     secadosPendientes,
     partosPendientes,

@@ -4,6 +4,7 @@ import { ApiError } from '../services/apiClient';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { getAnimales } from '../services/animalesService';
 import { getEventos } from '../services/eventosService';
+import { formatDateTime } from '../utils/display';
 import type { Animal } from '../types/animales';
 import type { Evento, EventoFilters, TipoEvento } from '../types/eventos';
 
@@ -140,9 +141,9 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
                 </tr>
               </thead>
               <tbody>
-                {eventos.map((evento) => (
+                {[...eventos].sort((left, right) => new Date(right.fecha).getTime() - new Date(left.fecha).getTime()).map((evento) => (
                   <tr key={evento.id}>
-                    <td>{new Date(evento.fecha).toLocaleString()}</td>
+                    <td>{formatDateTime(evento.fecha)}</td>
                     <td><span className="status-pill status-active">{evento.tipo}</span></td>
                     <td><strong>#{evento.animal.caravana}</strong><span>{evento.animal.categoriaAnimal}</span></td>
                     <td>{evento.usuario?.nombre ?? 'Sin usuario'}</td>

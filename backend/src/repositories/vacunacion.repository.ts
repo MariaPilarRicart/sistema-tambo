@@ -65,6 +65,11 @@ export function findVaccinationTasks(filters: {
   loteId?: number;
   categoriaAnimal?: CategoriaAnimal;
 }) {
+  const fechaObjetivoRange = filters.fechaObjetivoDesde || filters.fechaObjetivoHasta ? {
+    gte: filters.fechaObjetivoDesde,
+    lte: filters.fechaObjetivoHasta,
+  } : undefined;
+
   return prisma.agendaTarea.findMany({
     where: {
       tipo: 'VACUNACION',
@@ -73,10 +78,10 @@ export function findVaccinationTasks(filters: {
         gte: filters.fechaProgramadaDesde,
         lte: filters.fechaProgramadaHasta,
       } : undefined,
-      fechaObjetivo: filters.fechaObjetivoDesde || filters.fechaObjetivoHasta ? {
-        gte: filters.fechaObjetivoDesde,
-        lte: filters.fechaObjetivoHasta,
-      } : undefined,
+      OR: fechaObjetivoRange ? [
+        { fechaObjetivo: fechaObjetivoRange },
+        { fechaObjetivo: null, fechaProgramada: fechaObjetivoRange },
+      ] : undefined,
       fechaRealizacion: filters.fechaRealizadaDesde || filters.fechaRealizadaHasta ? {
         gte: filters.fechaRealizadaDesde,
         lte: filters.fechaRealizadaHasta,
