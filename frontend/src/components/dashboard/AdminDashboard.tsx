@@ -35,7 +35,7 @@ const periodOptions: Array<{ value: DashboardPeriodo; label: string }> = [
   { value: 'personalizado', label: 'Personalizado' },
 ];
 
-type AdminModalType = 'stock' | 'tareas' | 'sanidad';
+type AdminModalType = 'stock' | 'tareas' | 'sanidad' | 'leche';
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('es-AR', {
@@ -60,6 +60,7 @@ function formatNullable(value: number | null, suffix = '') {
 function severityClass(severity: string) {
   if (severity === 'CRITICA' || severity === 'CRITICO') return 'alert-critical';
   if (severity === 'MEDIA' || severity === 'BAJO') return 'alert-warning';
+  if (severity === 'OK') return 'alert-success';
   return 'alert-info';
 }
 
@@ -149,6 +150,34 @@ function KpiCard({
   return (
     <article className={`metric-card dashboard-kpi-card dashboard-kpi-${tone} ${className}`}>
       {content}
+    </article>
+  );
+}
+
+function ManagementStatusCard({
+  action,
+  detail,
+  icon: Icon,
+  subtext,
+  title,
+  tone,
+}: {
+  action: ReactNode;
+  detail: string;
+  icon: LucideIcon;
+  subtext: string;
+  title: string;
+  tone: 'CRITICA' | 'MEDIA' | 'OK';
+}) {
+  return (
+    <article className={`alert-card dashboard-management-card ${severityClass(tone)}`}>
+      <Icon size={18} />
+      <div>
+        <strong>{title}</strong>
+        <p>{detail}</p>
+        <small>{subtext}</small>
+        {action}
+      </div>
     </article>
   );
 }
@@ -325,6 +354,15 @@ export function AdminDashboard({
   const agotados = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual === 0);
   const totalAlertasStock = stockBajo.length + agotados.length;
   const totalVencimientosCriticos = resumen.tareasVencidas + resumenSanidad.tareasSanitariasVencidas;
+  const agendaProximas = resumen.tareasHoy + resumen.tareasFuturas;
+  const agendaDetalle = [
+    ...resumen.tareasVencidasDetalle,
+    ...resumen.tareasHoyDetalle,
+    ...resumen.tareasProximos7Dias,
+  ].filter((tarea, index, tareas) => tareas.findIndex((item) => item.id === tarea.id) === index);
+  const lotesProximosLeche = resumenLeche.riesgoVencimiento.vence48Horas.lotes + resumenLeche.riesgoVencimiento.vence7Dias.lotes;
+  const litrosVencidosLeche = resumenLeche.vencida.litros;
+  const lotesVencidosLeche = resumenLeche.vencida.lotes;
   const stockCardClass = agotados.length > 0
     ? 'dashboard-stock-critical'
     : stockBajo.length > 0
@@ -408,43 +446,87 @@ export function AdminDashboard({
       <section className="panel">
         <div className="dashboard-card-heading">
           <div>
-            <h2>Alertas de gestión</h2>
-            <p>Alertas accionables para resolver hoy.</p>
+            <h2>Estado de gestión</h2>
+            <p>Resumen de estados críticos y operativos del tambo.</p>
           </div>
         </div>
-        {resumen.alertasGestion.length === 0 ? (
-          <p className="table-empty">Sin alertas de gestión para este período.</p>
-        ) : (
-          <div className="dashboard-alert-grid">
-            {resumen.alertasGestion.map((alerta) => (
-              <article className={`alert-card ${severityClass(alerta.severidad)}`} key={alerta.codigo}>
-                <AlertTriangle size={18} />
-                <div>
-                  <strong>{alerta.titulo}</strong>
-                  <p>{alerta.detalle}</p>
-                  <small>{alerta.accionSugerida}</small>
-                  {alerta.codigo === 'TAREAS_VENCIDAS' || alerta.codigo === 'STOCK_CRITICO' || alerta.codigo === 'SANIDAD_PENDIENTE' ? (
-                    <button
-                      className="dashboard-alert-action"
-                      type="button"
-                      onClick={() => {
-                        if (alerta.codigo === 'STOCK_CRITICO') {
-                          setActiveModal('stock');
-                          return;
-                        }
-                        setActiveModal(alerta.codigo === 'TAREAS_VENCIDAS' ? 'tareas' : 'sanidad');
-                      }}
-                    >
-                      Ver detalle
-                    </button>
-                  ) : (
-                    <Link className="dashboard-alert-action" to={alerta.accionRuta}>{alerta.accionLabel}</Link>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
+        <div className="dashboard-alert-grid">
+          <ManagementStatusCard
+            action={resumen.tareasVencidas > 0 ? (
+              <button className="dashboard-alert-action" type="button" onClick={() => setActiveModal('tareas')}>Ver detalle</button>
+            ) : (
+              <Link className="dashboard-alert-action" to={paths.agenda}>Ver agenda</Link>
+            )}
+            detail={resumen.tareasVencidas > 0
+              ? `Hay ${resumen.tareasVencidas} tareas de agenda vencidas.`
+              : agendaProximas > 0
+                ? `Hay ${agendaProximas} tareas próximas.`
+                : 'Agenda al día.'}
+            icon={ClipboardList}
+            subtext={resumen.tareasVencidas > 0
+              ? 'Revisar agenda y resolver pendientes hoy.'
+              : agendaProximas > 0
+                ? 'Organizar los próximos trabajos de agenda.'
+                : 'No hay tareas vencidas.'}
+            title="AGENDA"
+            tone={resumen.tareasVencidas > 0 ? 'CRITICA' : agendaProximas > 0 ? 'MEDIA' : 'OK'}
+          />
+
+          <ManagementStatusCard
+            action={<button className="dashboard-alert-action" type="button" onClick={() => setActiveModal('stock')}>Ver detalle</button>}
+            detail={agotados.length > 0
+              ? `${agotados.length} insumos agotados.`
+              : stockBajo.length > 0
+                ? `${stockBajo.length} insumos bajo mínimo.`
+                : 'Stock sin alertas críticas.'}
+            icon={Utensils}
+            subtext={agotados.length > 0
+              ? 'Reponer alimento de forma urgente.'
+              : stockBajo.length > 0
+                ? 'Planificar reposición de alimento.'
+                : 'No hay alimentos bajo mínimo.'}
+            title="STOCK DE ALIMENTOS"
+            tone={agotados.length > 0 ? 'CRITICA' : stockBajo.length > 0 ? 'MEDIA' : 'OK'}
+          />
+
+          <ManagementStatusCard
+            action={resumenSanidad.controlesPendientes > 0 ? (
+              <button className="dashboard-alert-action" type="button" onClick={() => setActiveModal('sanidad')}>Ver detalle</button>
+            ) : (
+              <Link className="dashboard-alert-action" to={paths.vaccination}>Ver vacunación</Link>
+            )}
+            detail={resumenSanidad.tareasSanitariasVencidas > 0
+              ? `${resumenSanidad.tareasSanitariasVencidas} controles sanitarios vencidos.`
+              : resumenSanidad.tareasSanitariasProximas > 0
+                ? `${resumenSanidad.tareasSanitariasProximas} controles próximos a vencer.`
+                : 'Sanidad al día.'}
+            icon={AlertTriangle}
+            subtext={resumenSanidad.tareasSanitariasVencidas > 0
+              ? 'Revisar vacunación hoy.'
+              : resumenSanidad.tareasSanitariasProximas > 0
+                ? 'Programar controles sanitarios.'
+                : 'No hay controles sanitarios vencidos.'}
+            title="SANIDAD"
+            tone={resumenSanidad.tareasSanitariasVencidas > 0 ? 'CRITICA' : resumenSanidad.tareasSanitariasProximas > 0 ? 'MEDIA' : 'OK'}
+          />
+
+          <ManagementStatusCard
+            action={<button className="dashboard-alert-action" type="button" onClick={() => setActiveModal('leche')}>Ver detalle</button>}
+            detail={litrosVencidosLeche > 0
+              ? `${formatNumber(litrosVencidosLeche, ' L')} de leche vencida.`
+              : lotesProximosLeche > 0
+                ? `${lotesProximosLeche} lotes próximos a vencer.`
+                : 'Leche disponible sin vencimientos críticos.'}
+            icon={Truck}
+            subtext={litrosVencidosLeche > 0
+              ? 'Retirar de disponibilidad o revisar lote.'
+              : lotesProximosLeche > 0
+                ? 'Priorizar venta o control de calidad.'
+                : `${formatNumber(resumenLeche.litrosDisponibles, ' L')} disponibles para venta.`}
+            title="LECHE"
+            tone={litrosVencidosLeche > 0 ? 'CRITICA' : lotesProximosLeche > 0 ? 'MEDIA' : 'OK'}
+          />
+        </div>
       </section>
 
       <div className="dashboard-two-column">
@@ -565,7 +647,13 @@ export function AdminDashboard({
             <div className="dashboard-card-heading">
               <div>
                 <h2 id="admin-dashboard-modal-title">
-                  {activeModal === 'stock' ? 'Stock de alimentos' : activeModal === 'tareas' ? 'Agenda pendiente' : 'Controles sanitarios'}
+                  {activeModal === 'stock'
+                    ? 'Stock de alimentos'
+                    : activeModal === 'tareas'
+                      ? 'Agenda pendiente'
+                      : activeModal === 'sanidad'
+                        ? 'Controles sanitarios'
+                        : 'Leche disponible y vencimientos'}
                 </h2>
                 <p>Detalle para seguimiento y acción desde el módulo correspondiente.</p>
               </div>
@@ -615,11 +703,11 @@ export function AdminDashboard({
             )}
 
             {activeModal === 'tareas' && (
-              resumen.tareasVencidasDetalle.length === 0 ? (
-                <p className="table-empty">No hay tareas vencidas de agenda.</p>
+              agendaDetalle.length === 0 ? (
+                <p className="table-empty">No hay tareas de agenda pendientes.</p>
               ) : (
                 <div className="dashboard-urgent-list">
-                  {resumen.tareasVencidasDetalle.map((tarea) => (
+                  {agendaDetalle.map((tarea) => (
                     <div className="dashboard-urgent-row" key={tarea.id}>
                       <strong>{friendlyEnum(tarea.tipoTarea)}</strong>
                       <span>{tarea.animal ? `Animal #${tarea.animal.caravana}` : 'Sin animal'}</span>
@@ -642,12 +730,61 @@ export function AdminDashboard({
                       <strong>{friendlyEnum(tarea.tipo)}</strong>
                       <span>{friendlyEnum(tarea.lote ?? tarea.categoria ?? tarea.alcance)}</span>
                       <span>Vence: {formatDate(tarea.fechaObjetivo)}</span>
-                      <span className="badge badge-warning">{friendlyEnum(tarea.estado)}</span>
+                      <span className={`badge ${tarea.estado === 'VENCIDA' ? 'badge-critical' : 'badge-warning'}`}>{friendlyEnum(tarea.estado)}</span>
                       <Link className="secondary-button" to={paths.vaccination}>Ver vacunación</Link>
                     </div>
                   ))}
                 </div>
               )
+            )}
+
+            {activeModal === 'leche' && (
+              <div className="admin-modal-sections">
+                <section>
+                  <h3>Lotes vencidos</h3>
+                  {resumenLeche.vencida.lotesDetalle.length === 0 ? (
+                    <p className="table-empty">No hay leche vencida con litros disponibles.</p>
+                  ) : (
+                    <div className="dashboard-urgent-list">
+                      {resumenLeche.vencida.lotesDetalle.map((lote) => (
+                        <div className="dashboard-urgent-row" key={lote.id}>
+                          <strong>Lote {lote.codigo}</strong>
+                          <span>Venció: {formatDate(lote.fechaVencimiento)}</span>
+                          <span>Disponible: {formatNumber(lote.litrosDisponibles, ' L')}</span>
+                          <small>Acción sugerida: {lote.accionSugerida}</small>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+                <section>
+                  <h3>Lotes próximos a vencer</h3>
+                  {resumenLeche.riesgoVencimiento.urgentes.length === 0 ? (
+                    <p className="table-empty">No hay lotes próximos a vencer.</p>
+                  ) : (
+                    <div className="dashboard-urgent-list">
+                      {resumenLeche.riesgoVencimiento.urgentes.map((lote) => (
+                        <div className="dashboard-urgent-row" key={lote.id}>
+                          <strong>Lote {lote.codigo}</strong>
+                          <span>Vence: {formatDate(lote.fechaVencimiento)}</span>
+                          <span>Disponible: {formatNumber(lote.litrosDisponibles, ' L')}</span>
+                          <small>Acción sugerida: {lote.accionSugerida}</small>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+                <div className="dashboard-detail-grid">
+                  <span>Lotes vencidos <strong>{lotesVencidosLeche}</strong></span>
+                  <span>Litros vencidos <strong>{formatNumber(litrosVencidosLeche, ' L')}</strong></span>
+                  <span>Lotes próximos <strong>{lotesProximosLeche}</strong></span>
+                  <span>Leche disponible <strong>{formatNumber(resumenLeche.litrosDisponibles, ' L')}</strong></span>
+                </div>
+                <div className="dashboard-modal-actions">
+                  <Link className="secondary-button dashboard-inline-action" to={paths.production}>Ver producción</Link>
+                  <Link className="secondary-button dashboard-inline-action" to={paths.sales}>Registrar venta</Link>
+                </div>
+              </div>
             )}
           </section>
         </div>

@@ -1,4 +1,4 @@
-import { EstadoAnimal, EstadoTarea, TipoTarea } from '@prisma/client';
+import { EstadoAnimal, EstadoLoteLeche, EstadoTarea, TipoTarea } from '@prisma/client';
 import {
   countAnimales,
   countEventosForDashboard,
@@ -285,24 +285,41 @@ function buildMilkSummary(lotes: Awaited<ReturnType<typeof findAvailableLotesLec
       estado: lote.estado,
     };
   });
-  const vence48Horas = lotesMapped.filter((lote) => lote.fechaVencimiento <= nextFortyEightHours);
-  const vence7Dias = lotesMapped.filter((lote) => lote.fechaVencimiento > nextFortyEightHours && lote.fechaVencimiento <= nextSevenDays);
-  const sinRiesgo = lotesMapped.filter((lote) => lote.fechaVencimiento > nextSevenDays);
+  const lotesConDisponibilidad = lotesMapped.filter((lote) => lote.litrosDisponibles > 0);
+  const lotesVencidos = lotesConDisponibilidad.filter(
+    (lote) => lote.estado === EstadoLoteLeche.VENCIDO || lote.fechaVencimiento < todayStart,
+  );
+  const lotesDisponibles = lotesConDisponibilidad.filter(
+    (lote) => lote.estado !== EstadoLoteLeche.VENCIDO && lote.fechaVencimiento >= todayStart,
+  );
+  const vence48Horas = lotesDisponibles.filter((lote) => lote.fechaVencimiento <= nextFortyEightHours);
+  const vence7Dias = lotesDisponibles.filter((lote) => lote.fechaVencimiento > nextFortyEightHours && lote.fechaVencimiento <= nextSevenDays);
+  const sinRiesgo = lotesDisponibles.filter((lote) => lote.fechaVencimiento > nextSevenDays);
   const summarizeRisk = (items: typeof lotesMapped) => ({
     lotes: items.length,
     litros: round(items.reduce((total, lote) => total + lote.litrosDisponibles, 0)),
   });
 
   return {
-    litrosDisponibles: round(lotesMapped.reduce((total, lote) => total + lote.litrosDisponibles, 0)),
-    lotesDisponibles: lotesMapped.length,
-    lotesProximosAVencer: lotesMapped.filter((lote) => lote.fechaVencimiento <= nextSevenDays).length,
+    litrosDisponibles: round(lotesDisponibles.reduce((total, lote) => total + lote.litrosDisponibles, 0)),
+    lotesDisponibles: lotesDisponibles.length,
+    lotesProximosAVencer: [...vence48Horas, ...vence7Dias].length,
+    vencida: {
+      lotes: lotesVencidos.length,
+      litros: round(lotesVencidos.reduce((total, lote) => total + lote.litrosDisponibles, 0)),
+      lotesDetalle: lotesVencidos.slice(0, 5).map((lote) => ({
+        id: lote.id,
+        codigo: lote.codigo,
+        fechaVencimiento: lote.fechaVencimiento,
+        litrosDisponibles: lote.litrosDisponibles,
+        accionSugerida: 'Retirar de disponibilidad o revisar lote',
+      })),
+    },
     riesgoVencimiento: {
       vence48Horas: summarizeRisk(vence48Horas),
       vence7Dias: summarizeRisk(vence7Dias),
       sinRiesgo: summarizeRisk(sinRiesgo),
       urgentes: [...vence48Horas, ...vence7Dias]
-        .filter((lote) => lote.litrosDisponibles > 0)
         .slice(0, 3)
         .map((lote) => ({
           id: lote.id,
@@ -312,7 +329,7 @@ function buildMilkSummary(lotes: Awaited<ReturnType<typeof findAvailableLotesLec
           accionSugerida: 'Priorizar venta si tiene litros disponibles',
         })),
     },
-    lotes: lotesMapped.slice(0, 8),
+    lotes: lotesDisponibles.slice(0, 8),
   };
 }
 
