@@ -2350,6 +2350,26 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) auto;
 }
 
+.production-history-filters {
+  grid-template-columns:
+    minmax(128px, 0.8fr)
+    minmax(128px, 0.8fr)
+    minmax(140px, 1fr)
+    minmax(170px, 1.15fr)
+    minmax(140px, 1fr)
+    minmax(105px, 0.65fr)
+    auto;
+}
+
+.production-history-filters .filter-field {
+  min-width: 0;
+}
+
+.production-history-filters input,
+.production-history-filters select {
+  width: 100%;
+}
+
 .agenda-groups {
   display: grid;
   gap: 20px;
