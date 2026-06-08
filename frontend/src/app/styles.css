@@ -2351,15 +2351,15 @@ a {
 }
 
 .production-history-filters {
-  column-gap: 16px;
+  gap: 12px 18px;
   grid-template-columns:
-    minmax(118px, 132px)
-    minmax(118px, 132px)
+    minmax(145px, 0.8fr)
+    minmax(145px, 0.8fr)
     minmax(150px, 1fr)
-    minmax(180px, 1.15fr)
+    minmax(170px, 1.15fr)
     minmax(150px, 1fr)
-    minmax(110px, 0.65fr)
-    auto;
+    minmax(105px, 0.65fr)
+    max-content;
 }
 
 .production-history-filters .filter-field {
@@ -2368,7 +2368,15 @@ a {
 
 .production-history-filters input,
 .production-history-filters select {
+  box-sizing: border-box;
+  min-width: 0;
   width: 100%;
+}
+
+@media (max-width: 1180px) {
+  .production-history-filters {
+    grid-template-columns: repeat(3, minmax(170px, 1fr)) max-content;
+  }
 }
 
 .agenda-groups {
