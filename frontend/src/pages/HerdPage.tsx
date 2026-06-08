@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarPlus, Edit2, Plus, RefreshCcw, Trash2, X } from 'lucide-react';
+import { Activity, Baby, CircleDot, HeartPulse, RefreshCcw, ShieldCheck, Trash2, Users, X, CalendarPlus, Edit2, Plus } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
-import { createAnimal, deactivateAnimal, getAnimales, updateAnimal } from '../services/animalesService';
+import { createAnimal, deactivateAnimal, getAnimales, getRodeoResumen, updateAnimal } from '../services/animalesService';
 import { createEvento } from '../services/eventosService';
 import { getLotes } from '../services/lotesService';
 import { LotesPanel } from '../components/ui/LotesPanel';
@@ -15,6 +15,7 @@ import type {
   EstadoAnimal,
   EstadoReproductivo,
   MotivoBajaAnimal,
+  RodeoResumen,
 } from '../types/animales';
 import type { AuthUser } from '../types/auth';
 import type { EventoFormValues, TipoEvento } from '../types/eventos';
@@ -102,6 +103,7 @@ interface HerdPageProps {
 export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPageProps) {
   const [animales, setAnimales] = useState<Animal[]>([]);
   const [allAnimales, setAllAnimales] = useState<Animal[]>([]);
+  const [resumen, setResumen] = useState<RodeoResumen | null>(null);
   const [lotes, setLotes] = useState<Lote[]>([]);
   const [filters, setFilters] = useState<AnimalFilters>(emptyFilters);
   const [formValues, setFormValues] = useState<AnimalFormValues>(emptyAnimalForm);
@@ -136,15 +138,17 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
     setError('');
 
     try {
-      const [nextAnimales, nextLotes] = await Promise.all([
+      const [nextAnimales, nextLotes, nextResumen] = await Promise.all([
         getAnimales(authToken, nextFilters),
         getLotes(authToken),
+        getRodeoResumen(authToken),
       ]);
       const nextAllAnimales = nextFilters === emptyFilters
         ? nextAnimales
         : await getAnimales(authToken, emptyFilters);
       setAnimales(nextAnimales);
       setAllAnimales(nextAllAnimales);
+      setResumen(nextResumen);
       setLotes(nextLotes);
     } catch (loadError) {
       handleRequestError(loadError);
@@ -367,6 +371,15 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
 
       {error && !isAnimalModalOpen && !deactivateAnimalTarget && !eventAnimal && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
+
+      <div className="operative-summary-grid herd-summary-grid">
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-blue"><Users size={20} /></div><p className="metric-title">Total de animales</p><strong className="metric-value">{resumen?.totalAnimales ?? 0}</strong></article>
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-emerald"><ShieldCheck size={20} /></div><p className="metric-title">Animales activos</p><strong className="metric-value">{resumen?.animalesActivos ?? 0}</strong></article>
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-pink"><HeartPulse size={20} /></div><p className="metric-title">Preñadas</p><strong className="metric-value">{resumen?.prenadas ?? 0}</strong></article>
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-indigo"><Activity size={20} /></div><p className="metric-title">Inseminadas</p><strong className="metric-value">{resumen?.inseminadas ?? 0}</strong></article>
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-amber"><CircleDot size={20} /></div><p className="metric-title">Vacías</p><strong className="metric-value">{resumen?.vacias ?? 0}</strong></article>
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-rose"><Baby size={20} /></div><p className="metric-title">Secas o recuperación</p><strong className="metric-value">{resumen?.secasRecuperacion ?? 0}</strong></article>
+      </div>
 
       <section className="panel users-list-panel herd-list-panel">
           <div className="panel-header">

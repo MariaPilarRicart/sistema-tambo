@@ -45,6 +45,33 @@ export function findAnimales(filters: {
   });
 }
 
+export async function getRodeoSummaryCounts() {
+  const [
+    totalAnimales,
+    animalesActivos,
+    prenadas,
+    inseminadas,
+    vacias,
+    secasRecuperacion,
+  ] = await Promise.all([
+    prisma.animal.count(),
+    prisma.animal.count({ where: { activo: true, estadoAnimal: 'ACTIVO' } }),
+    prisma.animal.count({ where: { estadoReproductivo: 'PRENADA' } }),
+    prisma.animal.count({ where: { estadoReproductivo: 'INSEMINADA' } }),
+    prisma.animal.count({ where: { estadoReproductivo: 'VACIA' } }),
+    prisma.animal.count({ where: { estadoReproductivo: { in: ['SECA', 'RECUPERACION'] } } }),
+  ]);
+
+  return {
+    totalAnimales,
+    animalesActivos,
+    prenadas,
+    inseminadas,
+    vacias,
+    secasRecuperacion,
+  };
+}
+
 export function findAnimalById(id: number) {
   return prisma.animal.findUnique({
     where: { id },

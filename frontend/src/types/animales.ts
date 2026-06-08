@@ -65,6 +65,15 @@ export interface AnimalFilters {
   activo: string;
 }
 
+export interface RodeoResumen {
+  totalAnimales: number;
+  animalesActivos: number;
+  prenadas: number;
+  inseminadas: number;
+  vacias: number;
+  secasRecuperacion: number;
+}
+
 export interface AnimalDeactivateValues {
   estadoAnimal: MotivoBajaAnimal;
   observacionesBaja: string;

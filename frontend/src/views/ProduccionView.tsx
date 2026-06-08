@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { BarChart3, Droplets, Edit2, Milk, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { getAnimales } from '../services/animalesService';
@@ -210,6 +211,7 @@ function loteLecheToEditValues(loteLeche: LoteLeche): LoteLecheEditValues {
 }
 
 export function ProduccionView({ authToken, currentUser, onUnauthorized }: ProduccionViewProps) {
+  const [searchParams] = useSearchParams();
   const [registros, setRegistros] = useState<ProduccionAnimal[]>([]);
   const [resumen, setResumen] = useState<ProduccionResumen | null>(null);
   const [animales, setAnimales] = useState<Animal[]>([]);
@@ -235,6 +237,13 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    const estadoLoteLeche = searchParams.get('estadoLoteLeche');
+    if (estadoLoteLeche === 'DISPONIBLE' || estadoLoteLeche === 'VENDIDO' || estadoLoteLeche === 'VENCIDO') {
+      setLoteLecheFilters((current) => ({ ...current, estado: estadoLoteLeche }));
+    }
+  }, [searchParams]);
 
   const isAdmin = currentUser?.role === 'ADMIN';
   const hasDiscard = Number(form.litrosDescartados || 0) > 0;

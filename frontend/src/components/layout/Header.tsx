@@ -2,7 +2,7 @@ import { Bell } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { paths } from '../../routes/paths';
-import { ApiError } from '../../services/apiClient';
+import { ApiError, DATA_CHANGED_EVENT } from '../../services/apiClient';
 import { attendSimpleNotification, getSimpleNotifications, type SimpleNotification } from '../../services/notificacionesService';
 import type { AuthUser } from '../../types/auth';
 
@@ -20,11 +20,43 @@ function priorityClass(priority: SimpleNotification['prioridad']) {
   return 'notification-priority-low';
 }
 
+function formatNotificationDate(value?: string) {
+  if (!value) return '';
+  return new Date(value).toLocaleString('es-AR', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: '2-digit',
+  });
+}
+
+function NotificationButton({
+  notification,
+  onClick,
+}: {
+  notification: SimpleNotification;
+  onClick: (notification: SimpleNotification) => void;
+}) {
+  const formattedDate = formatNotificationDate(notification.fecha);
+
+  return (
+    <button type="button" className="notification-item" onClick={() => onClick(notification)}>
+      <span className={`notification-priority-dot ${priorityClass(notification.prioridad)}`} />
+      <span>
+        <strong>{notification.titulo}</strong>
+        <small>{notification.descripcion}</small>
+        <em>{notification.modulo}{formattedDate ? ` · ${formattedDate}` : ''}</em>
+      </span>
+    </button>
+  );
+}
+
 export function Header({ title, user, authToken, onUnauthorized }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const notificationRef = useRef<HTMLDivElement | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [areNotificationsExpanded, setAreNotificationsExpanded] = useState(false);
   const [notifications, setNotifications] = useState<SimpleNotification[]>([]);
   const [notificationTotal, setNotificationTotal] = useState(0);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
@@ -67,9 +99,11 @@ export function Header({ title, user, authToken, onUnauthorized }: HeaderProps) 
       setNotificationsError('No se pudo atender la notificación.');
       return;
     }
+
     setNotifications((current) => current.filter((item) => item.id !== notification.id));
     setNotificationTotal((current) => Math.max(0, current - 1));
     setIsNotificationsOpen(false);
+    setAreNotificationsExpanded(false);
     navigate(notification.ruta);
   }
 
@@ -80,18 +114,36 @@ export function Header({ title, user, authToken, onUnauthorized }: HeaderProps) 
 
   useEffect(() => {
     setIsNotificationsOpen(false);
+    setAreNotificationsExpanded(false);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
     function handleDocumentClick(event: MouseEvent) {
       if (!notificationRef.current?.contains(event.target as Node)) {
         setIsNotificationsOpen(false);
+        setAreNotificationsExpanded(false);
       }
     }
 
     document.addEventListener('mousedown', handleDocumentClick);
     return () => document.removeEventListener('mousedown', handleDocumentClick);
   }, []);
+
+  useEffect(() => {
+    function handleDataChanged() {
+      void loadNotifications();
+    }
+
+    window.addEventListener(DATA_CHANGED_EVENT, handleDataChanged);
+    return () => window.removeEventListener(DATA_CHANGED_EVENT, handleDataChanged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken]);
+
+  const visibleLimit = areNotificationsExpanded ? notifications.length : 3;
+  const dropdownNotifications = notifications.slice(0, visibleLimit);
+  const displayedNotificationsCount = Math.min(notificationTotal, areNotificationsExpanded ? notificationTotal : 3);
+  const hasMoreNotifications = notificationTotal > 3;
+  const notificationBadge = notificationTotal > 3 ? '+3' : String(notificationTotal);
 
   return (
     <header className="topbar">
@@ -108,33 +160,31 @@ export function Header({ title, user, authToken, onUnauthorized }: HeaderProps) 
             }}
           >
             <Bell size={20} />
-            {notificationTotal > 0 && <span className="notification-count">{notificationTotal > 9 ? '9+' : notificationTotal}</span>}
+            {notificationTotal > 0 && <span className="notification-count">{notificationBadge}</span>}
           </button>
           {isNotificationsOpen && (
-            <div className="notifications-menu">
+            <div className={`notifications-menu ${areNotificationsExpanded ? 'notifications-menu-expanded' : ''}`}>
               <div className="notifications-menu-header">
                 <strong>Notificaciones</strong>
-                <small>{notificationTotal} activas</small>
+                <small>Mostrando {displayedNotificationsCount} de {notificationTotal}</small>
               </div>
               {isLoadingNotifications && <p className="notifications-empty">Cargando...</p>}
               {!isLoadingNotifications && notificationsError && <p className="notifications-empty">{notificationsError}</p>}
               {!isLoadingNotifications && !notificationsError && notifications.length === 0 && (
-                <p className="notifications-empty">No tenés notificaciones pendientes</p>
+                <p className="notifications-empty">No tenés notificaciones pendientes.</p>
               )}
-              {!isLoadingNotifications && !notificationsError && notifications.map((notification) => (
+              {!isLoadingNotifications && !notificationsError && dropdownNotifications.map((notification) => (
+                <NotificationButton key={notification.id} notification={notification} onClick={handleNotificationClick} />
+              ))}
+              {!isLoadingNotifications && !notificationsError && hasMoreNotifications && (
                 <button
                   type="button"
-                  key={notification.id}
-                  className="notification-item"
-                  onClick={() => handleNotificationClick(notification)}
+                  className="notifications-more-button"
+                  onClick={() => setAreNotificationsExpanded((expanded) => !expanded)}
                 >
-                  <span className={`notification-priority ${priorityClass(notification.prioridad)}`} />
-                  <span>
-                    <strong>{notification.titulo}</strong>
-                    <small>{notification.descripcion}</small>
-                  </span>
+                  {areNotificationsExpanded ? 'VER MENOS' : 'VER MÁS'}
                 </button>
-              ))}
+              )}
             </div>
           )}
         </div>

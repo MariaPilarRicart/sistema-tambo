@@ -108,6 +108,17 @@ export interface DashboardResumenLeche {
   litrosDisponibles: number;
   lotesDisponibles: number;
   lotesProximosAVencer: number;
+  vencida: {
+    lotes: number;
+    litros: number;
+    lotesDetalle: Array<{
+      id: number;
+      codigo: string;
+      fechaVencimiento: string;
+      litrosDisponibles: number;
+      accionSugerida: string;
+    }>;
+  };
   riesgoVencimiento: {
     vence48Horas: {
       lotes: number;

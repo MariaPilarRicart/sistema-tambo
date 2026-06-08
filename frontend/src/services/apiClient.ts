@@ -13,6 +13,13 @@ interface ApiRequestOptions extends RequestInit {
   token?: string | null;
 }
 
+export const DATA_CHANGED_EVENT = 'sistema-tambo:data-changed';
+
+function isMutation(method: string | undefined) {
+  const normalizedMethod = (method ?? 'GET').toUpperCase();
+  return normalizedMethod !== 'GET' && normalizedMethod !== 'HEAD';
+}
+
 export async function apiRequest<TResponse>(
   path: string,
   options: ApiRequestOptions = {},
@@ -39,5 +46,16 @@ export async function apiRequest<TResponse>(
     throw new ApiError(message, response.status);
   }
 
-  return response.json() as Promise<TResponse>;
+  const responseBody = await response.json() as TResponse;
+
+  if (isMutation(requestOptions.method) && typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(DATA_CHANGED_EVENT, {
+      detail: {
+        method: requestOptions.method ?? 'GET',
+        path,
+      },
+    }));
+  }
+
+  return responseBody;
 }

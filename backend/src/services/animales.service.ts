@@ -8,6 +8,7 @@ import {
   findAnimalByCaravana,
   findAnimalById,
   findAnimales,
+  getRodeoSummaryCounts,
   updateAnimal,
 } from '../repositories/animales.repository';
 
@@ -134,6 +135,10 @@ export async function listAnimales(query: Record<string, unknown>) {
     estadoAnimal: query.estadoAnimal ? parseEstadoAnimal(query.estadoAnimal) : undefined,
     activo: parseBoolean(query.activo),
   });
+}
+
+export function getRodeoResumen() {
+  return getRodeoSummaryCounts();
 }
 
 export async function getAnimal(idParam: string) {

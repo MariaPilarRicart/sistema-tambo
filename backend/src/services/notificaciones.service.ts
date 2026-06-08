@@ -1,4 +1,4 @@
-import { EstadoAnimal, EstadoTarea, TipoTarea, type RolUsuario } from '@prisma/client';
+import { EstadoAnimal, EstadoLoteLeche, EstadoTarea, TipoTarea, type RolUsuario } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AppError } from '../errors/AppError';
 import { getVaccinationSummary } from './vacunacion.service';
@@ -11,6 +11,7 @@ interface NotificationItem {
   firma: string;
   titulo: string;
   descripcion: string;
+  modulo: string;
   prioridad: NotificationPriority;
   prioridadOrden: number;
   ruta: string;
@@ -26,6 +27,15 @@ function addDays(value: Date, days: number) {
   const date = new Date(value);
   date.setDate(date.getDate() + days);
   return date;
+}
+
+function moduleFromRoute(route: string) {
+  if (route.startsWith('/alimentacion')) return 'Alimentación';
+  if (route.startsWith('/vacunacion')) return 'Vacunación';
+  if (route.startsWith('/rodeos')) return 'Rodeo';
+  if (route.startsWith('/agenda')) return 'Agenda';
+  if (route.startsWith('/produccion')) return 'Producción';
+  return 'Sistema';
 }
 
 function notification(
@@ -44,6 +54,7 @@ function notification(
     firma,
     titulo,
     descripcion,
+    modulo: moduleFromRoute(ruta),
     prioridad,
     prioridadOrden,
     ruta,
@@ -61,7 +72,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
   const today = todayStart();
   const nextSevenDays = addDays(today, 7);
 
-  const [vaccinationSummary, stockAgotado, stockBajo, partosProximos] = await Promise.all([
+  const [vaccinationSummary, stockAgotado, stockBajo, partosProximos, lotesLecheVencidos] = await Promise.all([
     getVaccinationSummary(),
     prisma.insumoAlimentacion.count({
       where: {
@@ -91,6 +102,11 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
             fechaProgramada: { gte: today, lte: nextSevenDays },
           },
         ],
+      },
+    }),
+    prisma.loteLeche.count({
+      where: {
+        estado: EstadoLoteLeche.VENCIDO,
       },
     }),
   ]);
@@ -129,7 +145,19 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       `Hay ${partosProximos} partos próximos.`,
       'MEDIA',
       3,
-      '/rodeos?partoProximo=true',
+      '/agenda?tipo=PARTO',
+    ));
+  }
+
+  if (lotesLecheVencidos > 0) {
+    notifications.push(notification(
+      'lotes-leche-vencidos',
+      lotesLecheVencidos,
+      'Lotes de leche vencidos',
+      `Hay ${lotesLecheVencidos} lotes de leche vencidos.`,
+      'ALTA',
+      4,
+      '/produccion?estadoLoteLeche=VENCIDO',
     ));
   }
 
@@ -140,7 +168,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       'Stock bajo',
       `Hay ${stockBajo} insumos con stock bajo.`,
       'MEDIA',
-      4,
+      5,
       '/alimentacion?estadoStock=BAJO',
     ));
   }
@@ -152,7 +180,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       'Vacunas pendientes',
       `Tenés ${vaccinationSummary.pendientes} vacunaciones pendientes.`,
       'BAJA',
-      5,
+      6,
       '/vacunacion?estado=PENDIENTE',
     ));
   }
@@ -176,7 +204,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
 
   return {
     total: ordered.length,
-    notificaciones: ordered.slice(0, 3).map(({ prioridadOrden, ...item }) => item),
+    notificaciones: ordered.map(({ prioridadOrden, ...item }) => item),
   };
 }
 

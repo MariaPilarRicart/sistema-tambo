@@ -398,7 +398,7 @@ a {
   border-radius: 14px;
   box-shadow: 0 18px 40px rgb(15 23 42 / 0.16);
   display: grid;
-  gap: 4px;
+  gap: 6px;
   max-width: 320px;
   min-width: 300px;
   padding: 10px;
@@ -406,6 +406,22 @@ a {
   right: 0;
   top: calc(100% + 10px);
   z-index: 90;
+}
+
+.notifications-menu-expanded {
+  max-height: 430px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.notifications-menu-expanded::-webkit-scrollbar {
+  width: 6px;
+}
+
+.notifications-menu-expanded::-webkit-scrollbar-thumb {
+  background: var(--slate-300);
+  border-radius: 999px;
 }
 
 .notifications-menu-header {
@@ -439,14 +455,16 @@ a {
   border-radius: 10px;
   color: var(--slate-700);
   display: grid;
-  gap: 10px;
+  gap: 12px;
   grid-template-columns: 10px 1fr;
-  padding: 10px 8px;
+  padding: 10px;
   text-align: left;
+  width: 100%;
 }
 
 .notification-item:hover {
   background: var(--slate-50);
+  cursor: pointer;
 }
 
 .notification-item span:last-child {
@@ -473,7 +491,8 @@ a {
   font-weight: 800;
 }
 
-.notification-priority {
+.notification-priority,
+.notification-priority-dot {
   border-radius: 999px;
   height: 10px;
   margin-top: 4px;
@@ -482,18 +501,38 @@ a {
 
 .notification-priority-critical {
   background: var(--rose);
+  color: var(--rose);
 }
 
 .notification-priority-high {
   background: var(--amber);
+  color: var(--amber);
 }
 
 .notification-priority-medium {
   background: var(--blue);
+  color: var(--blue);
 }
 
 .notification-priority-low {
   background: var(--emerald);
+  color: var(--emerald);
+}
+
+.notifications-more-button {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-100);
+  border-radius: 10px;
+  color: var(--emerald-dark);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 10px;
+  text-transform: uppercase;
+}
+
+.notifications-more-button:hover {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
 }
 
 .user-summary {
@@ -1136,6 +1175,22 @@ a {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.dashboard-management-card {
+  align-items: flex-start;
+  min-height: 132px;
+}
+
+.dashboard-management-card > div {
+  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.dashboard-management-card .dashboard-alert-action {
+  margin-top: auto;
+}
+
 .dashboard-two-column {
   align-items: start;
   display: grid;
@@ -1368,6 +1423,13 @@ a {
 .admin-modal-sections section {
   display: grid;
   gap: 12px;
+}
+
+.dashboard-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
 }
 
 .alert-card small {
@@ -2081,6 +2143,12 @@ a {
   background: #eff6ff;
   border-color: #dbeafe;
   color: #1d4ed8;
+}
+
+.alert-success {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
 }
 
 .placeholder-page {

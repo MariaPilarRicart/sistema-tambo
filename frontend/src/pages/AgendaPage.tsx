@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { RefreshCcw } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { getAgendaPendiente } from '../services/agendaService';
@@ -16,25 +17,34 @@ interface AgendaPageProps {
 }
 
 export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPageProps) {
+  const [searchParams] = useSearchParams();
   const [agenda, setAgenda] = useState<AgendaTarea[]>([]);
   const [selectedDate, setSelectedDate] = useState(today);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  const agendaVisible = useMemo(() => {
+    const tipoFilter = searchParams.get('tipo') as TipoTarea | null;
+    return tipoFilter && taskOrder.includes(tipoFilter)
+      ? agenda.filter((task) => task.tipo === tipoFilter)
+      : agenda;
+  }, [agenda, searchParams]);
+
   const agendaDelDia = useMemo(
-    () => agenda.filter((task) => task.fechaProgramada.slice(0, 10) === selectedDate),
-    [agenda, selectedDate],
+    () => agendaVisible.filter((task) => task.fechaProgramada.slice(0, 10) === selectedDate),
+    [agendaVisible, selectedDate],
   );
 
   const groupedAgenda = useMemo(
-    () =>
+    () => (
       taskOrder
         .map((tipo) => ({
           tipo,
-          tasks: agenda.filter((task) => task.tipo === tipo),
+          tasks: agendaVisible.filter((task) => task.tipo === tipo),
         }))
-        .filter((group) => group.tasks.length > 0),
-    [agenda],
+        .filter((group) => group.tasks.length > 0)
+    ),
+    [agendaVisible],
   );
 
   async function loadAgenda() {

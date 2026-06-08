@@ -1,5 +1,5 @@
 import { apiRequest } from './apiClient';
-import type { Animal, AnimalDeactivateValues, AnimalFicha, AnimalFilters, AnimalFormValues } from '../types/animales';
+import type { Animal, AnimalDeactivateValues, AnimalFicha, AnimalFilters, AnimalFormValues, RodeoResumen } from '../types/animales';
 
 interface AnimalesResponse {
   animales: Animal[];
@@ -11,6 +11,10 @@ interface AnimalResponse {
 
 interface AnimalFichaResponse {
   animal: AnimalFicha;
+}
+
+interface RodeoResumenResponse {
+  resumen: RodeoResumen;
 }
 
 function buildQuery(filters: AnimalFilters) {
@@ -47,6 +51,12 @@ export async function getAnimales(token: string, filters: AnimalFilters) {
   const response = await apiRequest<AnimalesResponse>(`/animales${buildQuery(filters)}`, { token });
 
   return response.animales;
+}
+
+export async function getRodeoResumen(token: string) {
+  const response = await apiRequest<RodeoResumenResponse>('/animales/resumen', { token });
+
+  return response.resumen;
 }
 
 export async function getAnimalFicha(token: string, id: number) {

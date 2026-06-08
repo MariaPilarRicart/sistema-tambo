@@ -1,4 +1,4 @@
-import { EstadoTarea, Prisma, TipoEvento, TipoTarea } from '@prisma/client';
+import { EstadoLoteLeche, EstadoTarea, Prisma, TipoEvento, TipoTarea } from '@prisma/client';
 import { prisma } from '../config/prisma';
 
 export function countAnimales(where?: Prisma.AnimalWhereInput) {
@@ -164,7 +164,7 @@ export function findLotesLecheByDateRange(fechaDesde: Date, fechaHasta: Date) {
 
 export function findAvailableLotesLeche() {
   return prisma.loteLeche.findMany({
-    where: { estado: 'DISPONIBLE' },
+    where: { estado: { in: [EstadoLoteLeche.DISPONIBLE, EstadoLoteLeche.VENCIDO] } },
     orderBy: { fechaVencimiento: 'asc' },
     select: {
       id: true,

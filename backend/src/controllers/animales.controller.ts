@@ -4,6 +4,7 @@ import {
   deactivateExistingAnimal,
   getAnimal,
   getAnimalFicha,
+  getRodeoResumen,
   listAnimales,
   updateExistingAnimal,
 } from '../services/animales.service';
@@ -12,6 +13,10 @@ export async function listAnimalesController(request: Request, response: Respons
   const animales = await listAnimales(request.query);
 
   response.status(200).json({ animales });
+}
+
+export async function getRodeoResumenController(_request: Request, response: Response) {
+  response.status(200).json({ resumen: await getRodeoResumen() });
 }
 
 export async function getAnimalController(request: Request, response: Response) {

@@ -8,8 +8,10 @@ export interface SimpleNotification {
   firma: string;
   titulo: string;
   descripcion: string;
+  modulo: string;
   prioridad: NotificationPriority;
   ruta: string;
+  fecha?: string;
 }
 
 interface NotificationsResponse {
