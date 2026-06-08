@@ -13,6 +13,12 @@ import {
 
 const USERNAME_EXISTS_MESSAGE = 'Ya existe un usuario con ese username.';
 
+function assertPasswordPolicy(password: unknown) {
+  if (typeof password !== 'string' || !password.trim()) {
+    throw new AppError('La contraseña no puede estar vacía.', 400);
+  }
+}
+
 function parseUserId(id: string) {
   const parsedId = Number(id);
 
@@ -70,7 +76,8 @@ export async function createNewUser(input: {
     throw new AppError('Nombre, username y rol son obligatorios.', 400);
   }
 
-  const password = username;
+  const password = input.password || username;
+  assertPasswordPolicy(password);
 
   const existingUser = await findUserByUsername(username);
 
@@ -152,8 +159,10 @@ export async function updateExistingUser(
     data.activo = Boolean(input.activo);
   }
 
-  if (input.password) {
+  if (input.password !== undefined) {
+    assertPasswordPolicy(input.password);
     data.passwordHash = await bcrypt.hash(input.password, 10);
+    data.debeCambiarPassword = false;
   }
 
   try {

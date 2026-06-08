@@ -6,7 +6,7 @@ import { AppError } from '../errors/AppError';
 import { findActiveUserById, findUserByUsername } from '../repositories/auth.repository';
 import type { AuthTokenPayload, LoginInput } from '../types/auth.types';
 
-const INVALID_CREDENTIALS_MESSAGE = 'Credenciales incorrectas.';
+const INVALID_CREDENTIALS_MESSAGE = 'Usuario o contraseña incorrectos.';
 const MIN_PASSWORD_LENGTH = 8;
 
 function assertPasswordPolicy(password: unknown) {

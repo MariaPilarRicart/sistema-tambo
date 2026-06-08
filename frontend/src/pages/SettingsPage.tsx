@@ -239,7 +239,7 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
         <div className="modal-backdrop">
           <section className="panel modal-panel animal-form-modal">
             <div className="panel-header">
-              <div><h2>{editingUser ? 'Editar usuario' : 'Nuevo usuario'}</h2><p>{editingUser ? 'Podés restablecer la contraseña si el usuario perdió acceso.' : 'La contraseña inicial será igual al username y deberá cambiarla en el primer ingreso.'}</p></div>
+              <div><h2>{editingUser ? 'Editar usuario' : 'Nuevo usuario'}</h2><p>{editingUser ? 'Podés cargar una nueva contraseña o restablecerla si el usuario perdió acceso.' : 'La contraseña inicial será igual al username y deberá cambiarla en el primer ingreso.'}</p></div>
               <button type="button" className="icon-button" onClick={resetUserForm} aria-label="Cerrar"><X size={18} /></button>
             </div>
             <form className="user-form animal-modal-form" onSubmit={handleUserSubmit}>
@@ -247,6 +247,7 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
               <label><span>Username</span><input value={userFormValues.username} onChange={(event) => setUserFormValues({ ...userFormValues, username: event.target.value })} required /></label>
               <label><span>Email</span><input type="email" value={userFormValues.email} onChange={(event) => setUserFormValues({ ...userFormValues, email: event.target.value })} /></label>
               <label><span>Rol</span><select value={userFormValues.rol} onChange={(event) => setUserFormValues({ ...userFormValues, rol: event.target.value as UserRole })}><option value="ADMIN">ADMIN</option><option value="EMPLEADO">EMPLEADO</option></select></label>
+              {editingUser && <label><span>Nueva contraseña</span><input type="password" value={userFormValues.password} onChange={(event) => setUserFormValues({ ...userFormValues, password: event.target.value })} placeholder="Dejar vacío para no cambiar" autoComplete="new-password" /></label>}
               {editingUser && <label><span>Estado</span><select value={userFormValues.activo ? 'true' : 'false'} onChange={(event) => setUserFormValues({ ...userFormValues, activo: event.target.value === 'true' })}><option value="true">ACTIVO</option><option value="false">INACTIVO</option></select></label>}
               <div className="modal-actions animal-form-actions">
                 {editingUser && <button type="button" className="secondary-button" onClick={() => void handleResetPassword()} disabled={isSaving}><KeyRound size={18} />Restablecer contraseña</button>}
