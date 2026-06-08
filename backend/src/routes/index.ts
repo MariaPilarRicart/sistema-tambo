@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { agendaRouter } from './agenda.routes';
 import { alimentacionRouter } from './alimentacion.routes';
 import { animalesRouter } from './animales.routes';
+import { asistenteRouter } from './asistente.routes';
 import { authRouter } from './auth.routes';
 import { clientesRouter } from './clientes.routes';
 import { configuracionRouter } from './configuracion.routes';
@@ -19,6 +20,7 @@ export const routes = Router();
 
 routes.use(healthRouter);
 routes.use(authRouter);
+routes.use(asistenteRouter);
 routes.use(dashboardRouter);
 routes.use(clientesRouter);
 routes.use(configuracionRouter);

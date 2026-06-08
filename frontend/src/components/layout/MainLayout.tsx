@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { paths } from '../../routes/paths';
 import type { AuthUser } from '../../types/auth';
+import { AssistantChat } from '../assistant/AssistantChat';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 
@@ -35,6 +36,7 @@ export function MainLayout({ user, authToken, onLogout }: MainLayoutProps) {
           <Outlet />
         </section>
       </main>
+      <AssistantChat user={user} authToken={authToken} onUnauthorized={onLogout} />
     </div>
   );
 }
