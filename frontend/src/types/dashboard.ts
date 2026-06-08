@@ -295,6 +295,7 @@ export interface DashboardResumen {
   resumenRodeo: DashboardResumenRodeo;
   alertasGestion: DashboardAlertaGestion[];
   tareasPrioritarias: DashboardTareaDetalle[];
+  tareasVencidasDetalle: DashboardTareaDetalle[];
   tareasHoyDetalle: DashboardTareaDetalle[];
   tareasProximos7Dias: DashboardTareaDetalle[];
   proximosTrabajos: DashboardProximosTrabajos;

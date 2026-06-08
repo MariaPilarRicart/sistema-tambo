@@ -1,21 +1,19 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  CalendarClock,
   ClipboardList,
   HeartPulse,
-  Milk,
-  Search,
-  Siren,
-  Stethoscope,
-  Syringe,
   Utensils,
 } from 'lucide-react';
 import { paths } from '../../routes/paths';
-import type { DashboardResumen, DashboardTareaDetalle } from '../../types/dashboard';
+import type { DashboardResumen, DashboardResumenSanidad, DashboardTareaDetalle } from '../../types/dashboard';
 
 interface EmployeeDashboardProps {
   resumen: DashboardResumen;
 }
+
+type SummaryModalKey = 'overdue' | 'today' | 'next7';
+type FeedingModalKey = 'records' | 'stock' | 'empty';
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('es-AR', {
@@ -29,31 +27,257 @@ function friendlyText(value: string) {
   return value.toLowerCase().replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function formatNumber(value: number, suffix = '') {
+  return `${new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 }).format(value)}${suffix}`;
+}
+
 function taskPlace(task: DashboardTareaDetalle) {
   if (task.animal?.lote?.nombre) return task.animal.lote.nombre;
   if (task.lote?.nombre) return task.lote.nombre;
   return 'Sin lote';
 }
 
+function taskBadge(task: DashboardTareaDetalle) {
+  const type = task.tipoTarea.toUpperCase();
+  if (type.includes('AFTOSA') || type.includes('BRUCELOSIS') || type.includes('TUBERCULINA') || type.includes('VACUN') || type.includes('CLINICO')) {
+    return 'Vacunación';
+  }
+  if (type.includes('ALIMENT')) return 'Alimentación';
+  if (type.includes('PRODUC')) return 'Producción';
+  return 'Agenda';
+}
+
+function isAgendaTask(task: DashboardTareaDetalle) {
+  return taskBadge(task) === 'Agenda';
+}
+
+function startOfToday() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return today;
+}
+
+function addDays(date: Date, days: number) {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function isToday(value: string) {
+  const today = startOfToday();
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime() === today.getTime();
+}
+
+function sanitaryStatus(fechaObjetivo: string) {
+  const today = startOfToday();
+  const dueDate = new Date(fechaObjetivo);
+  dueDate.setHours(0, 0, 0, 0);
+  return dueDate < today ? 'Vencida' : 'Próxima a vencer';
+}
+
+function SanitaryList({ tasks }: { tasks: DashboardResumenSanidad['tareas'] }) {
+  const today = startOfToday();
+  const nextFifteenDays = addDays(today, 15);
+  const visibleTasks = [...tasks]
+    .filter((task) => {
+      const dueDate = new Date(task.fechaObjetivo);
+      dueDate.setHours(0, 0, 0, 0);
+      return dueDate >= today && dueDate <= nextFifteenDays;
+    })
+    .sort((a, b) => {
+      return new Date(a.fechaObjetivo).getTime() - new Date(b.fechaObjetivo).getTime();
+    });
+  const hasMore = visibleTasks.length > 5;
+
+  if (visibleTasks.length === 0) return <p className="table-empty">Sin vencimientos sanitarios próximos.</p>;
+
+  return (
+    <div className="employee-task-list">
+      {visibleTasks.slice(0, 5).map((task) => (
+        <article className="employee-task-card" key={task.id}>
+          <div>
+            <div className="employee-task-title">
+              <strong>{friendlyText(task.tipo)}</strong>
+              <span>Vacunación</span>
+            </div>
+            <p>Lote: {task.lote ?? 'Sin lote'}</p>
+            <small>Vence: {formatDate(task.fechaObjetivo)}</small>
+            <small>Estado: {sanitaryStatus(task.fechaObjetivo)}</small>
+          </div>
+          <Link className="secondary-button" to={paths.vaccination}>Ver vacunación</Link>
+        </article>
+      ))}
+      {hasMore && <p className="dashboard-section-note">Hay más vencimientos sanitarios pendientes de revisión.</p>}
+    </div>
+  );
+}
+
+function FeedingModal({
+  exhaustedItems,
+  lowStockItems,
+  onClose,
+  records,
+  type,
+}: {
+  exhaustedItems: DashboardResumen['resumenAlimentacion']['insumos'];
+  lowStockItems: DashboardResumen['resumenAlimentacion']['insumos'];
+  onClose: () => void;
+  records: DashboardResumen['resumenAlimentacion']['ultimosRegistros'];
+  type: FeedingModalKey;
+}) {
+  const title = type === 'records'
+    ? 'Alimentaciones registradas hoy'
+    : type === 'stock'
+      ? 'Alimentos con stock bajo'
+      : 'Alimentos agotados';
+  const stockItems = type === 'empty' ? exhaustedItems : lowStockItems;
+
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <section className="modal-panel employee-summary-modal" role="dialog" aria-modal="true" aria-labelledby="employee-feed-modal-title" onClick={(event) => event.stopPropagation()}>
+        <div className="dashboard-card-heading">
+          <div>
+            <h2 id="employee-feed-modal-title">{title}</h2>
+            <p>Detalle disponible desde el módulo Alimentación.</p>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Cerrar modal">
+            X
+          </button>
+        </div>
+        {type === 'records' && records.length === 0 && (
+          <p className="table-empty">No hay alimentaciones registradas hoy.</p>
+        )}
+        {type === 'records' && records.length > 0 && (
+          <div className="employee-task-list">
+            {records.map((record) => (
+              <article className="employee-task-card" key={record.id}>
+                <div>
+                  <div className="employee-task-title">
+                    <strong>{record.lote}</strong>
+                    <span>Alimentación</span>
+                  </div>
+                  {record.racion && record.racion !== 'Sin racion' && record.racion !== 'Sin ración' && <p>Ración: {record.racion}</p>}
+                  <small>Fecha: {formatDate(record.fecha)}</small>
+                  <small>Cantidad: {formatNumber(record.cantidadKg, ' kg')}</small>
+                </div>
+                <Link className="secondary-button" to={paths.feed}>Ver alimentación</Link>
+              </article>
+            ))}
+          </div>
+        )}
+        {type !== 'records' && stockItems.length === 0 && (
+          <p className="table-empty">{type === 'stock' ? 'No hay alimentos bajo mínimo.' : 'No hay alimentos agotados.'}</p>
+        )}
+        {type !== 'records' && stockItems.length > 0 && (
+          <div className="employee-task-list">
+            {stockItems.map((item) => (
+              <article className="employee-task-card" key={item.id}>
+                <div>
+                  <div className="employee-task-title">
+                    <strong>{item.alimento}</strong>
+                    <span>{friendlyText(item.estado)}</span>
+                  </div>
+                  <small>Stock actual: {formatNumber(item.stockActual)} {item.unidad}</small>
+                  <small>Punto mínimo: {formatNumber(item.stockMinimo)} {item.unidad}</small>
+                  <small>Estado: {friendlyText(item.estado)}</small>
+                </div>
+                <Link className="secondary-button" to={paths.feed}>Ver alimentación</Link>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function FeedingSection({
+  onOpenModal,
+  resumen,
+}: {
+  onOpenModal: (type: FeedingModalKey) => void;
+  resumen: DashboardResumen;
+}) {
+  const lowStockItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado !== 'OK');
+  const exhaustedItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado === 'CRITICO');
+  const recordsToday = resumen.resumenAlimentacion.ultimosRegistros.filter((record) => isToday(record.fecha));
+  const fedLots = new Set(recordsToday.map((record) => record.lote)).size;
+  const hasLowStock = lowStockItems.length > 0;
+  const hasExhausted = exhaustedItems.length > 0;
+
+  return (
+    <section className="panel">
+      <div className="dashboard-card-heading">
+        <div>
+          <h2>Alimentación del día</h2>
+          <p>Control de carga diaria y stock de alimento.</p>
+        </div>
+      </div>
+      <div className="employee-feed-grid">
+        <button className={`employee-feed-card employee-feed-button ${recordsToday.length > 0 ? 'employee-feed-ok' : 'employee-feed-warning'}`} type="button" onClick={() => onOpenModal('records')}>
+          <Utensils size={18} />
+          <div>
+            <span>Alimentaciones registradas hoy</span>
+            <strong>{recordsToday.length > 0 ? `${recordsToday.length} cargas - ${fedLots} lotes` : 'Sin alimentaciones registradas hoy'}</strong>
+            <p>Consultá el detalle de cargas registradas.</p>
+          </div>
+        </button>
+        <button className={`employee-feed-card ${hasLowStock ? 'employee-feed-button employee-feed-warning' : 'employee-feed-ok'}`} type="button" onClick={() => hasLowStock && onOpenModal('stock')} disabled={!hasLowStock}>
+          <Utensils size={18} />
+          <div>
+            <span>Stock de alimentos</span>
+            <strong>{hasLowStock ? `Stock bajo: ${lowStockItems.length}` : 'Sin alertas críticas'}</strong>
+            {hasLowStock ? (
+              <p>Hay alimentos por debajo del mínimo.</p>
+            ) : (
+              <p>No hay alimentos bajo mínimo.</p>
+            )}
+          </div>
+        </button>
+        <button className={`employee-feed-card ${hasExhausted ? 'employee-feed-button employee-feed-danger' : 'employee-feed-ok'}`} type="button" onClick={() => hasExhausted && onOpenModal('empty')} disabled={!hasExhausted}>
+          <ClipboardList size={18} />
+          <div>
+            <span>Agotados</span>
+            <strong>{hasExhausted ? `Agotados: ${exhaustedItems.length}` : '0'}</strong>
+            <p>{hasExhausted ? 'Hay insumos sin stock disponible.' : 'No hay insumos agotados.'}</p>
+          </div>
+        </button>
+      </div>
+      <div className="employee-feed-actions">
+        <Link className="secondary-button" to={paths.feed}>Registrar alimentación</Link>
+        <Link className="secondary-button" to={paths.feed}>Ver alimentación</Link>
+      </div>
+    </section>
+  );
+}
+
 function TaskList({
   emptyMessage,
+  limit = 5,
   tasks,
 }: {
   emptyMessage: string;
+  limit?: number;
   tasks: DashboardTareaDetalle[];
 }) {
   if (tasks.length === 0) return <p className="table-empty">{emptyMessage}</p>;
 
   return (
     <div className="employee-task-list">
-      {tasks.slice(0, 5).map((task) => (
+      {tasks.slice(0, limit).map((task) => (
         <article className="employee-task-card" key={task.id}>
           <div>
-            <strong>{friendlyText(task.tipoTarea)}</strong>
+            <div className="employee-task-title">
+              <strong>{friendlyText(task.tipoTarea)}</strong>
+              <span>{taskBadge(task)}</span>
+            </div>
             <p>
               {task.animal ? `Animal #${task.animal.caravana}` : 'Sin animal'} | Lote {taskPlace(task)}
             </p>
-            <span>Vence: {formatDate(task.fechaProyectada)} | {friendlyText(task.estado)}</span>
+            <small>Vence: {formatDate(task.fechaProyectada)}</small>
+            <small>Estado: {friendlyText(task.estado)}</small>
           </div>
           <Link className="secondary-button" to={paths.agenda}>Ver agenda</Link>
         </article>
@@ -63,220 +287,127 @@ function TaskList({
 }
 
 function SummaryCard({
-  action,
+  onClick,
   title,
   value,
 }: {
-  action: string;
+  onClick: () => void;
   title: string;
   value: number;
 }) {
   return (
-    <article className="operative-card">
+    <button className="employee-summary-card" type="button" onClick={onClick}>
       <strong>{value}</strong>
       <span>{title}</span>
-      <p>{action}</p>
-    </article>
+    </button>
   );
 }
 
 export function EmployeeDashboard({ resumen }: EmployeeDashboardProps) {
-  const priority = resumen.tareasVencidas > 0
-    ? {
-        message: 'Hay tareas vencidas. Revisa primero la agenda.',
-        severity: 'Critica',
-        action: 'Ver tareas vencidas',
-        className: 'employee-priority-critical',
-      }
-    : resumen.tareasHoy > 0
-      ? {
-          message: 'Tenes tareas programadas para hoy.',
-          severity: 'Media',
-          action: 'Ver tareas de hoy',
-          className: 'employee-priority-warning',
-        }
-      : {
-          message: 'No hay tareas urgentes para hoy.',
-          severity: 'Normal',
-          action: 'Ver agenda',
-          className: 'employee-priority-ok',
-        };
-
-  const summary = [
-    { title: 'Tareas vencidas', value: resumen.tareasVencidas, action: 'Revisar primero.' },
-    { title: 'Tareas para hoy', value: resumen.tareasHoy, action: 'Completar durante la jornada.' },
-    { title: 'Proximos 7 dias', value: resumen.tareasProximos7Dias.length, action: 'Organizar el trabajo cercano.' },
-    { title: 'Tactos pendientes', value: resumen.tactosPendientes, action: 'Control reproductivo pendiente.' },
-    { title: 'Secados pendientes', value: resumen.secadosPendientes, action: 'Preparar secado.' },
-    { title: 'Partos pendientes', value: resumen.partosPendientes, action: 'Seguimiento de partos.' },
+  const [activeModal, setActiveModal] = useState<SummaryModalKey | null>(null);
+  const [activeFeedingModal, setActiveFeedingModal] = useState<FeedingModalKey | null>(null);
+  const agendaOverdueTasks = resumen.tareasVencidasDetalle.filter(isAgendaTask);
+  const agendaTodayTasks = resumen.tareasHoyDetalle.filter(isAgendaTask);
+  const agendaNextSevenDaysTasks = resumen.tareasProximos7Dias.filter(isAgendaTask);
+  const summary: Array<{ key: SummaryModalKey; title: string; value: number; tasks: DashboardTareaDetalle[] }> = [
+    { key: 'overdue', title: 'Tareas vencidas', value: agendaOverdueTasks.length, tasks: agendaOverdueTasks },
+    { key: 'today', title: 'Tareas para hoy', value: agendaTodayTasks.length, tasks: agendaTodayTasks },
+    { key: 'next7', title: 'Proximos 7 dias', value: agendaNextSevenDaysTasks.length, tasks: agendaNextSevenDaysTasks },
   ];
-
-  const quickLinks = [
-    { label: 'Registrar evento', to: paths.events, icon: Stethoscope },
-    { label: 'Registrar produccion', to: paths.production, icon: Milk },
-    { label: 'Registrar alimentacion', to: paths.feed, icon: Utensils },
-    { label: 'Ver agenda', to: paths.agenda, icon: CalendarClock },
-    { label: 'Buscar animal', to: paths.herd, icon: Search },
-    { label: 'Ver vacunacion', to: paths.vaccination, icon: Syringe },
-  ];
-
-  const workGroups = [
-    { title: 'Proximos partos', tasks: resumen.proximosTrabajos.partos },
-    { title: 'Vacas a secar', tasks: resumen.proximosTrabajos.secados },
-    { title: 'Tactos pendientes', tasks: resumen.proximosTrabajos.tactos },
-  ];
+  const modalSummary = summary.find((item) => item.key === activeModal);
+  const feedingRecordsToday = resumen.resumenAlimentacion.ultimosRegistros.filter((record) => isToday(record.fecha));
+  const lowStockItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado !== 'OK');
+  const exhaustedItems = resumen.resumenAlimentacion.insumos.filter((item) => item.estado === 'CRITICO');
+  const sanitaryTasks = resumen.resumenSanidad.tareas;
 
   return (
     <>
-      <section className={`panel employee-priority-panel ${priority.className}`}>
+      <section className="panel">
         <div className="dashboard-card-heading">
           <div>
-            <h2>Prioridad del dia</h2>
-            <p>{priority.severity}</p>
+            <h2>Resumen operativo</h2>
+            <p>Indicadores principales de trabajo diario.</p>
           </div>
-          <Link className="primary-button" to={paths.agenda}>{priority.action}</Link>
         </div>
-        <p className="employee-priority-message">{priority.message}</p>
-      </section>
-
-      <section className="operative-summary-grid">
-        {summary.map((item) => (
-          <SummaryCard key={item.title} {...item} />
-        ))}
+        <div className="employee-summary-grid">
+          {summary.map((item) => (
+            <SummaryCard
+              key={item.title}
+              title={item.title}
+              value={item.value}
+              onClick={() => setActiveModal(item.key)}
+            />
+          ))}
+        </div>
       </section>
 
       <section className="panel employee-primary-panel">
         <div className="dashboard-card-heading">
           <div>
-            <h2>Tareas prioritarias</h2>
-            <p>Vencidas, de hoy y proximas, en ese orden.</p>
+            <h2>Vacunaciones próximas a vencer</h2>
+            <p>Certificados sanitarios que requieren revisión.</p>
           </div>
-          <Link className="panel-chip" to={paths.agenda}>Ver agenda</Link>
+          <Link className="panel-chip" to={paths.vaccination}>Ver vacunación</Link>
         </div>
-        <TaskList
-          emptyMessage="No hay tareas pendientes importantes."
-          tasks={resumen.tareasPrioritarias}
-        />
+        <SanitaryList tasks={sanitaryTasks} />
       </section>
 
-      <div className="dashboard-two-column employee-grid">
-        <section className="panel">
-          <div className="dashboard-card-heading">
-            <div>
-              <h2>Proximos 7 dias</h2>
-              <p>Tareas operativas programadas.</p>
-            </div>
-          </div>
-          <TaskList
-            emptyMessage="No hay tareas programadas para los proximos 7 dias."
-            tasks={resumen.tareasProximos7Dias}
-          />
-        </section>
-
-        <section className="panel">
-          <div className="dashboard-card-heading">
-            <div>
-              <h2>Alertas operativas</h2>
-              <p>Mensajes simples para resolver o avisar.</p>
-            </div>
-          </div>
-          {resumen.alertasOperativas.length === 0 ? (
-            <p className="table-empty">Sin alertas operativas por ahora.</p>
-          ) : (
-            <div className="alert-list">
-              {resumen.alertasOperativas.map((alerta) => (
-                <article className={`alert-card alert-${alerta.severidad === 'CRITICA' ? 'critical' : alerta.severidad === 'INFO' ? 'info' : 'warning'}`} key={`${alerta.titulo}-${alerta.accionRuta}`}>
-                  <Siren size={18} />
-                  <div>
-                    <strong>{alerta.titulo}</strong>
-                    <p>{alerta.detalle}</p>
-                    <Link className="dashboard-alert-action" to={alerta.accionRuta}>{alerta.accionLabel}</Link>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+      <FeedingSection resumen={resumen} onOpenModal={setActiveFeedingModal} />
 
       <section className="panel">
         <div className="dashboard-card-heading">
           <div>
-            <h2>Accesos rapidos</h2>
-            <p>Acciones frecuentes de carga y consulta.</p>
+            <h2>Registros del dia</h2>
+            <p>Estado simple de registros diarios.</p>
           </div>
         </div>
-        <div className="employee-quick-grid">
-          {quickLinks.map(({ icon: Icon, label, to }) => (
-            <Link className="employee-quick-card" to={to} key={label}>
-              <Icon size={22} />
-              <strong>{label}</strong>
-            </Link>
-          ))}
+        <div className="employee-load-list">
+          <article>
+            <HeartPulse size={18} />
+            <div>
+              <strong>{resumen.cargaDia.produccionRegistrada ? 'Produccion registrada hoy' : 'Produccion pendiente de carga'}</strong>
+              <Link to={paths.production}>{resumen.cargaDia.produccionRegistrada ? 'Ver produccion' : 'Registrar produccion'}</Link>
+            </div>
+          </article>
+          <article>
+            <ClipboardList size={18} />
+            <div>
+              <strong>{resumen.cargaDia.eventosRegistrados > 0 ? 'Hay eventos registrados hoy' : 'Sin eventos registrados hoy'}</strong>
+              <Link to={paths.events}>{resumen.cargaDia.eventosRegistrados > 0 ? 'Ver eventos' : 'Registrar evento'}</Link>
+            </div>
+          </article>
         </div>
       </section>
 
-      <div className="dashboard-two-column employee-grid">
-        <section className="panel">
-          <div className="dashboard-card-heading">
-            <div>
-              <h2>Proximos trabajos</h2>
-              <p>Animales que requieren seguimiento cercano.</p>
+      {modalSummary && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setActiveModal(null)}>
+          <section className="modal-panel employee-summary-modal" role="dialog" aria-modal="true" aria-labelledby="employee-summary-modal-title" onClick={(event) => event.stopPropagation()}>
+            <div className="dashboard-card-heading">
+              <div>
+                <h2 id="employee-summary-modal-title">{modalSummary.title}</h2>
+                <p>Detalle operativo de agenda.</p>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setActiveModal(null)} aria-label="Cerrar modal">
+                X
+              </button>
             </div>
-          </div>
-          <div className="employee-work-groups">
-            {workGroups.map((group) => (
-              <article className="employee-work-group" key={group.title}>
-                <h3>{group.title}</h3>
-                {group.tasks.length === 0 ? (
-                  <p className="table-empty">Sin pendientes.</p>
-                ) : (
-                  group.tasks.slice(0, 3).map((task) => (
-                    <div className="employee-work-item" key={task.id}>
-                      <span>{friendlyText(task.tipoTarea)}</span>
-                      <strong>{task.animal ? `#${task.animal.caravana}` : taskPlace(task)}</strong>
-                      <small>{formatDate(task.fechaProyectada)}</small>
-                      <Link to={paths.agenda}>Ver agenda</Link>
-                    </div>
-                  ))
-                )}
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="panel">
-          <div className="dashboard-card-heading">
-            <div>
-              <h2>Carga del dia</h2>
-              <p>Estado simple de registros diarios.</p>
-            </div>
-          </div>
-          <div className="employee-load-list">
-            <article>
-              <HeartPulse size={18} />
-              <div>
-                <strong>{resumen.cargaDia.produccionRegistrada ? 'Produccion registrada hoy' : 'Produccion pendiente de carga'}</strong>
-                <Link to={paths.production}>{resumen.cargaDia.produccionRegistrada ? 'Ver produccion' : 'Registrar produccion'}</Link>
-              </div>
-            </article>
-            <article>
-              <Utensils size={18} />
-              <div>
-                <strong>{resumen.cargaDia.alimentacionRegistrada ? 'Alimentacion registrada hoy' : 'Alimentacion pendiente de carga'}</strong>
-                <Link to={paths.feed}>{resumen.cargaDia.alimentacionRegistrada ? 'Ver alimentacion' : 'Registrar alimentacion'}</Link>
-              </div>
-            </article>
-            <article>
-              <ClipboardList size={18} />
-              <div>
-                <strong>{resumen.cargaDia.eventosRegistrados > 0 ? 'Hay eventos registrados hoy' : 'Sin eventos registrados hoy'}</strong>
-                <Link to={paths.events}>{resumen.cargaDia.eventosRegistrados > 0 ? 'Ver eventos' : 'Registrar evento'}</Link>
-              </div>
-            </article>
-          </div>
-        </section>
-      </div>
+            <TaskList
+              emptyMessage="No hay tareas de agenda para mostrar."
+              limit={modalSummary.tasks.length}
+              tasks={modalSummary.tasks}
+            />
+          </section>
+        </div>
+      )}
+      {activeFeedingModal && (
+        <FeedingModal
+          exhaustedItems={exhaustedItems}
+          lowStockItems={lowStockItems}
+          records={feedingRecordsToday}
+          type={activeFeedingModal}
+          onClose={() => setActiveFeedingModal(null)}
+        />
+      )}
     </>
   );
 }

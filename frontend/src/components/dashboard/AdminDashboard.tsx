@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -34,6 +34,8 @@ const periodOptions: Array<{ value: DashboardPeriodo; label: string }> = [
   { value: 'anio', label: 'Año' },
   { value: 'personalizado', label: 'Personalizado' },
 ];
+
+type AdminModalType = 'stock' | 'tareas' | 'sanidad';
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString('es-AR', {
@@ -106,34 +108,25 @@ function trendText(value: string) {
   return 'No hay suficientes datos para analizar tendencia.';
 }
 
-function sanitaryStatusText(vencidas: number, proximas: number) {
-  if (vencidas >= 10) return 'Situación crítica';
-  if (vencidas > 0) return 'Atención requerida';
-  if (proximas > 0) return 'Revisar controles próximos';
-  return 'Sin alertas sanitarias';
-}
-
-function sanitaryConclusion(vencidas: number, proximas: number) {
-  if (vencidas > 0) return 'Hay controles sanitarios vencidos. Se recomienda revisar vacunación hoy.';
-  if (proximas > 0) return 'Los controles próximos están dentro del período de seguimiento.';
-  return 'No hay controles sanitarios pendientes para este período.';
-}
-
 function KpiCard({
   description,
   icon: Icon,
+  onClick,
   title,
   value,
   tone,
+  className = '',
 }: {
   description: string;
   icon: LucideIcon;
+  onClick?: () => void;
   title: string;
   value: string;
   tone: 'emerald' | 'blue' | 'indigo' | 'pink' | 'amber' | 'rose';
+  className?: string;
 }) {
-  return (
-    <article className={`metric-card dashboard-kpi-card dashboard-kpi-${tone}`}>
+  const content = (
+    <>
       <div className="dashboard-kpi-top">
         <div className={`metric-icon metric-icon-${tone}`}>
           <Icon size={20} />
@@ -142,13 +135,27 @@ function KpiCard({
       </div>
       <strong>{title}</strong>
       <p>{description}</p>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button className={`metric-card dashboard-kpi-card dashboard-kpi-clickable dashboard-kpi-${tone} ${className}`} type="button" onClick={onClick}>
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <article className={`metric-card dashboard-kpi-card dashboard-kpi-${tone} ${className}`}>
+      {content}
     </article>
   );
 }
 
-function SectionCard({ children, description, title, action }: { children: ReactNode; description: string; title: string; action?: ReactNode }) {
+function SectionCard({ action, children, description, id, title }: { action?: ReactNode; children: ReactNode; description: string; id?: string; title: string }) {
   return (
-    <section className="panel dashboard-chart-card">
+    <section className="panel dashboard-chart-card" id={id}>
       <div className="dashboard-card-heading">
         <div>
           <h2>{title}</h2>
@@ -218,6 +225,88 @@ function ValueBars({
   );
 }
 
+type DistributionGroup = {
+  nombre: string;
+  total: number;
+};
+
+const donutColors = ['#10b981', '#2563eb', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6'];
+
+function topGroupsWithOthers(groups: DistributionGroup[], limit = 5) {
+  const sorted = [...groups].sort((a, b) => b.total - a.total);
+  const visible = sorted.slice(0, limit);
+  const othersTotal = sorted.slice(limit).reduce((total, item) => total + item.total, 0);
+
+  return othersTotal > 0 ? [...visible, { nombre: 'Otros', total: othersTotal }] : visible;
+}
+
+function DistributionBars({
+  emptyMessage,
+  groups,
+  limit,
+}: {
+  emptyMessage: string;
+  groups: DistributionGroup[];
+  limit?: number;
+}) {
+  const visibleGroups = limit ? topGroupsWithOthers(groups, limit) : groups;
+  const maxValue = Math.max(...visibleGroups.map((item) => item.total), 1);
+
+  if (visibleGroups.length === 0) return <p className="table-empty">{emptyMessage}</p>;
+
+  return (
+    <div className="dashboard-rodeo-bars">
+      {visibleGroups.map((item) => (
+        <div className="dashboard-rodeo-bar-row" key={item.nombre}>
+          <div className="dashboard-rodeo-bar-label">
+            <strong>{friendlyEnum(item.nombre)}</strong>
+            <span>{item.total}</span>
+          </div>
+          <div className="dashboard-rodeo-bar-track" aria-hidden="true">
+            <span style={{ width: `${(item.total / maxValue) * 100}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DonutDistribution({ groups }: { groups: DistributionGroup[] }) {
+  const total = groups.reduce((sum, item) => sum + item.total, 0);
+
+  if (total === 0) return <p className="table-empty">Sin datos para mostrar.</p>;
+
+  let accumulated = 0;
+  const gradient = groups
+    .map((item, index) => {
+      const start = (accumulated / total) * 100;
+      accumulated += item.total;
+      const end = (accumulated / total) * 100;
+      const color = donutColors[index % donutColors.length];
+      return `${color} ${start}% ${end}%`;
+    })
+    .join(', ');
+
+  return (
+    <div className="dashboard-rodeo-donut-wrap">
+      <div className="dashboard-rodeo-donut" style={{ background: `conic-gradient(${gradient})` }} aria-hidden="true">
+        <div className="dashboard-rodeo-donut-center">
+          <strong>{total}</strong>
+          <span>Total</span>
+        </div>
+      </div>
+      <div className="dashboard-rodeo-legend">
+        {groups.map((item, index) => (
+          <span key={item.nombre}>
+            <i style={{ background: donutColors[index % donutColors.length] }} />
+            {friendlyEnum(item.nombre)}: {item.total}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AdminDashboard({
   periodo,
   fechaDesde,
@@ -230,7 +319,17 @@ export function AdminDashboard({
   onApplyCustomPeriod,
   onClearCustomPeriod,
 }: AdminDashboardProps) {
-  const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad, resumenRodeo } = resumen;
+  const [activeModal, setActiveModal] = useState<AdminModalType | null>(null);
+  const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad } = resumen;
+  const stockBajo = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual > 0 && insumo.stockActual < insumo.stockMinimo);
+  const agotados = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual === 0);
+  const totalAlertasStock = stockBajo.length + agotados.length;
+  const totalVencimientosCriticos = resumen.tareasVencidas + resumenSanidad.tareasSanitariasVencidas;
+  const stockCardClass = agotados.length > 0
+    ? 'dashboard-stock-critical'
+    : stockBajo.length > 0
+      ? 'dashboard-stock-warning'
+      : 'dashboard-stock-ok';
   const commercialReading = resumenVentas.cantidadVentas === 0
     ? 'No se registraron ventas en el período seleccionado.'
     : `Durante el período se vendieron ${formatNumber(resumenVentas.litrosVendidos, ' L')} por un total de ${formatCurrency(resumenVentas.facturacion)}.`;
@@ -251,8 +350,21 @@ export function AdminDashboard({
     { title: 'Leche disponible', description: `${resumenLeche.lotesDisponibles} lotes disponibles`, value: formatNumber(resumenLeche.litrosDisponibles, ' L'), icon: Truck, tone: 'indigo' as const },
     { title: 'Litros vendidos', description: `${resumenVentas.cantidadVentas} ventas`, value: formatNumber(resumenVentas.litrosVendidos, ' L'), icon: BarChart3, tone: 'pink' as const },
     { title: 'Facturación', description: `Promedio ${formatNullable(resumenVentas.precioPromedioLitro, ' $/L')}`, value: formatCurrency(resumenVentas.facturacion), icon: DollarSign, tone: 'emerald' as const },
-    { title: 'Stock crítico', description: 'Insumos bajo mínimo', value: String(resumenAlimentacion.insumosBajoMinimo), icon: Utensils, tone: 'rose' as const },
-    { title: 'Tareas vencidas', description: 'Agenda pendiente', value: String(resumen.tareasVencidas), icon: ClipboardList, tone: 'amber' as const },
+    {
+      title: 'Stock',
+      description: totalAlertasStock > 0 ? 'Stock crítico' : 'Sin alertas críticas',
+      value: String(totalAlertasStock),
+      icon: Utensils,
+      tone: agotados.length > 0 ? 'rose' as const : stockBajo.length > 0 ? 'amber' as const : 'emerald' as const,
+      className: stockCardClass,
+    },
+    {
+      title: 'Tareas vencidas',
+      description: 'Agenda + sanidad vencida',
+      value: String(totalVencimientosCriticos),
+      icon: ClipboardList,
+      tone: totalVencimientosCriticos > 0 ? 'rose' as const : 'emerald' as const,
+    },
   ];
 
   return (
@@ -311,7 +423,23 @@ export function AdminDashboard({
                   <strong>{alerta.titulo}</strong>
                   <p>{alerta.detalle}</p>
                   <small>{alerta.accionSugerida}</small>
-                  <Link className="dashboard-alert-action" to={alerta.accionRuta}>{alerta.accionLabel}</Link>
+                  {alerta.codigo === 'TAREAS_VENCIDAS' || alerta.codigo === 'STOCK_CRITICO' || alerta.codigo === 'SANIDAD_PENDIENTE' ? (
+                    <button
+                      className="dashboard-alert-action"
+                      type="button"
+                      onClick={() => {
+                        if (alerta.codigo === 'STOCK_CRITICO') {
+                          setActiveModal('stock');
+                          return;
+                        }
+                        setActiveModal(alerta.codigo === 'TAREAS_VENCIDAS' ? 'tareas' : 'sanidad');
+                      }}
+                    >
+                      Ver detalle
+                    </button>
+                  ) : (
+                    <Link className="dashboard-alert-action" to={alerta.accionRuta}>{alerta.accionLabel}</Link>
+                  )}
                 </div>
               </article>
             ))}
@@ -401,80 +529,129 @@ export function AdminDashboard({
         <Link className="secondary-button dashboard-inline-action" to={paths.sales}>Registrar venta</Link>
       </SectionCard>
 
-      <div className="dashboard-two-column">
-        <SectionCard
-          title="Alimentación y stock"
-          description="Resumen de riesgo, no listado completo de insumos."
-          action={<Link className="panel-chip" to={paths.feed}>Ver alimentación</Link>}
-        >
-          <div className="dashboard-detail-grid">
-            <span>Insumos activos <strong>{resumenAlimentacion.insumosActivos}</strong></span>
-            <span>Bajo mínimo <strong>{resumenAlimentacion.insumosBajoMinimo}</strong></span>
-            <span>Estado general <strong>{resumenAlimentacion.estadoGeneral}</strong></span>
-          </div>
-          {resumenAlimentacion.insumosConRiesgo.length === 0 ? (
-            <p className="dashboard-conclusion">El stock de alimentación se encuentra dentro de los mínimos definidos.</p>
-          ) : (
-            <div className="dashboard-urgent-list">
-              {resumenAlimentacion.insumosConRiesgo.map((insumo) => (
-                <div className="dashboard-urgent-row" key={insumo.id}>
-                  <strong>{insumo.alimento}</strong>
-                  <span>{formatNumber(insumo.stockActual)} {insumo.unidad}</span>
-                  <span>Mínimo {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
-                  <span className={`badge ${badgeClass(insumo.estado)}`}>{insumo.estado}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-
-        <SectionCard
-          title="Sanidad"
-          description="Controles urgentes y próximos sin replicar Agenda o Vacunación."
-          action={<Link className="panel-chip" to={paths.vaccination}>Ver vacunación</Link>}
-        >
-          <div className="dashboard-detail-grid">
-            <span>Controles vencidos <strong>{resumenSanidad.tareasSanitariasVencidas}</strong></span>
-            <span>Controles próximos <strong>{resumenSanidad.tareasSanitariasProximas}</strong></span>
-            <span>Controles pendientes <strong>{resumenSanidad.controlesPendientes}</strong></span>
-            <span>Estado general <strong>{sanitaryStatusText(resumenSanidad.tareasSanitariasVencidas, resumenSanidad.tareasSanitariasProximas)}</strong></span>
-            <span>Más repetido <strong>{friendlyEnum(resumenSanidad.tipoControlMasRepetido)}</strong></span>
-            <span>Próximo urgente <strong>{resumenSanidad.proximoControlUrgente ? `${friendlyEnum(resumenSanidad.proximoControlUrgente.tipo)} - ${formatDate(resumenSanidad.proximoControlUrgente.fechaObjetivo)}` : 'Sin datos'}</strong></span>
-          </div>
-          <p className="dashboard-conclusion">{sanitaryConclusion(resumenSanidad.tareasSanitariasVencidas, resumenSanidad.tareasSanitariasProximas)}</p>
-          {resumenSanidad.tareas.length === 0 ? (
-            <p className="table-empty">Sin controles sanitarios pendientes o próximos.</p>
-          ) : (
-            <div className="dashboard-urgent-list">
-              {resumenSanidad.tareas.slice(0, 5).map((tarea) => (
-                <div className="dashboard-urgent-row" key={tarea.id}>
-                  <strong>{friendlyEnum(tarea.tipo)}</strong>
-                  <span>{formatDate(tarea.fechaObjetivo)}</span>
-                  <span>{friendlyEnum(tarea.lote ?? tarea.categoria ?? tarea.alcance)}</span>
-                  <span className="badge badge-warning">{friendlyEnum(tarea.estado)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      </div>
-
       <section className="panel">
         <div className="dashboard-card-heading">
           <div>
             <h2>Situación general del rodeo</h2>
-            <p>Resumen general del rodeo.</p>
+            <p>Indicadores compactos y distribución general del rodeo.</p>
           </div>
           <Link className="panel-chip" to={paths.herd}>Ver rodeo</Link>
         </div>
         <div className="dashboard-detail-grid dashboard-herd-summary">
           <span>Animales activos <strong>{resumen.animalesActivos}</strong></span>
           <span>Animales inactivos <strong>{resumen.animalesInactivos}</strong></span>
-          <span>Vacas en producción <strong>{resumenRodeo.vacasProduccion}</strong></span>
-          <span>Vacas secas / preparto <strong>{resumenRodeo.vacasSecasPreparto}</strong></span>
-          <span>Vaquillonas <strong>{resumenRodeo.vaquillonas}</strong></span>
+          <span>Tactos pendientes <strong>{resumen.tactosPendientes}</strong></span>
+          <span>Partos pendientes <strong>{resumen.partosPendientes}</strong></span>
+        </div>
+        <div className="dashboard-rodeo-grid">
+          <article className="dashboard-rodeo-panel">
+            <h3>Animales por lote</h3>
+            <DistributionBars groups={resumen.animalesPorLote} limit={5} emptyMessage="Sin animales por lote para mostrar." />
+          </article>
+          <article className="dashboard-rodeo-panel">
+            <h3>Estado reproductivo</h3>
+            <DonutDistribution groups={resumen.animalesPorEstadoReproductivo} />
+          </article>
+          <article className="dashboard-rodeo-panel">
+            <h3>Categorías</h3>
+            <DistributionBars groups={resumen.animalesPorCategoria} emptyMessage="Sin categorías para mostrar." />
+          </article>
         </div>
       </section>
+
+      {activeModal && (
+        <div className="modal-backdrop" role="presentation" onClick={() => setActiveModal(null)}>
+          <section className="modal-panel admin-dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="admin-dashboard-modal-title" onClick={(event) => event.stopPropagation()}>
+            <div className="dashboard-card-heading">
+              <div>
+                <h2 id="admin-dashboard-modal-title">
+                  {activeModal === 'stock' ? 'Stock de alimentos' : activeModal === 'tareas' ? 'Agenda pendiente' : 'Controles sanitarios'}
+                </h2>
+                <p>Detalle para seguimiento y acción desde el módulo correspondiente.</p>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setActiveModal(null)} aria-label="Cerrar modal">
+                X
+              </button>
+            </div>
+
+            {activeModal === 'stock' && (
+              <div className="admin-modal-sections">
+                <section>
+                  <h3>Alimentos bajo mínimo</h3>
+                  {stockBajo.length === 0 ? (
+                    <p className="table-empty">No hay alimentos bajo mínimo.</p>
+                  ) : (
+                    <div className="dashboard-urgent-list">
+                      {stockBajo.map((insumo) => (
+                        <div className="dashboard-urgent-row" key={insumo.id}>
+                          <strong>{insumo.alimento}</strong>
+                          <span>Stock actual: {formatNumber(insumo.stockActual)} {insumo.unidad}</span>
+                          <span>Punto mínimo: {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
+                          <span className="badge badge-warning">Bajo</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+                <section>
+                  <h3>Alimentos agotados</h3>
+                  {agotados.length === 0 ? (
+                    <p className="table-empty">No hay alimentos agotados.</p>
+                  ) : (
+                    <div className="dashboard-urgent-list">
+                      {agotados.map((insumo) => (
+                        <div className="dashboard-urgent-row" key={insumo.id}>
+                          <strong>{insumo.alimento}</strong>
+                          <span>Stock actual: {formatNumber(insumo.stockActual)} {insumo.unidad}</span>
+                          <span>Punto mínimo: {formatNumber(insumo.stockMinimo)} {insumo.unidad}</span>
+                          <span className="badge badge-critical">Agotado</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+                <Link className="secondary-button dashboard-inline-action" to={paths.feed}>Ver alimentación</Link>
+              </div>
+            )}
+
+            {activeModal === 'tareas' && (
+              resumen.tareasVencidasDetalle.length === 0 ? (
+                <p className="table-empty">No hay tareas vencidas de agenda.</p>
+              ) : (
+                <div className="dashboard-urgent-list">
+                  {resumen.tareasVencidasDetalle.map((tarea) => (
+                    <div className="dashboard-urgent-row" key={tarea.id}>
+                      <strong>{friendlyEnum(tarea.tipoTarea)}</strong>
+                      <span>{tarea.animal ? `Animal #${tarea.animal.caravana}` : 'Sin animal'}</span>
+                      <span>{tarea.animal?.lote?.nombre ?? tarea.lote?.nombre ?? 'Sin lote'}</span>
+                      <small>Fecha: {formatDate(tarea.fechaProyectada)} | Estado: {friendlyEnum(tarea.estado)}</small>
+                      <Link className="secondary-button" to={paths.agenda}>Ver agenda</Link>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+
+            {activeModal === 'sanidad' && (
+              resumenSanidad.tareas.length === 0 ? (
+                <p className="table-empty">No hay controles sanitarios pendientes.</p>
+              ) : (
+                <div className="dashboard-urgent-list">
+                  {resumenSanidad.tareas.map((tarea) => (
+                    <div className="dashboard-urgent-row" key={tarea.id}>
+                      <strong>{friendlyEnum(tarea.tipo)}</strong>
+                      <span>{friendlyEnum(tarea.lote ?? tarea.categoria ?? tarea.alcance)}</span>
+                      <span>Vence: {formatDate(tarea.fechaObjetivo)}</span>
+                      <span className="badge badge-warning">{friendlyEnum(tarea.estado)}</span>
+                      <Link className="secondary-button" to={paths.vaccination}>Ver vacunación</Link>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </section>
+        </div>
+      )}
     </>
   );
 }

@@ -324,7 +324,7 @@ function buildFeedingSummary(
   const insumosMapped = insumos.map((insumo) => {
     const stockActual = toNumber(insumo.stockActual);
     const stockMinimo = toNumber(insumo.stockMinimo);
-    const estado = stockActual <= 0 ? 'CRITICO' : stockActual <= stockMinimo ? 'BAJO' : 'OK';
+    const estado = stockActual === 0 ? 'CRITICO' : stockActual < stockMinimo ? 'BAJO' : 'OK';
 
     return {
       id: insumo.id,
@@ -338,7 +338,7 @@ function buildFeedingSummary(
 
   return {
     insumosActivos: insumos.length,
-    insumosBajoMinimo: insumosMapped.filter((insumo) => insumo.estado !== 'OK').length,
+    insumosBajoMinimo: insumosMapped.filter((insumo) => insumo.estado === 'BAJO').length,
     estadoGeneral: insumosMapped.some((insumo) => insumo.estado === 'CRITICO')
       ? 'Stock crítico'
       : insumosMapped.some((insumo) => insumo.estado === 'BAJO')
@@ -408,12 +408,14 @@ function buildSanitarySummary(
 }
 
 function buildManagementAlerts(input: {
-    tareasVencidas: number;
+  tareasVencidas: number;
   litrosDisponibles: number;
   lotesProximosAVencer: number;
   porcentajeDescarte: number;
   insumosBajoMinimo: number;
-  controlesPendientes: number;
+  insumosAgotados: number;
+  controlesSanitariosVencidos: number;
+  controlesSanitariosProximos: number;
   litrosProducidos: number;
   cantidadVentas: number;
 }) {
@@ -422,32 +424,40 @@ function buildManagementAlerts(input: {
   if (input.tareasVencidas > 0) {
     alerts.push({
       codigo: 'TAREAS_VENCIDAS',
-      titulo: 'Tareas vencidas',
-      detalle: `Hay ${input.tareasVencidas} tareas vencidas pendientes.`,
+      titulo: 'Agenda pendiente',
+      detalle: `Hay ${input.tareasVencidas} tareas de agenda vencidas.`,
       severidad: 'CRITICA',
       accionSugerida: 'Revisar agenda y resolver pendientes hoy.',
       accionLabel: 'Ver agenda',
       accionRuta: '/agenda',
     });
   }
-  if (input.insumosBajoMinimo > 0) {
+  if (input.insumosBajoMinimo > 0 || input.insumosAgotados > 0) {
+    const detalleStock = input.insumosBajoMinimo > 0 && input.insumosAgotados > 0
+      ? `${input.insumosBajoMinimo} insumos bajo mínimo y ${input.insumosAgotados} agotado${input.insumosAgotados === 1 ? '' : 's'}.`
+      : input.insumosBajoMinimo > 0
+        ? `${input.insumosBajoMinimo} insumo${input.insumosBajoMinimo === 1 ? '' : 's'} bajo mínimo.`
+        : `${input.insumosAgotados} insumo${input.insumosAgotados === 1 ? '' : 's'} agotado${input.insumosAgotados === 1 ? '' : 's'}.`;
     alerts.push({
       codigo: 'STOCK_CRITICO',
-      titulo: 'Stock critico de alimentos',
-      detalle: `${input.insumosBajoMinimo} insumos estan en minimo o por debajo.`,
+      titulo: 'Stock de alimentos',
+      detalle: detalleStock,
       severidad: 'CRITICA',
-      accionSugerida: 'Planificar reposicion de alimento.',
+      accionSugerida: input.insumosAgotados > 0 ? 'Reponer alimento de forma urgente.' : 'Planificar reposicion de alimento.',
       accionLabel: 'Ver alimentación',
       accionRuta: '/alimentacion',
     });
   }
-  if (input.controlesPendientes > 0) {
+  const controlesPendientes = input.controlesSanitariosVencidos + input.controlesSanitariosProximos;
+  if (controlesPendientes > 0) {
     alerts.push({
       codigo: 'SANIDAD_PENDIENTE',
-      titulo: 'Controles sanitarios pendientes',
-      detalle: `${input.controlesPendientes} controles sanitarios requieren atencion.`,
-      severidad: 'MEDIA',
-      accionSugerida: 'Programar o registrar los controles sanitarios.',
+      titulo: 'Controles sanitarios',
+      detalle: input.controlesSanitariosVencidos > 0
+        ? `${input.controlesSanitariosVencidos} controles sanitarios vencidos.`
+        : `${input.controlesSanitariosProximos} controles sanitarios próximos.`,
+      severidad: input.controlesSanitariosVencidos > 0 ? 'CRITICA' : 'MEDIA',
+      accionSugerida: input.controlesSanitariosVencidos > 0 ? 'Revisar vacunación hoy.' : 'Programar o registrar los controles sanitarios.',
       accionLabel: 'Ver vacunación',
       accionRuta: '/vacunacion',
     });
@@ -641,6 +651,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
   const { fechaDesde, fechaHasta } = resolvePeriodRange(periodo, customRange);
   const nextSanitaryLimit = addDays(todayEnd, 30);
   const nextSevenDaysEnd = endOfDay(addDays(todayStart, 7));
+  const agendaTaskTypes = [TipoTarea.TACTO, TipoTarea.SECADO, TipoTarea.PARTO, TipoTarea.ALTA_POST_PARTO];
 
   const [
     totalAnimales,
@@ -702,9 +713,9 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     countSanitaryTasks({ estado: EstadoTarea.PENDIENTE, tipoSanitario: { not: null }, fechaObjetivo: { lt: todayStart } }),
     countSanitaryTasks({ estado: EstadoTarea.PENDIENTE, tipoSanitario: { not: null }, fechaObjetivo: { gte: todayStart, lte: nextSanitaryLimit } }),
     findUltimosEventosSanitarios(),
-    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, fechaProgramada: { lt: todayStart } }, 5),
-    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, fechaProgramada: { gte: todayStart, lte: todayEnd } }, 5),
-    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, fechaProgramada: { gt: todayEnd, lte: nextSevenDaysEnd } }, 5),
+    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipo: { in: agendaTaskTypes }, tipoSanitario: null, fechaProgramada: { lt: todayStart } }),
+    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipo: { in: agendaTaskTypes }, tipoSanitario: null, fechaProgramada: { gte: todayStart, lte: todayEnd } }),
+    findAgendaTasksForDashboard({ estado: EstadoTarea.PENDIENTE, tipo: { in: agendaTaskTypes }, tipoSanitario: null, fechaProgramada: { gt: todayEnd, lte: nextSevenDaysEnd } }),
     countProduccionesForDashboard(todayStart, todayEnd),
     countRegistrosAlimentacionForDashboard(todayStart, todayEnd),
     countEventosForDashboard(todayStart, todayEnd),
@@ -714,13 +725,19 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
   const resumenLeche = buildMilkSummary(lotesDisponibles, todayStart);
   const resumenAlimentacion = buildFeedingSummary(insumos, ultimosMovimientosStock, ultimosRegistrosAlimentacion);
   const resumenSanidad = buildSanitarySummary(tareasSanitarias, ultimosEventosSanitarios, tareasSanitariasVencidas, tareasSanitariasProximas);
+  const agendaTareasVencidas = tareasVencidasDetalle.length;
+  const agendaTareasHoy = tareasHoyDetalle.length;
+  const agendaTareasFuturas = tareasProximos7Dias.length;
+  const insumosAgotados = resumenAlimentacion.insumos.filter((insumo) => insumo.estado === 'CRITICO').length;
   const alertasGestion = buildManagementAlerts({
-    tareasVencidas,
+    tareasVencidas: agendaTareasVencidas,
     litrosDisponibles: resumenLeche.litrosDisponibles,
     lotesProximosAVencer: resumenLeche.lotesProximosAVencer,
     porcentajeDescarte: resumenProduccion.porcentajeDescarte,
     insumosBajoMinimo: resumenAlimentacion.insumosBajoMinimo,
-    controlesPendientes: resumenSanidad.controlesPendientes,
+    insumosAgotados,
+    controlesSanitariosVencidos: resumenSanidad.tareasSanitariasVencidas,
+    controlesSanitariosProximos: resumenSanidad.tareasSanitariasProximas,
     litrosProducidos: resumenProduccion.litrosProducidos,
     cantidadVentas: resumenVentas.cantidadVentas,
   });
@@ -756,9 +773,9 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
       nombre: lote.nombre,
       total: lote._count.animales,
     })),
-    tareasVencidas,
-    tareasHoy,
-    tareasFuturas,
+    tareasVencidas: agendaTareasVencidas,
+    tareasHoy: agendaTareasHoy,
+    tareasFuturas: agendaTareasFuturas,
     tactosPendientes,
     secadosPendientes,
     partosPendientes,
@@ -774,6 +791,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
       vaquillonas: rodeoGeneral.vaquillonas,
     },
     tareasPrioritarias,
+    tareasVencidasDetalle: tareasVencidasDetalle.map(mapDashboardTask),
     tareasHoyDetalle: tareasHoyDetalle.map(mapDashboardTask),
     tareasProximos7Dias: tareasProximos7Dias.map(mapDashboardTask),
     proximosTrabajos: {
