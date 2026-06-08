@@ -135,7 +135,8 @@ function parseTipoMovimiento(value: unknown) {
   return tipo;
 }
 
-function getStockEstado(alimento: { stockActual: number; stockMinimo: number }) {
+function getStockEstado(alimento: { stockActual: number; stockMinimo: number; activo: boolean }) {
+  if (!alimento.activo) return 'INACTIVO';
   if (alimento.stockActual <= 0) return 'AGOTADO';
   if (alimento.stockActual <= alimento.stockMinimo) return 'BAJO';
   return 'NORMAL';
@@ -253,7 +254,9 @@ export async function listStock(query: Query = {}) {
   const alimentos = await listAlimentos(query);
   const estado = typeof query.estado === 'string' && query.estado ? query.estado : 'TODOS';
   if (estado === 'TODOS') return alimentos;
-  if (estado !== 'NORMAL' && estado !== 'BAJO' && estado !== 'AGOTADO') throw new AppError('Estado de stock invalido.', 400);
+  if (estado !== 'NORMAL' && estado !== 'BAJO' && estado !== 'AGOTADO' && estado !== 'INACTIVO') {
+    throw new AppError('Estado de stock invalido.', 400);
+  }
   return alimentos.filter((alimento) => alimento.estado === estado);
 }
 

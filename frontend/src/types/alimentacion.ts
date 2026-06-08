@@ -8,7 +8,7 @@ export type TipoCalculoAlimentacion =
   | 'ROLLOS_POR_GRUPO_DURACION'
   | 'OBLIGATORIO_SIN_CANTIDAD';
 export type TipoMovimientoStockAlimentacion = 'ENTRADA' | 'BAJA' | 'CONSUMO' | 'MODIFICACION';
-export type EstadoStockAlimentacion = 'NORMAL' | 'BAJO' | 'AGOTADO';
+export type EstadoStockAlimentacion = 'NORMAL' | 'BAJO' | 'AGOTADO' | 'INACTIVO';
 
 export interface Alimento {
   id: number;

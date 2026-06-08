@@ -1,11 +1,10 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Edit2, Plus, RefreshCcw, RotateCcw, Trash2, X } from 'lucide-react';
+import { Edit2, Plus, RefreshCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
 import { createAlimento, getAlimentos, updateAlimento } from '../../services/alimentacionService';
-import type { Alimento, AlimentoFormValues, TipoAlimento } from '../../types/alimentacion';
+import type { Alimento, AlimentoFormValues, EstadoStockAlimentacion, TipoAlimento } from '../../types/alimentacion';
 
-type EstadoFilter = '' | 'true' | 'false';
-type StockEstadoFilter = '' | 'BAJO' | 'AGOTADO';
+type EstadoFilter = '' | EstadoStockAlimentacion;
 
 const tipoAlimentoOptions: TipoAlimento[] = ['SILO', 'BALANCEADO', 'FIBRA', 'SUPLEMENTO', 'SALES', 'OTRO'];
 
@@ -24,25 +23,34 @@ interface AlimentosStockPanelProps {
   onUnauthorized: () => void;
   onChanged?: () => void | Promise<void>;
   isAdmin?: boolean;
-  initialStockFilter?: StockEstadoFilter;
+  initialStockFilter?: EstadoFilter;
 }
 
 function textIncludes(value: string | null | undefined, query: string) {
   return (value ?? '').toLowerCase().includes(query);
 }
 
-function matchesEstado(value: boolean, filter: EstadoFilter) {
-  return !filter || String(value) === filter;
+function getStockEstado(alimento: Alimento): EstadoStockAlimentacion {
+  if (!alimento.activo) return 'INACTIVO';
+  if (alimento.stockActual <= 0) return 'AGOTADO';
+  if (alimento.stockActual <= alimento.stockMinimo) return 'BAJO';
+  return 'NORMAL';
 }
 
-function renderStatus(active: boolean) {
-  return <span className={`status-pill ${active ? 'status-active' : 'status-inactive'}`}>{active ? 'ACTIVO' : 'INACTIVO'}</span>;
+function matchesEstado(alimento: Alimento, filter: EstadoFilter) {
+  return !filter || getStockEstado(alimento) === filter;
 }
 
-function matchesStock(alimento: Alimento, filter: StockEstadoFilter) {
-  if (filter === 'AGOTADO') return alimento.stockActual <= 0;
-  if (filter === 'BAJO') return alimento.stockActual > 0 && alimento.stockActual <= alimento.stockMinimo;
-  return true;
+function statusClass(estado: EstadoStockAlimentacion) {
+  if (estado === 'NORMAL') return 'status-active';
+  if (estado === 'BAJO') return 'status-warning';
+  if (estado === 'AGOTADO') return 'status-danger';
+  return 'status-inactive';
+}
+
+function renderStatus(alimento: Alimento) {
+  const estado = getStockEstado(alimento);
+  return <span className={`status-pill ${statusClass(estado)}`}>{estado}</span>;
 }
 
 export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAdmin = true, initialStockFilter = '' }: AlimentosStockPanelProps) {
@@ -50,7 +58,7 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAd
   const [formValues, setFormValues] = useState<AlimentoFormValues>(emptyAlimentoForm);
   const [editingAlimento, setEditingAlimento] = useState<Alimento | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const [filters, setFilters] = useState({ buscar: '', estado: '' as EstadoFilter, tipoAlimento: '', stock: initialStockFilter });
+  const [filters, setFilters] = useState({ buscar: '', estado: initialStockFilter, tipoAlimento: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -63,13 +71,14 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAd
 
   const visibleAlimentos = useMemo(() => {
     const query = filters.buscar.trim().toLowerCase();
-    return alimentos.filter((alimento) => {
-      const searchMatch = !query || textIncludes(alimento.nombre, query);
-      return searchMatch
-        && matchesEstado(alimento.activo, filters.estado)
-        && matchesStock(alimento, filters.stock)
-        && (!filters.tipoAlimento || alimento.tipoAlimento === filters.tipoAlimento);
-    });
+    return alimentos
+      .filter((alimento) => {
+        const searchMatch = !query || textIncludes(alimento.nombre, query);
+        return searchMatch
+          && matchesEstado(alimento, filters.estado)
+          && (!filters.tipoAlimento || alimento.tipoAlimento === filters.tipoAlimento);
+      })
+      .sort((a, b) => Number(b.activo) - Number(a.activo) || a.nombre.localeCompare(b.nombre, 'es'));
   }, [alimentos, filters]);
 
   function handleRequestError(requestError: unknown) {
@@ -185,11 +194,11 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAd
   }, [authToken]);
 
   useEffect(() => {
-    setFilters((current) => ({ ...current, stock: initialStockFilter }));
+    setFilters((current) => ({ ...current, estado: initialStockFilter }));
   }, [initialStockFilter]);
 
   function clearFilters() {
-    setFilters({ buscar: '', estado: '', tipoAlimento: '', stock: '' });
+    setFilters({ buscar: '', estado: '', tipoAlimento: '' });
   }
 
   return (
@@ -207,8 +216,7 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAd
         </div>
         <form className="filters-form events-filters production-filters">
           <label className="filter-field"><span>Buscar</span><input value={filters.buscar} onChange={(event) => setFilters({ ...filters, buscar: event.target.value })} placeholder="Nombre" /></label>
-          <label className="filter-field"><span>Estado</span><select value={filters.estado} onChange={(event) => setFilters({ ...filters, estado: event.target.value as EstadoFilter })}><option value="">Todos</option><option value="true">Activo</option><option value="false">Inactivo</option></select></label>
-          <label className="filter-field"><span>Stock</span><select value={filters.stock} onChange={(event) => setFilters({ ...filters, stock: event.target.value as StockEstadoFilter })}><option value="">Todos</option><option value="BAJO">Bajo</option><option value="AGOTADO">Agotado</option></select></label>
+          <label className="filter-field"><span>Estado</span><select value={filters.estado} onChange={(event) => setFilters({ ...filters, estado: event.target.value as EstadoFilter })}><option value="">Todos</option><option value="NORMAL">Normal</option><option value="BAJO">Bajo</option><option value="AGOTADO">Agotado</option><option value="INACTIVO">Inactivo</option></select></label>
           <label className="filter-field"><span>Tipo</span><select value={filters.tipoAlimento} onChange={(event) => setFilters({ ...filters, tipoAlimento: event.target.value })}><option value="">Todos</option>{availableTypes.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}</select></label>
           <button type="button" className="secondary-button" onClick={clearFilters}>Limpiar</button>
         </form>
@@ -218,14 +226,14 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAd
               <thead><tr><th>Alimento</th><th>Tipo</th><th>Unidad</th><th>Stock actual</th><th>Punto mínimo</th><th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>
               <tbody>
                 {visibleAlimentos.map((alimento) => (
-                  <tr key={alimento.id}>
+                  <tr key={alimento.id} className={!alimento.activo ? 'stock-inactive-row' : undefined}>
                     <td><strong>{alimento.nombre}</strong><span>{alimento.descripcion || '-'}</span></td>
                     <td>{alimento.tipoAlimento}</td>
                     <td>{alimento.unidadMedida}</td>
                     <td>{alimento.stockActual}</td>
                     <td>{alimento.stockMinimo}</td>
-                    <td>{renderStatus(alimento.activo)}</td>
-                    {isAdmin && <td><div className="table-actions"><button type="button" onClick={() => startEditing(alimento)} aria-label={`Editar ${alimento.nombre}`}><Edit2 size={16} /></button>{alimento.activo ? <button type="button" onClick={() => void setAlimentoActive(alimento, false)} aria-label={`Dar de baja ${alimento.nombre}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setAlimentoActive(alimento, true)} aria-label={`Reactivar ${alimento.nombre}`}><RotateCcw size={16} /></button>}</div></td>}
+                    <td>{renderStatus(alimento)}</td>
+                    {isAdmin && <td><div className="table-actions"><button type="button" onClick={() => startEditing(alimento)} aria-label={`Editar ${alimento.nombre}`}><Edit2 size={16} /></button>{alimento.activo && <button type="button" onClick={() => void setAlimentoActive(alimento, false)} aria-label={`Dar de baja ${alimento.nombre}`}><Trash2 size={16} /></button>}</div></td>}
                   </tr>
                 ))}
                 {visibleAlimentos.length === 0 && <tr><td colSpan={isAdmin ? 7 : 6}>Sin alimentos para mostrar.</td></tr>}

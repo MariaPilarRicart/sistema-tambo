@@ -3029,8 +3029,24 @@ a {
   color: #b45309 !important;
 }
 
+.status-danger {
+  background: #fee2e2;
+  color: #b91c1c !important;
+}
+
 .stock-low-row {
   background: #fffbeb;
+}
+
+.stock-inactive-row {
+  background: var(--slate-50);
+  color: var(--slate-500);
+}
+
+.stock-inactive-row td,
+.stock-inactive-row td strong,
+.stock-inactive-row td span {
+  color: var(--slate-500) !important;
 }
 
 .stock-header {

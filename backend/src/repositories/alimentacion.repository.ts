@@ -186,7 +186,7 @@ export function updateReglaAlimentacion(
 export function findAlimentosAlimentacion(where: Prisma.InsumoAlimentacionWhereInput = {}) {
   return prisma.insumoAlimentacion.findMany({
     where,
-    orderBy: { nombre: 'asc' },
+    orderBy: [{ activo: 'desc' }, { nombre: 'asc' }],
     select: alimentoSelect,
   });
 }
