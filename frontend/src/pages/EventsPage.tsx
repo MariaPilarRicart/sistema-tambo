@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
+import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { getAnimales } from '../services/animalesService';
 import { getEventos } from '../services/eventosService';
 import type { Animal } from '../types/animales';
@@ -77,6 +78,8 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
+
+  useDataChangedRefresh(() => loadData(filters), [authToken, filters]);
 
   return (
     <div className="settings-page">

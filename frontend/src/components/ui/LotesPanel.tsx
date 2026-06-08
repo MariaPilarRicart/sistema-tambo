@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Edit2, Plus, RefreshCcw, RotateCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
 import { createLote, getLotes, updateLote } from '../../services/lotesService';
+import { useDataChangedRefresh } from '../../hooks/useDataChangedRefresh';
 import type { Lote, LoteFormValues } from '../../types/lotes';
 
 type EstadoFilter = '' | 'true' | 'false';
@@ -174,6 +175,8 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
+  useDataChangedRefresh(() => loadLotes(), [authToken]);
+
   function clearLoteFilters() {
     setLoteFilters({ buscar: '', estado: '', minAnimales: '', maxAnimales: '' });
   }
@@ -183,7 +186,7 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin 
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
-      <section className="panel users-list-panel">
+      <section className="panel users-list-panel" id="lotes-section">
         <div className="panel-header">
           <div>
             <h2>Lotes</h2>

@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { CalendarClock, CheckCircle2, Clock3, ListChecks, Plus, RefreshCcw, Syringe, X } from 'lucide-react';
 import { SanitaryRulesPanel } from '../components/ui/SanitaryRulesPanel';
+import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
+import { useScrollToSection } from '../hooks/useScrollToSection';
 import { ApiError } from '../services/apiClient';
 import { getAnimales } from '../services/animalesService';
 import { getLotes } from '../services/lotesService';
@@ -276,6 +278,16 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, filters]);
 
+  useDataChangedRefresh(() => loadData(filters), [authToken, filters]);
+  useScrollToSection(
+    searchParams.get('section') === 'pendientes'
+      ? 'vacunas-pendientes-section'
+      : searchParams.get('section') === 'historial'
+        ? 'historial-sanitario-section'
+        : null,
+    [searchParams, visiblePendingHistory.length, history.length],
+  );
+
   useEffect(() => {
     setSelectedTaskIds((current) => current.filter((id) => visibleTaskIds.includes(id)));
   }, [visibleTaskIds]);
@@ -435,7 +447,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
         </button>
       </div>
 
-      <section className="panel vaccination-pending-section">
+      <section className="panel vaccination-pending-section" id="vacunas-pendientes-section">
         <div className="panel-header">
           <div><h2>Vacunas pendientes</h2><p>{visiblePendingHistory.length} tareas sanitarias visibles.</p></div>
           <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar vacunas pendientes"><RefreshCcw size={18} /></button>
@@ -528,7 +540,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
         <SanitaryRulesPanel authToken={authToken} onUnauthorized={onUnauthorized} onRulesChanged={() => loadData(filters)} isAdmin={isAdmin} />
       </div>
 
-      <section className="panel vaccination-history-section">
+      <section className="panel vaccination-history-section" id="historial-sanitario-section">
         <div className="panel-header">
           <div><h2>Historial sanitario</h2><p>{history.length} registros encontrados.</p></div>
           <div className="header-actions">

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Edit2, Eye, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
+import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { createCliente, getCliente, getClientes, updateCliente, updateClienteEstado } from '../services/clientesService';
 import { createVenta, getLotesDisponiblesVenta, getVenta, getVentas } from '../services/ventasService';
 import type { AuthUser } from '../types/auth';
@@ -195,6 +196,11 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, filters]);
+
+  useDataChangedRefresh(() => {
+    void loadSalesData(filters);
+    void loadClientes(clientesSearch);
+  }, [authToken, filters, clientesSearch]);
 
   function resetVentaForm() {
     setVentaForm({ ...emptyVentaForm, fechaVenta: localDateValue(), detalles: [{ ...emptyDetail }] });

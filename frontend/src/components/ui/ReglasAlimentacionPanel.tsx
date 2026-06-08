@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Edit2, Plus, RefreshCcw, RotateCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
+import { useDataChangedRefresh } from '../../hooks/useDataChangedRefresh';
 import { createReglaAlimentacion, getAlimentos, getReglasAlimentacion, updateReglaAlimentacion } from '../../services/alimentacionService';
 import type {
   Alimento,
@@ -235,6 +236,8 @@ export function ReglasAlimentacionPanel({ authToken, onUnauthorized, onChanged, 
     void loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
+
+  useDataChangedRefresh(() => loadData(), [authToken]);
 
   function clearFilters() {
     setFilters({ buscar: '', estado: '', categoriaAnimal: '' });

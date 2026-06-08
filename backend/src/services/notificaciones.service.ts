@@ -121,7 +121,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       `Hay ${stockAgotado} insumos agotados.`,
       'ALTA',
       1,
-      '/alimentacion?estadoStock=AGOTADO',
+      '/alimentacion?section=stock&estadoStock=AGOTADO',
     ));
   }
 
@@ -133,7 +133,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       `Tenés ${vaccinationSummary.vencidas} vacunaciones vencidas.`,
       'ALTA',
       2,
-      '/vacunacion?estado=VENCIDA',
+      '/vacunacion?section=historial&estado=VENCIDA',
     ));
   }
 
@@ -157,7 +157,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       `Hay ${lotesLecheVencidos} lotes de leche vencidos.`,
       'ALTA',
       4,
-      '/produccion?estadoLoteLeche=VENCIDO',
+      '/produccion?section=lotesLeche&estado=VENCIDO',
     ));
   }
 
@@ -169,7 +169,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       `Hay ${stockBajo} insumos con stock bajo.`,
       'MEDIA',
       5,
-      '/alimentacion?estadoStock=BAJO',
+      '/alimentacion?section=stock&estadoStock=BAJO',
     ));
   }
 
@@ -181,7 +181,7 @@ export async function getSimpleNotifications(usuarioId: number, _rol: RolUsuario
       `Tenés ${vaccinationSummary.pendientes} vacunaciones pendientes.`,
       'BAJA',
       6,
-      '/vacunacion?estado=PENDIENTE',
+      '/vacunacion?section=pendientes&estado=PENDIENTE',
     ));
   }
 

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Edit2, KeyRound, Plus, RefreshCcw, RotateCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
+import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { createUser, deactivateUser, getUsers, resetUserPassword, updateUser } from '../services/usersService';
 import type { AuthUser, UserRole } from '../types/auth';
 import type { User, UserFormValues } from '../types/users';
@@ -90,6 +91,8 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     void loadUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, isAdmin]);
+
+  useDataChangedRefresh(() => loadUsers(), [authToken, isAdmin]);
 
   function clearUserFilters() {
     setUserFilters({ buscar: '', estado: '', rol: '' });

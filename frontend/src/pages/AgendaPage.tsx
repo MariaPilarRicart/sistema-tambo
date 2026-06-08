@@ -4,6 +4,8 @@ import { RefreshCcw } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { getAgendaPendiente } from '../services/agendaService';
 import { AgendaTaskActions } from '../components/ui/AgendaTaskActions';
+import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
+import { useScrollToSection } from '../hooks/useScrollToSection';
 import type { AgendaTarea, TipoTarea } from '../types/agenda';
 import type { AuthUser } from '../types/auth';
 
@@ -70,6 +72,9 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
+  useDataChangedRefresh(() => loadAgenda(), [authToken]);
+  useScrollToSection(searchParams.get('tipo') || searchParams.get('estado') ? 'eventos-section' : null, [searchParams, agendaVisible.length]);
+
   return (
     <div className="settings-page">
       <section className="settings-header">
@@ -95,7 +100,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
         </form>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="eventos-section">
         <div className="panel-header">
           <div>
             <h2>Agenda del dia</h2>

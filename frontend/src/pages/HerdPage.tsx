@@ -1,11 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Activity, Baby, CircleDot, HeartPulse, RefreshCcw, ShieldCheck, Trash2, Users, X, CalendarPlus, Edit2, Plus } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { createAnimal, deactivateAnimal, getAnimales, getRodeoResumen, updateAnimal } from '../services/animalesService';
 import { createEvento } from '../services/eventosService';
 import { getLotes } from '../services/lotesService';
 import { LotesPanel } from '../components/ui/LotesPanel';
+import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
+import { useScrollToSection } from '../hooks/useScrollToSection';
 import type {
   Animal,
   AnimalDeactivateValues,
@@ -101,6 +103,7 @@ interface HerdPageProps {
 }
 
 export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPageProps) {
+  const [searchParams] = useSearchParams();
   const [animales, setAnimales] = useState<Animal[]>([]);
   const [allAnimales, setAllAnimales] = useState<Animal[]>([]);
   const [resumen, setResumen] = useState<RodeoResumen | null>(null);
@@ -360,6 +363,16 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
+  useDataChangedRefresh(() => loadData(filters), [authToken, filters]);
+  useScrollToSection(
+    searchParams.get('section') === 'lotes'
+      ? 'lotes-section'
+      : searchParams.get('section') === 'animales'
+        ? 'animales-section'
+        : null,
+    [searchParams, animales.length, lotes.length],
+  );
+
   return (
     <div className="settings-page">
       <section className="settings-header">
@@ -381,7 +394,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
         <article className="metric-card operative-card"><div className="metric-icon metric-icon-rose"><Baby size={20} /></div><p className="metric-title">Secas o recuperación</p><strong className="metric-value">{resumen?.secasRecuperacion ?? 0}</strong></article>
       </div>
 
-      <section className="panel users-list-panel herd-list-panel">
+      <section className="panel users-list-panel herd-list-panel" id="animales-section">
           <div className="panel-header">
             <div>
               <h2>Animales</h2>

@@ -14,6 +14,8 @@ import {
 import { getLotes } from '../services/lotesService';
 import { AlimentosStockPanel } from '../components/ui/AlimentosStockPanel';
 import { ReglasAlimentacionPanel } from '../components/ui/ReglasAlimentacionPanel';
+import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
+import { useScrollToSection } from '../hooks/useScrollToSection';
 import type {
   AlimentacionResumen,
   Alimento,
@@ -127,6 +129,18 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, histFilters, movFilters]);
+
+  useDataChangedRefresh(() => loadData(), [authToken, histFilters, movFilters, isAdmin]);
+  useScrollToSection(
+    searchParams.get('section') === 'stock'
+      ? 'stock-alimentos-section'
+      : searchParams.get('section') === 'movimientos'
+        ? 'movimientos-stock-section'
+        : searchParams.get('section') === 'historial'
+          ? 'historial-alimentacion-section'
+          : null,
+    [searchParams, historial.length, movimientos.length, alimentos.length],
+  );
 
   function clearHistFilters() {
     const nextFilters = { fechaDesde: '', fechaHasta: '', loteId: '', categoriaAnimal: '', usuarioId: '' };
@@ -266,7 +280,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
         <article className="metric-card operative-card"><div className="metric-icon metric-icon-indigo"><Package size={20} /></div><p className="metric-title">Agotados</p><strong className="metric-value">{resumen?.insumosAgotados ?? 0}</strong></article>
       </div>
 
-      <section className="panel">
+      <section className="panel" id="historial-alimentacion-section">
         <div className="panel-header">
           <div><h2>Historial de alimentación</h2><p>{historial.length} alimentaciones registradas.</p></div>
           <div className="header-actions">
@@ -303,7 +317,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
         initialStockFilter={searchParams.get('estadoStock') === 'AGOTADO' ? 'AGOTADO' : searchParams.get('estadoStock') === 'BAJO' ? 'BAJO' : ''}
       />
 
-      {isAdmin && <section className="panel">
+      {isAdmin && <section className="panel" id="movimientos-stock-section">
         <div className="panel-header">
           <div><h2>Movimientos de stock</h2><p>{movimientos.length} movimientos encontrados.</p></div>
           <div className="header-actions">

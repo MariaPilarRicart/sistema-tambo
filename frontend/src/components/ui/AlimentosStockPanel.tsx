@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Edit2, Plus, RefreshCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
 import { createAlimento, getAlimentos, updateAlimento } from '../../services/alimentacionService';
+import { useDataChangedRefresh } from '../../hooks/useDataChangedRefresh';
 import type { Alimento, AlimentoFormValues, EstadoStockAlimentacion, TipoAlimento } from '../../types/alimentacion';
 
 type EstadoFilter = '' | EstadoStockAlimentacion;
@@ -197,6 +198,8 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAd
     setFilters((current) => ({ ...current, estado: initialStockFilter }));
   }, [initialStockFilter]);
 
+  useDataChangedRefresh(() => loadAlimentos(), [authToken]);
+
   function clearFilters() {
     setFilters({ buscar: '', estado: '', tipoAlimento: '' });
   }
@@ -206,7 +209,7 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAd
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
-      <section className="panel users-list-panel">
+      <section className="panel users-list-panel" id="stock-alimentos-section">
         <div className="panel-header">
           <div><h2>Stock de alimentos</h2><p>{visibleAlimentos.length} de {alimentos.length} alimentos cargados.</p></div>
           <div className="header-actions">

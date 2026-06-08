@@ -2,6 +2,8 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { BarChart3, Droplets, Edit2, Milk, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
+import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
+import { useScrollToSection } from '../hooks/useScrollToSection';
 import { getAnimales } from '../services/animalesService';
 import { getLotes } from '../services/lotesService';
 import {
@@ -239,7 +241,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const estadoLoteLeche = searchParams.get('estadoLoteLeche');
+    const estadoLoteLeche = searchParams.get('estadoLoteLeche') ?? searchParams.get('estado');
     if (estadoLoteLeche === 'DISPONIBLE' || estadoLoteLeche === 'VENDIDO' || estadoLoteLeche === 'VENCIDO') {
       setLoteLecheFilters((current) => ({ ...current, estado: estadoLoteLeche }));
     }
@@ -357,6 +359,16 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, filters]);
+
+  useDataChangedRefresh(() => loadData(filters), [authToken, filters]);
+  useScrollToSection(
+    searchParams.get('section') === 'lotesLeche'
+      ? 'lotes-leche-section'
+      : searchParams.get('section') === 'historial'
+        ? 'historial-produccion-section'
+        : null,
+    [searchParams, visibleLotesLeche.length, registros.length],
+  );
 
   function updateForm(next: Partial<ProduccionFormValues>) {
     setForm((current) => ({ ...current, ...next }));
@@ -615,7 +627,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         </article>
       </div>
 
-      <section className="panel">
+      <section className="panel" id="lotes-leche-section">
         <div className="panel-header">
           <div>
             <h2>Lotes de leche</h2>
@@ -683,7 +695,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         </div>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="historial-produccion-section">
         <div className="panel-header">
           <div><h2>Historial</h2><p>Registros individuales de producción.</p></div>
           <div className="header-actions">

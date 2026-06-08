@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Edit2, Plus, RefreshCcw, RotateCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
+import { useDataChangedRefresh } from '../../hooks/useDataChangedRefresh';
 import {
   createReglaSanitaria,
   getReglasSanitarias,
@@ -96,6 +97,8 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
     void loadReglas();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
+
+  useDataChangedRefresh(() => loadReglas(), [authToken]);
 
   function clearReglaFilters() {
     setReglaFilters({ buscar: '', estado: '', tipo: '', frecuencia: '' });
