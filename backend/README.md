@@ -37,7 +37,13 @@ PORT=3000
 DATABASE_URL="postgresql://tampo_user:tampo_password@127.0.0.1:5433/tampo_db?schema=public"
 CORS_ORIGIN=http://localhost:5173
 JWT_SECRET=change_this_secret_for_local_development
+OPENAI_API_KEY=""
+OPENAI_MODEL="gpt-4o-mini"
 ```
+
+Para usar el Asistente IA, configurar `OPENAI_API_KEY` con una clave válida de OpenAI en `backend/.env`.
+`OPENAI_MODEL` es opcional; si no se define, el backend usa `gpt-4o-mini`.
+La clave se usa únicamente en backend y nunca debe exponerse en el frontend.
 
 ## Comandos
 

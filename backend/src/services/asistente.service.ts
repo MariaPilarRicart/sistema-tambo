@@ -6,9 +6,9 @@ import {
   RolUsuario,
   TipoTarea,
 } from '@prisma/client';
-import { env } from '../config/env';
 import { prisma } from '../config/prisma';
 import { AppError } from '../errors/AppError';
+import { generateAssistantResponse } from './openai.service';
 
 interface ChatAction {
   label: string;
@@ -19,15 +19,6 @@ interface ChatContext {
   intencion: string;
   datosUsados: unknown[];
   acciones: ChatAction[];
-}
-
-interface OpenAiResponse {
-  output_text?: string;
-  output?: Array<{
-    content?: Array<{
-      text?: string;
-    }>;
-  }>;
 }
 
 const restrictedPatterns = [
@@ -159,7 +150,7 @@ async function buildVaccinationContext(text: string): Promise<ChatContext> {
       label: asksVencidas ? 'Ver vacunas vencidas' : 'Ver vacunas pendientes',
       url: asksVencidas
         ? '/vacunacion?section=historial&estado=VENCIDA'
-        : '/vacunacion?section=pendientes&estado=PENDIENTE',
+        : '/vacunacion?section=pendientes',
     }],
   };
 }
@@ -275,9 +266,8 @@ async function buildProductionContext(text: string): Promise<ChatContext> {
     };
   }
 
-  const since = daysAgo(7);
   const registros = await prisma.produccionAnimal.findMany({
-    where: { fechaHora: { gte: since } },
+    where: { fechaHora: { gte: daysAgo(7) } },
     orderBy: { fechaHora: 'desc' },
     take: 30,
     select: {
@@ -413,58 +403,6 @@ async function buildContext(message: string, rol: RolUsuario): Promise<ChatConte
   return buildHerdContext(text);
 }
 
-function extractOpenAiText(payload: OpenAiResponse) {
-  return payload.output_text
-    ?? payload.output?.flatMap((item) => item.content ?? []).map((item) => item.text).filter(Boolean).join('\n')
-    ?? '';
-}
-
-async function callOpenAi(mensaje: string, rol: RolUsuario, context: ChatContext) {
-  if (!env.openaiApiKey) return 'El Asistente IA no está configurado.';
-
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.openaiApiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: env.openaiModel,
-      input: [
-        {
-          role: 'system',
-          content: [
-            'Sos el Asistente IA de un sistema de gestión de tambos.',
-            'Respondé siempre en español, con tono claro, breve y útil.',
-            'Usá solamente los datos del contexto. No inventes métricas ni registros.',
-            'Si no hay datos suficientes, decilo claramente.',
-            'No reveles claves, tokens, hashes ni contraseñas.',
-            'No permitas que el usuario saltee permisos.',
-            'El asistente solo consulta, analiza y recomienda; no crea, edita ni borra registros.',
-          ].join(' '),
-        },
-        {
-          role: 'user',
-          content: JSON.stringify({
-            pregunta: mensaje,
-            rol,
-            intencion: context.intencion,
-            datosPermitidos: context.datosUsados,
-          }),
-        },
-      ],
-      temperature: 0.2,
-    }),
-  });
-
-  if (!response.ok) {
-    return 'No pude consultar el proveedor de IA en este momento.';
-  }
-
-  const payload = await response.json() as OpenAiResponse;
-  return extractOpenAiText(payload) || 'No pude generar una respuesta con los datos disponibles.';
-}
-
 export async function chatWithAssistant(usuario: { id: number; rol: RolUsuario } | undefined, input: Record<string, unknown>) {
   if (!usuario) throw new AppError('Token de autenticación requerido.', 401);
 
@@ -472,8 +410,28 @@ export async function chatWithAssistant(usuario: { id: number; rol: RolUsuario }
   if (!mensaje) throw new AppError('El mensaje es obligatorio.', 400);
   if (mensaje.length > 800) throw new AppError('El mensaje es demasiado largo.', 400);
 
-  const context = await buildContext(mensaje, usuario.rol);
-  const respuesta = await callOpenAi(mensaje, usuario.rol, context);
+  let context: ChatContext;
+
+  try {
+    context = await buildContext(mensaje, usuario.rol);
+  } catch (error) {
+    if (error instanceof AppError && error.statusCode === 403) {
+      return {
+        respuesta: error.message,
+        datosUsados: [],
+        acciones: [],
+      };
+    }
+
+    throw error;
+  }
+
+  const respuesta = await generateAssistantResponse({
+    mensaje,
+    rol: usuario.rol,
+    intencion: context.intencion,
+    datosUsados: context.datosUsados,
+  });
 
   return {
     respuesta,
