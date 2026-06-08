@@ -108,19 +108,6 @@ function trendText(value: string) {
   return 'No hay suficientes datos para analizar tendencia.';
 }
 
-function sanitaryStatusText(vencidas: number, proximas: number) {
-  if (vencidas >= 10) return 'Situación crítica';
-  if (vencidas > 0) return 'Atención requerida';
-  if (proximas > 0) return 'Revisar controles próximos';
-  return 'Sin alertas sanitarias';
-}
-
-function sanitaryConclusion(vencidas: number, proximas: number) {
-  if (vencidas > 0) return 'Hay controles sanitarios vencidos. Se recomienda revisar vacunación hoy.';
-  if (proximas > 0) return 'Los controles próximos están dentro del período de seguimiento.';
-  return 'No hay controles sanitarios pendientes para este período.';
-}
-
 function KpiCard({
   description,
   icon: Icon,
@@ -238,6 +225,88 @@ function ValueBars({
   );
 }
 
+type DistributionGroup = {
+  nombre: string;
+  total: number;
+};
+
+const donutColors = ['#10b981', '#2563eb', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6'];
+
+function topGroupsWithOthers(groups: DistributionGroup[], limit = 5) {
+  const sorted = [...groups].sort((a, b) => b.total - a.total);
+  const visible = sorted.slice(0, limit);
+  const othersTotal = sorted.slice(limit).reduce((total, item) => total + item.total, 0);
+
+  return othersTotal > 0 ? [...visible, { nombre: 'Otros', total: othersTotal }] : visible;
+}
+
+function DistributionBars({
+  emptyMessage,
+  groups,
+  limit,
+}: {
+  emptyMessage: string;
+  groups: DistributionGroup[];
+  limit?: number;
+}) {
+  const visibleGroups = limit ? topGroupsWithOthers(groups, limit) : groups;
+  const maxValue = Math.max(...visibleGroups.map((item) => item.total), 1);
+
+  if (visibleGroups.length === 0) return <p className="table-empty">{emptyMessage}</p>;
+
+  return (
+    <div className="dashboard-rodeo-bars">
+      {visibleGroups.map((item) => (
+        <div className="dashboard-rodeo-bar-row" key={item.nombre}>
+          <div className="dashboard-rodeo-bar-label">
+            <strong>{friendlyEnum(item.nombre)}</strong>
+            <span>{item.total}</span>
+          </div>
+          <div className="dashboard-rodeo-bar-track" aria-hidden="true">
+            <span style={{ width: `${(item.total / maxValue) * 100}%` }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DonutDistribution({ groups }: { groups: DistributionGroup[] }) {
+  const total = groups.reduce((sum, item) => sum + item.total, 0);
+
+  if (total === 0) return <p className="table-empty">Sin datos para mostrar.</p>;
+
+  let accumulated = 0;
+  const gradient = groups
+    .map((item, index) => {
+      const start = (accumulated / total) * 100;
+      accumulated += item.total;
+      const end = (accumulated / total) * 100;
+      const color = donutColors[index % donutColors.length];
+      return `${color} ${start}% ${end}%`;
+    })
+    .join(', ');
+
+  return (
+    <div className="dashboard-rodeo-donut-wrap">
+      <div className="dashboard-rodeo-donut" style={{ background: `conic-gradient(${gradient})` }} aria-hidden="true">
+        <div className="dashboard-rodeo-donut-center">
+          <strong>{total}</strong>
+          <span>Total</span>
+        </div>
+      </div>
+      <div className="dashboard-rodeo-legend">
+        {groups.map((item, index) => (
+          <span key={item.nombre}>
+            <i style={{ background: donutColors[index % donutColors.length] }} />
+            {friendlyEnum(item.nombre)}: {item.total}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function AdminDashboard({
   periodo,
   fechaDesde,
@@ -251,7 +320,7 @@ export function AdminDashboard({
   onClearCustomPeriod,
 }: AdminDashboardProps) {
   const [activeModal, setActiveModal] = useState<AdminModalType | null>(null);
-  const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad, resumenRodeo } = resumen;
+  const { resumenProduccion, resumenVentas, resumenLeche, resumenAlimentacion, resumenSanidad } = resumen;
   const stockBajo = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual > 0 && insumo.stockActual < insumo.stockMinimo);
   const agotados = resumenAlimentacion.insumos.filter((insumo) => insumo.stockActual === 0);
   const totalAlertasStock = stockBajo.length + agotados.length;
@@ -287,10 +356,15 @@ export function AdminDashboard({
       value: String(totalAlertasStock),
       icon: Utensils,
       tone: agotados.length > 0 ? 'rose' as const : stockBajo.length > 0 ? 'amber' as const : 'emerald' as const,
-      onClick: () => setActiveModal('stock'),
       className: stockCardClass,
     },
-    { title: 'Tareas vencidas', description: 'Agenda + sanidad vencida', value: String(totalVencimientosCriticos), icon: ClipboardList, tone: 'amber' as const },
+    {
+      title: 'Tareas vencidas',
+      description: 'Agenda + sanidad vencida',
+      value: String(totalVencimientosCriticos),
+      icon: ClipboardList,
+      tone: totalVencimientosCriticos > 0 ? 'rose' as const : 'emerald' as const,
+    },
   ];
 
   return (
@@ -455,52 +529,33 @@ export function AdminDashboard({
         <Link className="secondary-button dashboard-inline-action" to={paths.sales}>Registrar venta</Link>
       </SectionCard>
 
-      <div className="dashboard-two-column">
-        <SectionCard
-          title="Sanidad"
-          description="Controles urgentes y próximos sin replicar Agenda o Vacunación."
-          action={<Link className="panel-chip" to={paths.vaccination}>Ver vacunación</Link>}
-        >
-          <div className="dashboard-detail-grid">
-            <span>Controles vencidos <strong>{resumenSanidad.tareasSanitariasVencidas}</strong></span>
-            <span>Controles próximos <strong>{resumenSanidad.tareasSanitariasProximas}</strong></span>
-            <span>Controles pendientes <strong>{resumenSanidad.controlesPendientes}</strong></span>
-            <span>Estado general <strong>{sanitaryStatusText(resumenSanidad.tareasSanitariasVencidas, resumenSanidad.tareasSanitariasProximas)}</strong></span>
-            <span>Más repetido <strong>{friendlyEnum(resumenSanidad.tipoControlMasRepetido)}</strong></span>
-            <span>Próximo urgente <strong>{resumenSanidad.proximoControlUrgente ? `${friendlyEnum(resumenSanidad.proximoControlUrgente.tipo)} - ${formatDate(resumenSanidad.proximoControlUrgente.fechaObjetivo)}` : 'Sin datos'}</strong></span>
-          </div>
-          <p className="dashboard-conclusion">{sanitaryConclusion(resumenSanidad.tareasSanitariasVencidas, resumenSanidad.tareasSanitariasProximas)}</p>
-          {resumenSanidad.tareas.length === 0 ? (
-            <p className="table-empty">Sin controles sanitarios pendientes o próximos.</p>
-          ) : (
-            <div className="dashboard-urgent-list">
-              {resumenSanidad.tareas.slice(0, 5).map((tarea) => (
-                <div className="dashboard-urgent-row" key={tarea.id}>
-                  <strong>{friendlyEnum(tarea.tipo)}</strong>
-                  <span>{formatDate(tarea.fechaObjetivo)}</span>
-                  <span>{friendlyEnum(tarea.lote ?? tarea.categoria ?? tarea.alcance)}</span>
-                  <span className="badge badge-warning">{friendlyEnum(tarea.estado)}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
-      </div>
-
       <section className="panel">
         <div className="dashboard-card-heading">
           <div>
             <h2>Situación general del rodeo</h2>
-            <p>Resumen general del rodeo.</p>
+            <p>Indicadores compactos y distribución general del rodeo.</p>
           </div>
           <Link className="panel-chip" to={paths.herd}>Ver rodeo</Link>
         </div>
         <div className="dashboard-detail-grid dashboard-herd-summary">
           <span>Animales activos <strong>{resumen.animalesActivos}</strong></span>
           <span>Animales inactivos <strong>{resumen.animalesInactivos}</strong></span>
-          <span>Vacas en producción <strong>{resumenRodeo.vacasProduccion}</strong></span>
-          <span>Vacas secas / preparto <strong>{resumenRodeo.vacasSecasPreparto}</strong></span>
-          <span>Vaquillonas <strong>{resumenRodeo.vaquillonas}</strong></span>
+          <span>Tactos pendientes <strong>{resumen.tactosPendientes}</strong></span>
+          <span>Partos pendientes <strong>{resumen.partosPendientes}</strong></span>
+        </div>
+        <div className="dashboard-rodeo-grid">
+          <article className="dashboard-rodeo-panel">
+            <h3>Animales por lote</h3>
+            <DistributionBars groups={resumen.animalesPorLote} limit={5} emptyMessage="Sin animales por lote para mostrar." />
+          </article>
+          <article className="dashboard-rodeo-panel">
+            <h3>Estado reproductivo</h3>
+            <DonutDistribution groups={resumen.animalesPorEstadoReproductivo} />
+          </article>
+          <article className="dashboard-rodeo-panel">
+            <h3>Categorías</h3>
+            <DistributionBars groups={resumen.animalesPorCategoria} emptyMessage="Sin categorías para mostrar." />
+          </article>
         </div>
       </section>
 
