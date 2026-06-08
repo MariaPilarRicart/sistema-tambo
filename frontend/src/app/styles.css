@@ -2351,13 +2351,14 @@ a {
 }
 
 .production-history-filters {
+  column-gap: 16px;
   grid-template-columns:
-    minmax(128px, 0.8fr)
-    minmax(128px, 0.8fr)
-    minmax(140px, 1fr)
-    minmax(170px, 1.15fr)
-    minmax(140px, 1fr)
-    minmax(105px, 0.65fr)
+    minmax(118px, 132px)
+    minmax(118px, 132px)
+    minmax(150px, 1fr)
+    minmax(180px, 1.15fr)
+    minmax(150px, 1fr)
+    minmax(110px, 0.65fr)
     auto;
 }
 
