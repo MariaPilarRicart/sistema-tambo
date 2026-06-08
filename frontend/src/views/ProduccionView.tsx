@@ -82,6 +82,13 @@ const emptyFilters: ProduccionFilters = {
   turno: '',
 };
 
+const emptyLoteLecheFilters = {
+  buscar: '',
+  estado: '',
+  disponibilidad: '',
+  calidad: '',
+};
+
 const turnoLabels: Record<TurnoOrdene, string> = {
   MANANA: 'Mañana',
   TARDE: 'Tarde',
@@ -215,6 +222,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
   const [showLoteLecheModal, setShowLoteLecheModal] = useState(false);
   const [showOrdeneModal, setShowOrdeneModal] = useState(false);
   const [filters, setFilters] = useState<ProduccionFilters>(emptyFilters);
+  const [loteLecheFilters, setLoteLecheFilters] = useState(emptyLoteLecheFilters);
   const [statsType, setStatsType] = useState<StatsType>('animal');
   const [statsSearch, setStatsSearch] = useState('');
   const [statsAnimalId, setStatsAnimalId] = useState('');
@@ -234,6 +242,27 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
   const editLitrosTotales = Number(editingLoteLeche?.litrosTotales ?? 0);
   const editLitrosDescartados = Number(loteLecheEditForm?.litrosDescartados || 0);
   const availableLotesLeche = useMemo(() => lotesLeche.filter((lote) => lote.estado === 'DISPONIBLE'), [lotesLeche]);
+  const visibleLotesLeche = useMemo(() => {
+    const query = loteLecheFilters.buscar.trim().toLocaleLowerCase('es-AR');
+
+    return lotesLeche.filter((lote) => {
+      const disponibilidad = Number(lote.litrosDisponibles ?? lote.litrosNetos ?? 0);
+      const hasQualityData = [lote.grasa, lote.proteina, lote.recuentoBacteriano, lote.recuentoCelulasSomaticas, lote.temperatura]
+        .some((value) => value !== null && value !== undefined && value !== '');
+      const searchMatch = !query || `${lote.codigo} ${lote.descripcion ?? ''}`.toLocaleLowerCase('es-AR').includes(query);
+      const estadoMatch = !loteLecheFilters.estado || lote.estado === loteLecheFilters.estado;
+      const disponibilidadMatch =
+        !loteLecheFilters.disponibilidad ||
+        (loteLecheFilters.disponibilidad === 'CON_DISPONIBILIDAD' && disponibilidad > 0) ||
+        (loteLecheFilters.disponibilidad === 'SIN_DISPONIBILIDAD' && disponibilidad <= 0);
+      const calidadMatch =
+        !loteLecheFilters.calidad ||
+        (loteLecheFilters.calidad === 'CON_DATOS' && hasQualityData) ||
+        (loteLecheFilters.calidad === 'SIN_DATOS' && !hasQualityData);
+
+      return searchMatch && estadoMatch && disponibilidadMatch && calidadMatch;
+    });
+  }, [loteLecheFilters, lotesLeche]);
   const selectedLoteAnimals = useMemo(
     () =>
       animales.filter(
@@ -314,6 +343,12 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, isAdmin]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadData(filters), 250);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken, filters]);
+
   function updateForm(next: Partial<ProduccionFormValues>) {
     setForm((current) => ({ ...current, ...next }));
   }
@@ -382,9 +417,13 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
     }
   }
 
-  async function handleApplyFilters(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await loadData(filters);
+  function clearFilters() {
+    setFilters(emptyFilters);
+    void loadData(emptyFilters);
+  }
+
+  function clearLoteLecheFilters() {
+    setLoteLecheFilters(emptyLoteLecheFilters);
   }
 
   async function handleDeleteRegistro(registro: ProduccionAnimal) {
@@ -571,15 +610,48 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         <div className="panel-header">
           <div>
             <h2>Lotes de leche</h2>
-            <p>Alta simple y administración posterior de calidad, estado y descarte.</p>
+            <p>{visibleLotesLeche.length} de {lotesLeche.length} lotes cargados.</p>
           </div>
-          {isAdmin && <button type="button" className="primary-button" onClick={openLoteLecheModal}><Plus size={16} />Nuevo lote</button>}
+          <div className="header-actions">
+            {isAdmin && <button type="button" className="secondary-button" onClick={openLoteLecheModal}><Plus size={16} />Nuevo lote</button>}
+            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar lotes de leche"><RefreshCcw size={18} /></button>
+          </div>
         </div>
+        <form className="filters-form events-filters production-filters">
+          <label className="filter-field">
+            <span>Buscar</span>
+            <input value={loteLecheFilters.buscar} onChange={(event) => setLoteLecheFilters({ ...loteLecheFilters, buscar: event.target.value })} placeholder="Código o descripción" />
+          </label>
+          <label className="filter-field">
+            <span>Estado</span>
+            <select value={loteLecheFilters.estado} onChange={(event) => setLoteLecheFilters({ ...loteLecheFilters, estado: event.target.value })}>
+              <option value="">Todos</option>
+              {Object.entries(estadoLoteLecheLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+          <label className="filter-field">
+            <span>Disponibilidad</span>
+            <select value={loteLecheFilters.disponibilidad} onChange={(event) => setLoteLecheFilters({ ...loteLecheFilters, disponibilidad: event.target.value })}>
+              <option value="">Todas</option>
+              <option value="CON_DISPONIBILIDAD">Con litros disponibles</option>
+              <option value="SIN_DISPONIBILIDAD">Sin litros disponibles</option>
+            </select>
+          </label>
+          <label className="filter-field">
+            <span>Calidad</span>
+            <select value={loteLecheFilters.calidad} onChange={(event) => setLoteLecheFilters({ ...loteLecheFilters, calidad: event.target.value })}>
+              <option value="">Todas</option>
+              <option value="CON_DATOS">Con datos de calidad</option>
+              <option value="SIN_DATOS">Sin datos de calidad</option>
+            </select>
+          </label>
+          <button type="button" className="secondary-button" onClick={clearLoteLecheFilters}>Limpiar</button>
+        </form>
         <div className="table-wrap feed-table-wrap">
           <table className="users-table production-history-table">
             <thead><tr><th>Código</th><th>Estado</th><th>Fechas</th><th>Disponibilidad</th><th>Calidad</th><th>Acciones</th></tr></thead>
             <tbody>
-              {lotesLeche.map((loteLeche) => (
+              {visibleLotesLeche.map((loteLeche) => (
                 <tr key={loteLeche.id}>
                   <td><strong>{loteLeche.codigo}</strong><span>{loteLeche.descripcion || '-'}</span></td>
                   <td><span className={`status-pill ${loteLeche.estado === 'DISPONIBLE' ? 'status-active' : 'status-inactive'}`}>{estadoLoteLecheLabels[loteLeche.estado]}</span></td>
@@ -596,7 +668,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                   </td>
                 </tr>
               ))}
-              {lotesLeche.length === 0 && <tr><td colSpan={6}>Sin lotes de leche cargados.</td></tr>}
+              {visibleLotesLeche.length === 0 && <tr><td colSpan={6}>Sin lotes de leche para los filtros seleccionados.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -605,16 +677,19 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
       <section className="panel">
         <div className="panel-header">
           <div><h2>Historial</h2><p>Registros individuales de producción.</p></div>
-          <button type="button" className="primary-button" onClick={openOrdeneModal}><Plus size={16} />Nuevo ordeñe</button>
+          <div className="header-actions">
+            <button type="button" className="secondary-button" onClick={openOrdeneModal}><Plus size={16} />Nuevo ordeñe</button>
+            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar historial de producción"><RefreshCcw size={18} /></button>
+          </div>
         </div>
-        <form className="filters-form events-filters production-filters" onSubmit={handleApplyFilters}>
+        <form className="filters-form events-filters production-filters">
           <label className="filter-field"><span>Fecha desde</span><input type="date" value={filters.fechaDesde} onChange={(event) => setFilters({ ...filters, fechaDesde: event.target.value })} /></label>
           <label className="filter-field"><span>Fecha hasta</span><input type="date" value={filters.fechaHasta} onChange={(event) => setFilters({ ...filters, fechaHasta: event.target.value })} /></label>
           <label className="filter-field"><span>Lote</span><select value={filters.loteId} onChange={(event) => setFilters({ ...filters, loteId: event.target.value, animalId: '' })}><option value="">Todos</option>{lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}</select></label>
           <label className="filter-field"><span>Animal</span><select value={filters.animalId} onChange={(event) => setFilters({ ...filters, animalId: event.target.value })}><option value="">Todos</option>{animales.filter((animal) => !filters.loteId || String(animal.loteId) === filters.loteId).map((animal) => <option key={animal.id} value={animal.id}>{animalLabel(animal)}</option>)}</select></label>
           <label className="filter-field"><span>Lote de leche</span><select value={filters.loteLecheId} onChange={(event) => setFilters({ ...filters, loteLecheId: event.target.value })}><option value="">Todos</option>{lotesLeche.map((lote) => <option key={lote.id} value={lote.id}>{lote.codigo}</option>)}</select></label>
           <label className="filter-field"><span>Turno</span><select value={filters.turno} onChange={(event) => setFilters({ ...filters, turno: event.target.value })}><option value="">Todos</option>{Object.entries(turnoLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <button type="submit" className="secondary-button">Filtrar</button>
+          <button type="button" className="secondary-button" onClick={clearFilters}>Limpiar</button>
         </form>
         {isLoading ? <p className="table-empty">Cargando producción...</p> : (
           <div className="table-wrap">

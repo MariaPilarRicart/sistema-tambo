@@ -1883,7 +1883,9 @@ a {
 .header-actions {
   align-items: center;
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
+  justify-content: flex-end;
 }
 
 .compact-button {
@@ -1930,9 +1932,11 @@ a {
 }
 
 .filters-form {
+  align-items: end;
   display: grid;
   gap: 12px;
   grid-template-columns: repeat(5, minmax(130px, 1fr)) auto auto;
+  margin-bottom: 16px;
 }
 
 .filters-form input,
@@ -1943,6 +1947,18 @@ a {
   color: var(--slate-800);
   outline: none;
   padding: 10px 12px;
+  min-height: 40px;
+}
+
+.filters-form > .secondary-button,
+.filters-grid > .secondary-button {
+  align-self: end;
+  justify-self: start;
+  min-height: 40px;
+  min-width: 0;
+  padding: 10px 14px;
+  white-space: nowrap;
+  width: auto;
 }
 
 .filter-field {
@@ -1962,11 +1978,15 @@ a {
 }
 
 .secondary-button {
+  align-items: center;
   background: #ffffff;
   border: 1px solid var(--slate-200);
   border-radius: 12px;
   color: var(--slate-600);
+  display: inline-flex;
   font-weight: 900;
+  gap: 8px;
+  justify-content: center;
   padding: 10px 14px;
 }
 
@@ -1976,6 +1996,10 @@ a {
 
 .events-filters {
   grid-template-columns: repeat(4, minmax(130px, 1fr)) auto auto;
+}
+
+.production-filters {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) auto;
 }
 
 .agenda-groups {
@@ -2278,6 +2302,24 @@ a {
   color: var(--slate-800);
   outline: none;
   padding: 10px 12px;
+  min-height: 40px;
+}
+
+.panel-header .primary-button,
+.panel-header .secondary-button,
+.settings-header .primary-button,
+.settings-header .secondary-button {
+  box-shadow: none;
+  font-size: 13px;
+  letter-spacing: 0;
+  min-height: 40px;
+  padding: 10px 14px;
+  text-transform: none;
+}
+
+.panel-header .primary-button,
+.settings-header .primary-button {
+  border-radius: 12px;
 }
 
 .table-input {

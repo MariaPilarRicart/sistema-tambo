@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { RefreshCcw } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { getAnimales } from '../services/animalesService';
@@ -67,15 +67,16 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
-  function applyFilters(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void loadData(filters);
-  }
-
   function clearFilters() {
     setFilters(emptyFilters);
     void loadData(emptyFilters);
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadData(filters), 250);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   return (
     <div className="settings-page">
@@ -90,7 +91,7 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
       </section>
 
       <section className="panel herd-filters">
-        <form className="filters-form events-filters" onSubmit={applyFilters}>
+        <form className="filters-form events-filters">
           <select value={filters.tipo} onChange={(event) => setFilters({ ...filters, tipo: event.target.value })}>
             <option value="">Tipo de evento</option>
             {tipoEventoOptions.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -107,7 +108,6 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
             <span>Fecha fin</span>
             <input type="date" value={filters.fechaHasta} onChange={(event) => setFilters({ ...filters, fechaHasta: event.target.value })} />
           </label>
-          <button type="submit" className="secondary-button">Filtrar</button>
           <button type="button" className="secondary-button" onClick={clearFilters}>Limpiar</button>
         </form>
       </section>
@@ -120,6 +120,9 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
             <h2>Historial</h2>
             <p>{eventos.length} eventos registrados.</p>
           </div>
+          <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar historial de eventos">
+            <RefreshCcw size={18} />
+          </button>
         </div>
         {isLoading ? <p className="table-empty">Cargando eventos...</p> : (
           <div className="table-wrap">

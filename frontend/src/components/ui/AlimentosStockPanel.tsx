@@ -188,6 +188,10 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAd
     setFilters((current) => ({ ...current, stock: initialStockFilter }));
   }, [initialStockFilter]);
 
+  function clearFilters() {
+    setFilters({ buscar: '', estado: '', tipoAlimento: '', stock: '' });
+  }
+
   return (
     <>
       {error && <div className="form-error">{error}</div>}
@@ -206,6 +210,7 @@ export function AlimentosStockPanel({ authToken, onUnauthorized, onChanged, isAd
           <label className="filter-field"><span>Estado</span><select value={filters.estado} onChange={(event) => setFilters({ ...filters, estado: event.target.value as EstadoFilter })}><option value="">Todos</option><option value="true">Activo</option><option value="false">Inactivo</option></select></label>
           <label className="filter-field"><span>Stock</span><select value={filters.stock} onChange={(event) => setFilters({ ...filters, stock: event.target.value as StockEstadoFilter })}><option value="">Todos</option><option value="BAJO">Bajo</option><option value="AGOTADO">Agotado</option></select></label>
           <label className="filter-field"><span>Tipo</span><select value={filters.tipoAlimento} onChange={(event) => setFilters({ ...filters, tipoAlimento: event.target.value })}><option value="">Todos</option>{availableTypes.map((tipo) => <option key={tipo} value={tipo}>{tipo}</option>)}</select></label>
+          <button type="button" className="secondary-button" onClick={clearFilters}>Limpiar</button>
         </form>
         {isLoading ? <p className="table-empty">Cargando alimentos...</p> : (
           <div className="table-wrap">

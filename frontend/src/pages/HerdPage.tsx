@@ -345,15 +345,16 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
     }
   }
 
-  function applyFilters(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void loadData(filters);
-  }
-
   function clearFilters() {
     setFilters(emptyFilters);
     void loadData(emptyFilters);
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadData(filters), 250);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   return (
     <div className="settings-page">
@@ -362,53 +363,6 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
           <h2>Gestion del Rodeo</h2>
           <p>Alta, consulta y baja logica de animales.</p>
         </div>
-        <div className="header-actions">
-          {canCreateAnimal && (
-            <button type="button" className="primary-button compact-button" onClick={openCreateAnimalModal}>
-              <Plus size={18} />
-              Nuevo animal
-            </button>
-          )}
-          <div className="settings-summary">
-            <strong>{animales.length}</strong>
-            <span>animales</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="panel herd-filters">
-        <form className="filters-form" onSubmit={applyFilters}>
-          <input
-            placeholder="Buscar caravana"
-            value={filters.caravana}
-            onChange={(event) => setFilters({ ...filters, caravana: event.target.value })}
-          />
-          <select value={filters.loteId} onChange={(event) => setFilters({ ...filters, loteId: event.target.value })}>
-            <option value="">Todos los lotes</option>
-            {lotes.map((lote) => (
-              <option key={lote.id} value={lote.id}>{lote.nombre}</option>
-            ))}
-          </select>
-          <select value={filters.categoriaAnimal} onChange={(event) => setFilters({ ...filters, categoriaAnimal: event.target.value })}>
-            <option value="">Categoría</option>
-            {categoriaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-          </select>
-          <select value={filters.estadoReproductivo} onChange={(event) => setFilters({ ...filters, estadoReproductivo: event.target.value })}>
-            <option value="">Estado reproductivo</option>
-            {estadoReproductivoOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-          </select>
-          <select value={filters.estadoAnimal} onChange={(event) => setFilters({ ...filters, estadoAnimal: event.target.value })}>
-            <option value="">Estado animal</option>
-            {estadoAnimalOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-          </select>
-          <select value={filters.activo} onChange={(event) => setFilters({ ...filters, activo: event.target.value })}>
-            <option value="">Activo/inactivo</option>
-            <option value="true">Activo</option>
-            <option value="false">Inactivo</option>
-          </select>
-          <button type="submit" className="secondary-button">Filtrar</button>
-          <button type="button" className="secondary-button" onClick={clearFilters}>Limpiar</button>
-        </form>
       </section>
 
       {error && !isAnimalModalOpen && !deactivateAnimalTarget && !eventAnimal && <div className="form-error">{error}</div>}
@@ -418,12 +372,52 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
           <div className="panel-header">
             <div>
               <h2>Animales</h2>
-              <p>{isAdmin ? 'Gestion completa del rodeo.' : 'Alta y consulta de animales.'}</p>
+              <p>{animales.length} de {allAnimales.length} animales registrados.</p>
             </div>
-            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar animales">
-              <RefreshCcw size={18} />
-            </button>
+            <div className="header-actions">
+              {canCreateAnimal && (
+                <button type="button" className="secondary-button" onClick={openCreateAnimalModal}>
+                  <Plus size={16} />
+                  Nuevo animal
+                </button>
+              )}
+              <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar animales">
+                <RefreshCcw size={18} />
+              </button>
+            </div>
           </div>
+
+          <form className="filters-form production-filters">
+            <input
+              placeholder="Buscar caravana"
+              value={filters.caravana}
+              onChange={(event) => setFilters({ ...filters, caravana: event.target.value })}
+            />
+            <select value={filters.loteId} onChange={(event) => setFilters({ ...filters, loteId: event.target.value })}>
+              <option value="">Todos los lotes</option>
+              {lotes.map((lote) => (
+                <option key={lote.id} value={lote.id}>{lote.nombre}</option>
+              ))}
+            </select>
+            <select value={filters.categoriaAnimal} onChange={(event) => setFilters({ ...filters, categoriaAnimal: event.target.value })}>
+              <option value="">Categoría</option>
+              {categoriaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+            <select value={filters.estadoReproductivo} onChange={(event) => setFilters({ ...filters, estadoReproductivo: event.target.value })}>
+              <option value="">Estado reproductivo</option>
+              {estadoReproductivoOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+            <select value={filters.estadoAnimal} onChange={(event) => setFilters({ ...filters, estadoAnimal: event.target.value })}>
+              <option value="">Estado animal</option>
+              {estadoAnimalOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+            <select value={filters.activo} onChange={(event) => setFilters({ ...filters, activo: event.target.value })}>
+              <option value="">Activo/inactivo</option>
+              <option value="true">Activo</option>
+              <option value="false">Inactivo</option>
+            </select>
+            <button type="button" className="secondary-button" onClick={clearFilters}>Limpiar</button>
+          </form>
 
           {isLoading ? <p className="table-empty">Cargando animales...</p> : (
             <div className="table-wrap">

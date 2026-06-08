@@ -97,6 +97,10 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
+  function clearReglaFilters() {
+    setReglaFilters({ buscar: '', estado: '', tipo: '', frecuencia: '' });
+  }
+
   function clearMessages() {
     setError('');
     setSuccess('');
@@ -199,6 +203,7 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
           <label className="filter-field"><span>Estado</span><select value={reglaFilters.estado} onChange={(event) => setReglaFilters({ ...reglaFilters, estado: event.target.value as EstadoFilter })}><option value="">Todas</option><option value="true">Activa</option><option value="false">Inactiva</option></select></label>
           <label className="filter-field"><span>Tipo</span><select value={reglaFilters.tipo} onChange={(event) => setReglaFilters({ ...reglaFilters, tipo: event.target.value })}><option value="">Todos</option><option value="VACUNA">VACUNA</option><option value="ANALISIS">ANALISIS</option></select></label>
           <label className="filter-field"><span>Frecuencia</span><select value={reglaFilters.frecuencia} onChange={(event) => setReglaFilters({ ...reglaFilters, frecuencia: event.target.value })}><option value="">Todas</option>{availableFrequencies.map((frecuencia) => <option key={frecuencia} value={frecuencia}>{frecuencia} meses</option>)}</select></label>
+          <button type="button" className="secondary-button" onClick={clearReglaFilters}>Limpiar</button>
         </form>
         {isLoading ? <p className="table-empty">Cargando reglas...</p> : (
           <div className="table-wrap">

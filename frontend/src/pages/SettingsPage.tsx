@@ -91,6 +91,10 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, isAdmin]);
 
+  function clearUserFilters() {
+    setUserFilters({ buscar: '', estado: '', rol: '' });
+  }
+
   function resetUserForm() {
     setEditingUser(null);
     setUserFormValues(emptyUserForm);
@@ -216,6 +220,7 @@ export function SettingsPage({ authToken, currentUser, onUnauthorized }: Setting
           <label className="filter-field"><span>Buscar</span><input value={userFilters.buscar} onChange={(event) => setUserFilters({ ...userFilters, buscar: event.target.value })} placeholder="Nombre o email" /></label>
           <label className="filter-field"><span>Estado</span><select value={userFilters.estado} onChange={(event) => setUserFilters({ ...userFilters, estado: event.target.value as EstadoFilter })}><option value="">Todos</option><option value="true">Activo</option><option value="false">Inactivo</option></select></label>
           <label className="filter-field"><span>Rol</span><select value={userFilters.rol} onChange={(event) => setUserFilters({ ...userFilters, rol: event.target.value })}><option value="">Todos</option><option value="ADMIN">ADMIN</option><option value="EMPLEADO">EMPLEADO</option></select></label>
+          <button type="button" className="secondary-button" onClick={clearUserFilters}>Limpiar</button>
         </form>
         {isLoading ? <p className="table-empty">Cargando usuarios...</p> : (
           <div className="table-wrap">

@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CalendarClock, CheckCircle2, Clock3, FilterX, ListChecks, Plus, RefreshCcw, Syringe, X } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Clock3, ListChecks, Plus, RefreshCcw, Syringe, X } from 'lucide-react';
 import { SanitaryRulesPanel } from '../components/ui/SanitaryRulesPanel';
 import { ApiError } from '../services/apiClient';
 import { getAnimales } from '../services/animalesService';
@@ -271,6 +271,12 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
   }, [searchParams]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => void loadData(filters), 250);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken, filters]);
+
+  useEffect(() => {
     setSelectedTaskIds((current) => current.filter((id) => visibleTaskIds.includes(id)));
   }, [visibleTaskIds]);
 
@@ -320,9 +326,13 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
     void loadData(nextFilters);
   }
 
-  async function handleFilters(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await loadData(filters);
+  function clearHistoryFilters() {
+    setFilters(emptyFilters);
+    void loadData(emptyFilters);
+  }
+
+  function clearPendingFilters() {
+    setPendingFilters(emptyPendingFilters);
   }
 
   async function handleScheduleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -426,7 +436,10 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
       </div>
 
       <section className="panel vaccination-pending-section">
-        <div className="panel-header"><div><h2>Vacunas pendientes</h2><p>{visiblePendingHistory.length} tareas sanitarias visibles.</p></div></div>
+        <div className="panel-header">
+          <div><h2>Vacunas pendientes</h2><p>{visiblePendingHistory.length} tareas sanitarias visibles.</p></div>
+          <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar vacunas pendientes"><RefreshCcw size={18} /></button>
+        </div>
         <form className="filters-form events-filters production-filters">
           <label className="filter-field">
             <span>Lote</span>
@@ -449,6 +462,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
               {activeSanitaryRules.map((regla) => <option key={regla.id} value={regla.codigo}>{regla.nombre}</option>)}
             </select>
           </label>
+          <button type="button" className="secondary-button" onClick={clearPendingFilters}>Limpiar</button>
         </form>
         {isLoading ? <p className="table-empty">Cargando vacunaciones...</p> : (
           <>
@@ -518,11 +532,11 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
         <div className="panel-header">
           <div><h2>Historial sanitario</h2><p>{history.length} registros encontrados.</p></div>
           <div className="header-actions">
-            {isAdmin && <button type="button" className="primary-button" onClick={openScheduleModal}><Plus size={16} />Programar vacunación</button>}
-            <button type="button" className="secondary-button" onClick={() => applyStatusFilter('')}><FilterX size={16} />Todas</button>
+            {isAdmin && <button type="button" className="secondary-button" onClick={openScheduleModal}><Plus size={16} />Programar vacunación</button>}
+            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar historial sanitario"><RefreshCcw size={18} /></button>
           </div>
         </div>
-        <form className="filters-form events-filters production-filters" onSubmit={handleFilters}>
+        <form className="filters-form events-filters production-filters">
           <label className="filter-field"><span>Fecha programada desde</span><input type="date" value={filters.fechaProgramadaDesde} onChange={(event) => setFilters({ ...filters, fechaProgramadaDesde: event.target.value })} /></label>
           <label className="filter-field"><span>Fecha programada hasta</span><input type="date" value={filters.fechaProgramadaHasta} onChange={(event) => setFilters({ ...filters, fechaProgramadaHasta: event.target.value })} /></label>
           <label className="filter-field"><span>Fecha objetivo desde</span><input type="date" value={filters.fechaObjetivoDesde} onChange={(event) => setFilters({ ...filters, fechaObjetivoDesde: event.target.value })} /></label>
@@ -557,7 +571,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
               {estadoOptions.map((estado) => <option key={estado} value={estado}>{formatEstado(estado)}</option>)}
             </select>
           </label>
-          <button type="submit" className="secondary-button">Filtrar</button>
+          <button type="button" className="secondary-button" onClick={clearHistoryFilters}>Limpiar</button>
         </form>
         <div className="table-wrap">
           <table className="users-table">

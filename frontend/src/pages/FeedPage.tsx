@@ -122,6 +122,22 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadData(), 250);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken, histFilters, movFilters]);
+
+  function clearHistFilters() {
+    const nextFilters = { fechaDesde: '', fechaHasta: '', loteId: '', categoriaAnimal: '', usuarioId: '' };
+    setHistFilters(nextFilters);
+  }
+
+  function clearMovFilters() {
+    const nextFilters = { fechaDesde: '', fechaHasta: '', alimentoId: '', tipoMovimiento: 'TODOS', usuarioId: '' };
+    setMovFilters(nextFilters);
+  }
+
   async function loadSugerencia(nextLoteId = loteId, nextFecha = fecha) {
     if (!authToken || !nextLoteId) {
       setSugerencia(null);
@@ -253,7 +269,10 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
       <section className="panel">
         <div className="panel-header">
           <div><h2>Historial de alimentación</h2><p>{historial.length} alimentaciones registradas.</p></div>
-          <button type="button" className="secondary-button" onClick={() => setShowRegistrarModal(true)}><Plus size={16} /> Registrar alimentación</button>
+          <div className="header-actions">
+            <button type="button" className="secondary-button" onClick={() => setShowRegistrarModal(true)}><Plus size={16} /> Registrar alimentación</button>
+            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar historial de alimentación"><RefreshCcw size={18} /></button>
+          </div>
         </div>
         <div className="filters-grid">
           <input type="date" value={histFilters.fechaDesde} onChange={(event) => setHistFilters({ ...histFilters, fechaDesde: event.target.value })} />
@@ -261,7 +280,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
           <select value={histFilters.loteId} onChange={(event) => setHistFilters({ ...histFilters, loteId: event.target.value })}><option value="">Lote</option>{lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}</select>
           <input placeholder="Categoría" value={histFilters.categoriaAnimal} onChange={(event) => setHistFilters({ ...histFilters, categoriaAnimal: event.target.value })} />
           <input placeholder="Usuario ID" value={histFilters.usuarioId} onChange={(event) => setHistFilters({ ...histFilters, usuarioId: event.target.value })} />
-          <button type="button" className="secondary-button" onClick={() => void loadData()}>Filtrar</button>
+          <button type="button" className="secondary-button" onClick={clearHistFilters}>Limpiar</button>
         </div>
         {isLoading ? <p className="table-empty">Cargando alimentación...</p> : (
           <div className="table-wrap">
@@ -287,7 +306,10 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
       {isAdmin && <section className="panel">
         <div className="panel-header">
           <div><h2>Movimientos de stock</h2><p>{movimientos.length} movimientos encontrados.</p></div>
-          <button type="button" className="secondary-button" onClick={() => setShowMovimientoModal(true)}><Plus size={16} /> Registrar movimiento</button>
+          <div className="header-actions">
+            <button type="button" className="secondary-button" onClick={() => setShowMovimientoModal(true)}><Plus size={16} /> Registrar movimiento</button>
+            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar movimientos de stock"><RefreshCcw size={18} /></button>
+          </div>
         </div>
         <div className="filters-grid">
           <input type="date" value={movFilters.fechaDesde} onChange={(event) => setMovFilters({ ...movFilters, fechaDesde: event.target.value })} />
@@ -295,7 +317,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
           <select value={movFilters.alimentoId} onChange={(event) => setMovFilters({ ...movFilters, alimentoId: event.target.value })}><option value="">Alimento</option>{alimentos.map((alimento) => <option key={alimento.id} value={alimento.id}>{alimento.nombre}</option>)}</select>
           <select value={movFilters.tipoMovimiento} onChange={(event) => setMovFilters({ ...movFilters, tipoMovimiento: event.target.value })}>{movimientoOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>
           <input placeholder="Usuario ID" value={movFilters.usuarioId} onChange={(event) => setMovFilters({ ...movFilters, usuarioId: event.target.value })} />
-          <button type="button" className="secondary-button" onClick={() => void loadData()}>Filtrar</button>
+          <button type="button" className="secondary-button" onClick={clearMovFilters}>Limpiar</button>
         </div>
         <div className="table-wrap">
           <table className="users-table">

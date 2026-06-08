@@ -190,6 +190,12 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, clientesSearch]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadSalesData(filters), 250);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken, filters]);
+
   function resetVentaForm() {
     setVentaForm({ ...emptyVentaForm, fechaVenta: localDateValue(), detalles: [{ ...emptyDetail }] });
     setClienteSearch('');
@@ -278,9 +284,14 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     }
   }
 
-  async function handleFilters(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    await loadSalesData(filters);
+  function clearSalesFilters() {
+    setFilters(emptyFilters);
+    void loadSalesData(emptyFilters);
+  }
+
+  function clearClientesFilters() {
+    setClientesSearch('');
+    void loadClientes('');
   }
 
   async function handleClienteCreate(event: FormEvent<HTMLFormElement>) {
@@ -399,7 +410,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             </button>
           </div>
         </div>
-        <form className="filters-form events-filters production-filters" onSubmit={handleFilters}>
+        <form className="filters-form events-filters production-filters">
           <label className="filter-field">
             <span>Cliente</span>
             <input
@@ -411,7 +422,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
           <label className="filter-field"><span>Fecha desde</span><input type="date" value={filters.fechaDesde} onChange={(event) => setFilters({ ...filters, fechaDesde: event.target.value })} /></label>
           <label className="filter-field"><span>Fecha hasta</span><input type="date" value={filters.fechaHasta} onChange={(event) => setFilters({ ...filters, fechaHasta: event.target.value })} /></label>
           <label className="filter-field"><span>Factura</span><input value={filters.factura} onChange={(event) => setFilters({ ...filters, factura: event.target.value })} /></label>
-          <button type="submit" className="secondary-button">Filtrar</button>
+          <button type="button" className="secondary-button" onClick={clearSalesFilters}>Limpiar</button>
         </form>
         {isSalesLoading ? <p className="table-empty">Cargando ventas...</p> : (
           <div className="table-wrap">
@@ -449,14 +460,17 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             <button type="button" className="icon-button" onClick={() => void loadClientes()} aria-label="Actualizar clientes"><RefreshCcw size={18} /></button>
           </div>
         </div>
-        <label className="filter-field production-selector">
-          <span>Buscar</span>
-          <input
-            placeholder="Buscar por CUIT o razón social..."
-            value={clientesSearch}
-            onChange={(event) => setClientesSearch(event.target.value)}
-          />
-        </label>
+        <form className="filters-form events-filters production-filters">
+          <label className="filter-field production-selector">
+            <span>Buscar</span>
+            <input
+              placeholder="Buscar por CUIT o razón social..."
+              value={clientesSearch}
+              onChange={(event) => setClientesSearch(event.target.value)}
+            />
+          </label>
+          <button type="button" className="secondary-button" onClick={clearClientesFilters}>Limpiar</button>
+        </form>
         {isClientsLoading ? <p className="table-empty">Cargando clientes...</p> : (
           <div className="table-wrap feed-table-wrap">
             <table className="users-table">

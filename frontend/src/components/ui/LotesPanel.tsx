@@ -174,6 +174,10 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
+  function clearLoteFilters() {
+    setLoteFilters({ buscar: '', estado: '', minAnimales: '', maxAnimales: '' });
+  }
+
   return (
     <>
       {error && <div className="form-error">{error}</div>}
@@ -233,6 +237,7 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin 
               onChange={(event) => setLoteFilters({ ...loteFilters, maxAnimales: event.target.value })}
             />
           </label>
+          <button type="button" className="secondary-button" onClick={clearLoteFilters}>Limpiar</button>
         </form>
 
         {isLoading ? (

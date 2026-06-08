@@ -81,6 +81,11 @@ export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, search]);
 
+  function clearFilters() {
+    setSearch('');
+    void loadData('');
+  }
+
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!authToken) return onUnauthorized();
@@ -193,15 +198,21 @@ export function ClientsPage({ authToken, currentUser, onUnauthorized }: ClientsP
             <h2>Listado de clientes</h2>
             <p>{clientes.length} clientes encontrados.</p>
           </div>
+          <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar listado de clientes">
+            <RefreshCcw size={18} />
+          </button>
         </div>
-        <label className="filter-field production-selector">
-          <span>Buscar</span>
-          <input
-            placeholder="Buscar por CUIT o razón social..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
+        <form className="filters-form events-filters production-filters">
+          <label className="filter-field production-selector">
+            <span>Buscar</span>
+            <input
+              placeholder="Buscar por CUIT o razón social..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <button type="button" className="secondary-button" onClick={clearFilters}>Limpiar</button>
+        </form>
         {isLoading ? <p className="table-empty">Cargando clientes...</p> : (
           <div className="table-wrap feed-table-wrap">
             <table className="users-table">

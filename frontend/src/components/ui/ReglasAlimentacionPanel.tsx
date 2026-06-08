@@ -236,6 +236,10 @@ export function ReglasAlimentacionPanel({ authToken, onUnauthorized, onChanged, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken]);
 
+  function clearFilters() {
+    setFilters({ buscar: '', estado: '', categoriaAnimal: '' });
+  }
+
   return (
     <>
       {error && <div className="form-error">{error}</div>}
@@ -253,6 +257,7 @@ export function ReglasAlimentacionPanel({ authToken, onUnauthorized, onChanged, 
           <label className="filter-field"><span>Buscar</span><input value={filters.buscar} onChange={(event) => setFilters({ ...filters, buscar: event.target.value })} placeholder="Nombre de regla" /></label>
           <label className="filter-field"><span>Estado</span><select value={filters.estado} onChange={(event) => setFilters({ ...filters, estado: event.target.value as EstadoFilter })}><option value="">Todas</option><option value="true">Activa</option><option value="false">Inactiva</option></select></label>
           <label className="filter-field"><span>Categoría</span><select value={filters.categoriaAnimal} onChange={(event) => setFilters({ ...filters, categoriaAnimal: event.target.value })}><option value="">Todas</option>{availableCategorias.map((categoria) => <option key={categoria} value={categoria}>{categoria}</option>)}</select></label>
+          <button type="button" className="secondary-button" onClick={clearFilters}>Limpiar</button>
         </form>
         {isLoading ? <p className="table-empty">Cargando reglas...</p> : (
           <div className="table-wrap settings-secondary-table">

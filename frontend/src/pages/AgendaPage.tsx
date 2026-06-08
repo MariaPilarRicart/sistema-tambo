@@ -7,6 +7,7 @@ import type { AgendaTarea, TipoTarea } from '../types/agenda';
 import type { AuthUser } from '../types/auth';
 
 const taskOrder: TipoTarea[] = ['TACTO', 'SECADO', 'PARTO', 'ALTA_POST_PARTO', 'VACUNACION', 'CONTROL_CLINICO'];
+const today = new Date().toISOString().slice(0, 10);
 
 interface AgendaPageProps {
   authToken: string | null;
@@ -16,7 +17,7 @@ interface AgendaPageProps {
 
 export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPageProps) {
   const [agenda, setAgenda] = useState<AgendaTarea[]>([]);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedDate, setSelectedDate] = useState(today);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -80,6 +81,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
             <span>Seleccionar dia</span>
             <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
           </label>
+          <button type="button" className="secondary-button" onClick={() => setSelectedDate(today)}>Limpiar</button>
         </form>
       </section>
 
@@ -89,6 +91,9 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
             <h2>Agenda del dia</h2>
             <p>{agendaDelDia.length} tareas pendientes para la fecha seleccionada.</p>
           </div>
+          <button type="button" className="icon-button" onClick={() => void loadAgenda()} aria-label="Actualizar agenda del dia">
+            <RefreshCcw size={18} />
+          </button>
         </div>
         {agendaDelDia.length === 0 ? <p className="table-empty">Sin tareas para el dia seleccionado.</p> : (
           <div className="table-wrap">
