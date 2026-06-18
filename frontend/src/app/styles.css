@@ -3254,10 +3254,19 @@ a {
   border: 1px solid var(--slate-200);
   border-radius: 12px;
   display: grid;
-  gap: 14px;
-  grid-template-columns: minmax(220px, 1.4fr) minmax(120px, 0.6fr) minmax(180px, 1fr) auto;
+  gap: 16px;
+  grid-template-columns: minmax(260px, 1.4fr) minmax(120px, 0.45fr) minmax(220px, 1fr) 44px;
   margin-top: 12px;
-  padding: 14px;
+  padding: 16px;
+}
+
+.production-detail-row label {
+  min-width: 0;
+}
+
+.production-detail-row input,
+.production-detail-row select {
+  width: 100%;
 }
 
 .production-detail-row .icon-button {
@@ -3271,6 +3280,39 @@ a {
 
 .production-detail-modal {
   max-width: min(760px, calc(100vw - 32px));
+}
+
+@media (max-width: 900px) {
+  .production-detail-row {
+    grid-template-columns: minmax(220px, 1fr) minmax(120px, 0.45fr) 44px;
+  }
+
+  .production-detail-row label:nth-of-type(3) {
+    grid-column: 1 / -1;
+  }
+
+  .production-detail-row .icon-button {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .production-detail-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .production-detail-row label:nth-of-type(3),
+  .production-detail-row .icon-button {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .production-detail-row .icon-button {
+    justify-self: end;
+    margin-bottom: 0;
+  }
 }
 
 .production-form {

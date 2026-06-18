@@ -87,10 +87,6 @@ function ordeneTotal(ordene: Ordene) {
   return Number(ordene.litrosBuenos ?? 0) + Number(ordene.litrosDescartados ?? 0);
 }
 
-function detalleTotal(ordene: Ordene) {
-  return ordene.detalles.reduce((total, detalle) => total + Number(detalle.litros ?? 0), 0);
-}
-
 function animalLabel(animal: Pick<Animal, 'caravana' | 'nombre' | 'categoriaAnimal' | 'estadoReproductivo' | 'lote'>) {
   const name = animal.nombre ? ` - ${animal.nombre}` : '';
   return `Caravana ${animal.caravana}${name} - ${categoriaLabels[animal.categoriaAnimal]} - ${estadoReproductivoLabels[animal.estadoReproductivo]} - ${animal.lote.nombre}`;
@@ -278,7 +274,6 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
 
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
-      {resumen?.alertaDescarte && <div className="form-warning">Hay litros descartados registrados para hoy.</div>}
 
       {pendingDeleteConfirmation && (
         <div className="modal-backdrop">
@@ -402,7 +397,6 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                           {registro.detalles.length} {registro.detalles.length === 1 ? 'vaca cargada' : 'vacas cargadas'}
                         </button>
                       )}
-                      {registro.detalles.length > 0 && <span>Total individual: {formatLiters(detalleTotal(registro))}</span>}
                     </td>
                     <td>{registro.observaciones ?? '-'}</td>
                     <td>{registro.usuario?.nombre ?? '-'}</td>
