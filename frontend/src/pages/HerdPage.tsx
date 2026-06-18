@@ -146,8 +146,15 @@ function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
   const ageMonths = calculateAgeMonths(values.fechaNacimiento);
   const nextValues = { ...values };
   const isMale = maleCategories.includes(values.categoriaAnimal);
-  const findLoteId = (tipoFuncional: TipoFuncionalLote) =>
-    lotes.find((lote) => lote.tipoFuncional === tipoFuncional)?.id.toString() ?? nextValues.loteId;
+  const getCompatibleLoteId = (tiposFuncionales: TipoFuncionalLote[]) => {
+    const selectedLote = lotes.find((lote) => lote.id.toString() === nextValues.loteId);
+
+    if (selectedLote?.activo && tiposFuncionales.includes(selectedLote.tipoFuncional)) {
+      return nextValues.loteId;
+    }
+
+    return lotes.find((lote) => lote.activo && tiposFuncionales.includes(lote.tipoFuncional))?.id.toString() ?? nextValues.loteId;
+  };
 
   if (noAplicaCategories.includes(nextValues.categoriaAnimal)) {
     nextValues.estadoReproductivo = 'NO_APLICA';
@@ -159,13 +166,13 @@ function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
     nextValues.estadoReproductivo = 'NO_APLICA';
     if (ageMonths < 4) {
       nextValues.categoriaAnimal = 'TERNERO';
-      nextValues.loteId = findLoteId('GUACHERA');
+      nextValues.loteId = getCompatibleLoteId(['GUACHERA']);
     } else if (ageMonths < 18) {
       nextValues.categoriaAnimal = 'TORITO';
-      nextValues.loteId = findLoteId('TORITOS');
+      nextValues.loteId = getCompatibleLoteId(['TORITOS']);
     } else {
       nextValues.categoriaAnimal = 'TORO';
-      nextValues.loteId = findLoteId('TOROS');
+      nextValues.loteId = getCompatibleLoteId(['TOROS']);
     }
     return nextValues;
   }
@@ -173,28 +180,25 @@ function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
   if (ageMonths < 4) {
     nextValues.categoriaAnimal = 'TERNERA';
     nextValues.estadoReproductivo = 'NO_APLICA';
-    nextValues.loteId = findLoteId('GUACHERA');
+    nextValues.loteId = getCompatibleLoteId(['GUACHERA']);
   } else if (ageMonths < 8) {
     nextValues.categoriaAnimal = 'TERNERA';
     nextValues.estadoReproductivo = 'NO_APLICA';
-    nextValues.loteId = findLoteId('ESCUELITA');
+    nextValues.loteId = getCompatibleLoteId(['ESCUELITA']);
   } else if (ageMonths < 13) {
     nextValues.categoriaAnimal = 'TERNERA';
     nextValues.estadoReproductivo = 'NO_APLICA';
-    nextValues.loteId = findLoteId('TERNERA_1');
+    nextValues.loteId = getCompatibleLoteId(['TERNERA_1']);
   } else if (nextValues.categoriaAnimal !== 'VACA') {
     nextValues.categoriaAnimal = 'VAQUILLONA';
     nextValues.estadoReproductivo = nextValues.estadoReproductivo === 'NO_APLICA' ? 'VACIA' : nextValues.estadoReproductivo;
-    nextValues.loteId = findLoteId('TERNERA_2');
+    nextValues.loteId = getCompatibleLoteId(['TERNERA_2']);
   } else if (nextValues.estadoReproductivo === 'NO_APLICA') {
     nextValues.estadoReproductivo = 'VACIA';
   }
 
   if (nextValues.categoriaAnimal === 'VACA') {
-    const selectedLote = lotes.find((lote) => lote.id.toString() === nextValues.loteId);
-    if (!selectedLote || !cowLoteTypes.includes(selectedLote.tipoFuncional)) {
-      nextValues.loteId = findLoteId('PRODUCCION');
-    }
+    nextValues.loteId = getCompatibleLoteId(cowLoteTypes);
   }
 
   return nextValues;
