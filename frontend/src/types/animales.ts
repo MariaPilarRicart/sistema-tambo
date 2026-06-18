@@ -6,11 +6,14 @@ import type { TipoEvento } from './eventos';
 export type CategoriaAnimal =
   | 'GUACHERA'
   | 'ESCUELITA'
+  | 'TERNERO'
   | 'TERNERA'
   | 'VAQUILLONA'
+  | 'VACA'
   | 'VACA_PRODUCCION'
   | 'VACA_SECA'
   | 'PREPARTO'
+  | 'TORITO'
   | 'TORO'
   | 'BAJA';
 export type EstadoReproductivo = 'NO_APLICA' | 'VACIA' | 'INSEMINADA' | 'PRENADA' | 'SECA' | 'RECUPERACION';

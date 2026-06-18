@@ -98,11 +98,14 @@ function formatCategoria(value: CategoriaAnimal | null | undefined) {
   const labels: Record<CategoriaAnimal, string> = {
     GUACHERA: 'Guachera',
     ESCUELITA: 'Escuelita',
+    TERNERO: 'Ternero',
     TERNERA: 'Ternera',
     VAQUILLONA: 'Vaquillona',
+    VACA: 'Vaca',
     VACA_PRODUCCION: 'Vaca Producción',
     VACA_SECA: 'Vaca Seca',
     PREPARTO: 'Preparto',
+    TORITO: 'Torito',
     TORO: 'Toro',
     BAJA: 'Baja',
   };

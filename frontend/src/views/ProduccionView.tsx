@@ -130,11 +130,14 @@ const estadoLoteLecheLabels: Record<EstadoLoteLeche, string> = {
 const categoriaLabels: Record<CategoriaAnimal, string> = {
   GUACHERA: 'Guachera',
   ESCUELITA: 'Escuelita',
+  TERNERO: 'Ternero',
   TERNERA: 'Ternera',
   VAQUILLONA: 'Vaquillona',
+  VACA: 'Vaca',
   VACA_PRODUCCION: 'Vaca en producción',
   VACA_SECA: 'Vaca seca',
   PREPARTO: 'Preparto',
+  TORITO: 'Torito',
   TORO: 'Toro',
   BAJA: 'Baja',
 };

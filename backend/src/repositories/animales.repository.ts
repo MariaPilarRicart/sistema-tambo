@@ -146,6 +146,15 @@ export function findActiveLoteById(id: number) {
   });
 }
 
+export function findActiveLoteByNombre(nombre: string) {
+  return prisma.lote.findFirst({
+    where: {
+      nombre,
+      activo: true,
+    },
+  });
+}
+
 export function createAnimal(data: {
   caravana: string;
   nombre?: string | null;

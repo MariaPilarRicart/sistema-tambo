@@ -24,18 +24,14 @@ import type { EventoFormValues, TipoEvento } from '../types/eventos';
 import type { Lote } from '../types/lotes';
 
 const categoriaOptions: CategoriaAnimal[] = [
-  'GUACHERA',
-  'ESCUELITA',
+  'TERNERO',
   'TERNERA',
   'VAQUILLONA',
-  'VACA_PRODUCCION',
-  'VACA_SECA',
-  'PREPARTO',
+  'VACA',
+  'TORITO',
   'TORO',
-  'BAJA',
 ];
 const estadoReproductivoOptions: EstadoReproductivo[] = [
-  'NO_APLICA',
   'VACIA',
   'INSEMINADA',
   'PRENADA',
@@ -61,6 +57,11 @@ const tipoEventoOptions: TipoEvento[] = [
   'MUERTE',
 ];
 
+const nonReproductiveEventOptions: TipoEvento[] = ['CLINICO', 'VENTA', 'MUERTE'];
+const noAplicaCategories: CategoriaAnimal[] = ['TERNERO', 'TERNERA', 'TORITO', 'TORO'];
+const maleCategories: CategoriaAnimal[] = ['TERNERO', 'TORITO', 'TORO'];
+const cowLotes = ['Producción', 'Secas', 'Preparto', 'Recuperación'];
+
 const emptyFilters: AnimalFilters = {
   caravana: '',
   categoriaAnimal: '',
@@ -75,8 +76,8 @@ const emptyAnimalForm: AnimalFormValues = {
   nombre: '',
   fechaNacimiento: '',
   raza: '',
-  categoriaAnimal: 'VACA_PRODUCCION',
-  estadoReproductivo: 'VACIA',
+  categoriaAnimal: 'TERNERA',
+  estadoReproductivo: 'NO_APLICA',
   estadoAnimal: 'ACTIVO',
   activo: true,
   loteId: '',
@@ -102,6 +103,116 @@ function localDateInput(value: string | Date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function calculateAgeMonths(fechaNacimiento: string) {
+  if (!fechaNacimiento) return null;
+
+  const birthDate = new Date(`${fechaNacimiento}T09:00:00`);
+  if (Number.isNaN(birthDate.getTime())) return null;
+
+  const today = new Date();
+  let months = (today.getFullYear() - birthDate.getFullYear()) * 12;
+  months += today.getMonth() - birthDate.getMonth();
+  if (today.getDate() < birthDate.getDate()) months -= 1;
+
+  return Math.max(months, 0);
+}
+
+function isReproductiveCategory(category: CategoriaAnimal) {
+  return category === 'VAQUILLONA' || category === 'VACA';
+}
+
+function toFunctionalCategory(category: CategoriaAnimal): CategoriaAnimal {
+  if (category === 'GUACHERA' || category === 'ESCUELITA') return 'TERNERA';
+  if (category === 'VACA_PRODUCCION' || category === 'VACA_SECA' || category === 'PREPARTO') return 'VACA';
+  return category;
+}
+
+function isReproductiveAnimal(animal: Animal) {
+  return isReproductiveCategory(animal.categoriaAnimal)
+    && calculateAgeMonths(localDateInput(animal.fechaNacimiento)) !== null
+    && (calculateAgeMonths(localDateInput(animal.fechaNacimiento)) ?? 0) >= 13
+    && animal.estadoReproductivo !== 'NO_APLICA';
+}
+
+function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
+  const ageMonths = calculateAgeMonths(values.fechaNacimiento);
+  const nextValues = { ...values };
+  const isMale = maleCategories.includes(values.categoriaAnimal);
+  const findLoteId = (name: string) => lotes.find((lote) => lote.nombre === name)?.id.toString() ?? nextValues.loteId;
+
+  if (noAplicaCategories.includes(nextValues.categoriaAnimal)) {
+    nextValues.estadoReproductivo = 'NO_APLICA';
+  }
+
+  if (ageMonths === null) return nextValues;
+
+  if (isMale) {
+    nextValues.estadoReproductivo = 'NO_APLICA';
+    if (ageMonths < 4) {
+      nextValues.categoriaAnimal = 'TERNERO';
+      nextValues.loteId = findLoteId('Guachera');
+    } else if (ageMonths < 18) {
+      nextValues.categoriaAnimal = 'TORITO';
+      nextValues.loteId = findLoteId('Toritos');
+    } else {
+      nextValues.categoriaAnimal = 'TORO';
+      nextValues.loteId = findLoteId('Toros');
+    }
+    return nextValues;
+  }
+
+  if (ageMonths < 4) {
+    nextValues.categoriaAnimal = 'TERNERA';
+    nextValues.estadoReproductivo = 'NO_APLICA';
+    nextValues.loteId = findLoteId('Guachera');
+  } else if (ageMonths < 8) {
+    nextValues.categoriaAnimal = 'TERNERA';
+    nextValues.estadoReproductivo = 'NO_APLICA';
+    nextValues.loteId = findLoteId('Escuelita');
+  } else if (ageMonths < 13) {
+    nextValues.categoriaAnimal = 'TERNERA';
+    nextValues.estadoReproductivo = 'NO_APLICA';
+    nextValues.loteId = findLoteId('Ternera 1');
+  } else if (nextValues.categoriaAnimal !== 'VACA') {
+    nextValues.categoriaAnimal = 'VAQUILLONA';
+    nextValues.estadoReproductivo = nextValues.estadoReproductivo === 'NO_APLICA' ? 'VACIA' : nextValues.estadoReproductivo;
+    nextValues.loteId = findLoteId('Ternera 2');
+  } else if (nextValues.estadoReproductivo === 'NO_APLICA') {
+    nextValues.estadoReproductivo = 'VACIA';
+  }
+
+  if (nextValues.categoriaAnimal === 'VACA') {
+    const selectedLote = lotes.find((lote) => lote.id.toString() === nextValues.loteId);
+    if (!selectedLote || !cowLotes.includes(selectedLote.nombre)) {
+      nextValues.loteId = findLoteId('Producción');
+    }
+  }
+
+  return nextValues;
+}
+
+function getAllowedLoteNames(values: AnimalFormValues) {
+  const ageMonths = calculateAgeMonths(values.fechaNacimiento);
+
+  if (values.categoriaAnimal === 'VACA') return cowLotes;
+  if (values.categoriaAnimal === 'VAQUILLONA') return ['Ternera 2'];
+  if (values.categoriaAnimal === 'TERNERO' || values.categoriaAnimal === 'TERNERA') {
+    if (ageMonths === null || ageMonths < 4) return ['Guachera'];
+    if (ageMonths < 8) return ['Escuelita'];
+    return ['Ternera 1'];
+  }
+  if (values.categoriaAnimal === 'TORITO') return ['Toritos'];
+  if (values.categoriaAnimal === 'TORO') return ['Toros'];
+
+  return [];
+}
+
+function getAvailableEventOptions(animal: Animal) {
+  return isReproductiveAnimal(animal)
+    ? tipoEventoOptions
+    : nonReproductiveEventOptions;
 }
 
 interface HerdPageProps {
@@ -133,6 +244,10 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
   const isAdmin = currentUser?.role === 'ADMIN';
   const canCreateAnimal = currentUser?.role === 'ADMIN' || currentUser?.role === 'EMPLEADO';
   const activeLotes = useMemo(() => lotes.filter((lote) => lote.activo), [lotes]);
+  const allowedLotes = useMemo(() => {
+    const allowedNames = getAllowedLoteNames(formValues);
+    return activeLotes.filter((lote) => allowedNames.includes(lote.nombre));
+  }, [activeLotes, formValues]);
   const visibleAnimales = useMemo(() => {
     const fechaNacimientoDesde = searchParams.get('fechaNacimientoDesde');
     const fechaNacimientoHasta = searchParams.get('fechaNacimientoHasta');
@@ -143,6 +258,18 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
       return true;
     });
   }, [animales, searchParams]);
+
+  useEffect(() => {
+    if (!isAnimalModalOpen) return;
+
+    const nextValues = getExpectedFormValues(formValues, activeLotes);
+    const changed = Object.keys(nextValues).some((key) => {
+      const typedKey = key as keyof AnimalFormValues;
+      return nextValues[typedKey] !== formValues[typedKey];
+    });
+
+    if (changed) setFormValues(nextValues);
+  }, [activeLotes, formValues, isAnimalModalOpen]);
 
   function handleRequestError(requestError: unknown) {
     if (requestError instanceof ApiError && requestError.statusCode === 401) {
@@ -223,7 +350,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
       nombre: animal.nombre ?? '',
       fechaNacimiento: localDateInput(animal.fechaNacimiento),
       raza: animal.raza ?? '',
-      categoriaAnimal: animal.categoriaAnimal,
+      categoriaAnimal: toFunctionalCategory(animal.categoriaAnimal),
       estadoReproductivo: animal.estadoReproductivo,
       estadoAnimal: animal.estadoAnimal,
       activo: animal.activo,
@@ -236,8 +363,9 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
   }
 
   function startRegisteringEvent(animal: Animal) {
+    const availableEvents = getAvailableEventOptions(animal);
     setEventAnimal(animal);
-    setEventFormValues({ ...emptyEventoForm, fecha: localDateInput(new Date()) });
+    setEventFormValues({ ...emptyEventoForm, tipo: availableEvents[0], fecha: localDateInput(new Date()) });
     setError('');
     setSuccess('');
   }
@@ -564,7 +692,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                 <span>Lote</span>
                 <select value={formValues.loteId} onChange={(event) => setFormValues({ ...formValues, loteId: event.target.value })} required>
                   <option value="">Seleccionar lote</option>
-                  {activeLotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
+                  {allowedLotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
                 </select>
               </label>
               <label>
@@ -584,14 +712,33 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
               </label>
               <label>
                 <span>Categoria</span>
-                <select value={formValues.categoriaAnimal} onChange={(event) => setFormValues({ ...formValues, categoriaAnimal: event.target.value as CategoriaAnimal })}>
+                <select
+                  value={formValues.categoriaAnimal}
+                  onChange={(event) => setFormValues({
+                    ...formValues,
+                    categoriaAnimal: event.target.value as CategoriaAnimal,
+                    estadoReproductivo: noAplicaCategories.includes(event.target.value as CategoriaAnimal)
+                      ? 'NO_APLICA'
+                      : formValues.estadoReproductivo === 'NO_APLICA'
+                        ? 'VACIA'
+                        : formValues.estadoReproductivo,
+                  })}
+                >
                   {categoriaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </label>
               <label>
                 <span>Estado reproductivo</span>
-                <select value={formValues.estadoReproductivo} onChange={(event) => setFormValues({ ...formValues, estadoReproductivo: event.target.value as EstadoReproductivo })}>
-                  {estadoReproductivoOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                <select
+                  value={formValues.estadoReproductivo}
+                  onChange={(event) => setFormValues({ ...formValues, estadoReproductivo: event.target.value as EstadoReproductivo })}
+                  disabled={!isReproductiveCategory(formValues.categoriaAnimal)}
+                >
+                  {!isReproductiveCategory(formValues.categoriaAnimal) ? (
+                    <option value="NO_APLICA">No aplica</option>
+                  ) : (
+                    estadoReproductivoOptions.map((option) => <option key={option} value={option}>{option}</option>)
+                  )}
                 </select>
               </label>
               <label>
@@ -722,13 +869,18 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
               </div>
             ) : (
             <form className="user-form" onSubmit={handleEventSubmit}>
+              {!isReproductiveAnimal(eventAnimal) && (
+                <div className="form-warning">
+                  El animal debe ser Vaquillona o Vaca y tener al menos 13 meses para registrar eventos reproductivos.
+                </div>
+              )}
               <label>
                 <span>Tipo de evento</span>
                 <select
                   value={eventFormValues.tipo}
                   onChange={(event) => setEventFormValues({ ...eventFormValues, tipo: event.target.value as TipoEvento })}
                 >
-                  {tipoEventoOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                  {getAvailableEventOptions(eventAnimal).map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </label>
 

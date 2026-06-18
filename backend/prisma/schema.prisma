@@ -15,11 +15,14 @@ enum RolUsuario {
 enum CategoriaAnimal {
   GUACHERA
   ESCUELITA
+  TERNERO
   TERNERA
   VAQUILLONA
+  VACA
   VACA_PRODUCCION
   VACA_SECA
   PREPARTO
+  TORITO
   TORO
   BAJA
 }

@@ -10,6 +10,10 @@ import { randomUUID } from 'crypto';
 import { prisma } from '../config/prisma';
 import { AppError } from '../errors/AppError';
 import { findEventoById, findEventos } from '../repositories/eventos.repository';
+import {
+  getLotePostEvento,
+  validarEventoCompatibleConAnimal,
+} from './rodeo-rules.service';
 import { getNextSanitaryDate, parseTipoSanitario, type TipoSanitario } from './vacunacion.service';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -101,6 +105,21 @@ async function findActiveAnimalOrThrow(tx: Prisma.TransactionClient, animalId: n
   return animal;
 }
 
+async function findActiveLoteByNombreOrThrow(tx: Prisma.TransactionClient, nombre: string) {
+  const lote = await tx.lote.findFirst({
+    where: {
+      nombre,
+      activo: true,
+    },
+  });
+
+  if (!lote) {
+    throw new AppError(`El lote ${nombre} debe existir y estar activo.`, 400);
+  }
+
+  return lote;
+}
+
 async function closePendingTaskOrThrow(
   tx: Prisma.TransactionClient,
   animalId: number,
@@ -157,6 +176,7 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
 
   return prisma.$transaction(async (tx) => {
     const animal = await findActiveAnimalOrThrow(tx, animalId);
+    validarEventoCompatibleConAnimal(animal, tipo);
 
     if (
       tipo === TipoEvento.INSEMINACION &&
@@ -314,11 +334,13 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
 
       case TipoEvento.SECADO: {
         await closePendingTaskOrThrow(tx, animalId, 'SECADO', evento.id);
+        const loteSecas = await findActiveLoteByNombreOrThrow(tx, getLotePostEvento(tipo)!);
         await tx.animal.update({
           where: { id: animalId },
           data: {
             estadoReproductivo: EstadoReproductivo.SECA,
-            categoriaAnimal: CategoriaAnimal.VACA_SECA,
+            categoriaAnimal: CategoriaAnimal.VACA,
+            loteId: loteSecas.id,
           },
         });
         break;
@@ -326,13 +348,13 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
 
       case TipoEvento.PARTO:
         await closePendingTaskOrThrow(tx, animalId, 'PARTO', evento.id);
+        const loteRecuperacion = await findActiveLoteByNombreOrThrow(tx, getLotePostEvento(tipo)!);
         await tx.animal.update({
           where: { id: animalId },
           data: {
             estadoReproductivo: EstadoReproductivo.RECUPERACION,
-            ...(animal.categoriaAnimal === CategoriaAnimal.VAQUILLONA
-              ? { categoriaAnimal: CategoriaAnimal.VACA_PRODUCCION }
-              : {}),
+            categoriaAnimal: CategoriaAnimal.VACA,
+            loteId: loteRecuperacion.id,
           },
         });
         await tx.agendaTarea.create({

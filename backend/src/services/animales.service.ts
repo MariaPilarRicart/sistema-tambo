@@ -4,6 +4,7 @@ import {
   createAnimal,
   deactivateAnimal,
   findActiveLoteById,
+  findActiveLoteByNombre,
   findAnimalFichaById,
   findAnimalByCaravana,
   findAnimalById,
@@ -11,6 +12,7 @@ import {
   getRodeoSummaryCounts,
   updateAnimal,
 } from '../repositories/animales.repository';
+import { validarConsistenciaAnimal } from './rodeo-rules.service';
 import { withEstadoCalculado } from './tareas-state.service';
 
 const CARAVANA_EXISTS_MESSAGE = 'No puede agregar dos animales con el mismo número de caravana';
@@ -104,6 +106,18 @@ async function ensureActiveLoteExists(loteId: number) {
   if (!lote) {
     throw new AppError('El animal debe pertenecer a un lote existente y activo.', 400);
   }
+
+  return lote;
+}
+
+async function ensureActiveLoteByNombre(nombre: string) {
+  const lote = await findActiveLoteByNombre(nombre);
+
+  if (!lote) {
+    throw new AppError(`El lote ${nombre} debe existir y estar activo.`, 400);
+  }
+
+  return lote;
 }
 
 async function ensureMadreExists(madreId: number, animalId?: number) {
@@ -172,6 +186,9 @@ export async function createNewAnimal(input: Record<string, unknown>) {
   const caravana = typeof input.caravana === 'string' ? input.caravana.trim() : '';
   const loteId = parseId(input.loteId, 'loteId');
   const madreId = parseOptionalMadreId(input.madreId);
+  const fechaNacimiento = parseDate(input.fechaNacimiento);
+  const categoriaAnimal = parseCategoria(input.categoriaAnimal ?? input.categoria);
+  const estadoReproductivo = parseEstadoReproductivo(input.estadoReproductivo ?? EstadoReproductivo.NO_APLICA);
 
   if (!caravana) {
     throw new AppError('Caravana es obligatoria.', 400);
@@ -183,20 +200,27 @@ export async function createNewAnimal(input: Record<string, unknown>) {
     throw new AppError(CARAVANA_EXISTS_MESSAGE, 409);
   }
 
-  await ensureActiveLoteExists(loteId);
+  const lote = await ensureActiveLoteExists(loteId);
   if (madreId) await ensureMadreExists(madreId);
+  const consistencia = validarConsistenciaAnimal({
+    categoriaAnimal,
+    fechaNacimiento,
+    estadoReproductivo,
+    loteNombre: lote.nombre,
+  });
+  const loteNormalizado = await ensureActiveLoteByNombre(consistencia.loteNombre);
 
   try {
     return await createAnimal({
       caravana,
       nombre: normalizeOptionalString(input.nombre, 'Nombre'),
-      fechaNacimiento: parseDate(input.fechaNacimiento),
+      fechaNacimiento,
       raza: normalizeOptionalString(input.raza, 'Raza'),
-      categoriaAnimal: parseCategoria(input.categoriaAnimal ?? input.categoria),
-      estadoReproductivo: parseEstadoReproductivo(input.estadoReproductivo ?? EstadoReproductivo.VACIA),
+      categoriaAnimal: consistencia.categoriaAnimal,
+      estadoReproductivo: consistencia.estadoReproductivo,
       estadoAnimal: parseEstadoAnimal(input.estadoAnimal ?? EstadoAnimal.ACTIVO),
       activo: input.activo === undefined ? true : Boolean(input.activo),
-      loteId,
+      loteId: loteNormalizado.id,
       madreId,
       padreNombre: normalizeOptionalString(input.padreNombre, 'Padre'),
     });
@@ -218,16 +242,32 @@ export async function updateExistingAnimal(idParam: string, input: Record<string
   }
 
   const data: Parameters<typeof updateAnimal>[1] = {};
+  const nextFechaNacimiento = input.fechaNacimiento !== undefined
+    ? parseDate(input.fechaNacimiento)
+    : existingAnimal.fechaNacimiento;
+  const nextCategoriaAnimal = input.categoriaAnimal !== undefined || input.categoria !== undefined
+    ? parseCategoria(input.categoriaAnimal ?? input.categoria)
+    : existingAnimal.categoriaAnimal;
+  const nextEstadoReproductivo = input.estadoReproductivo !== undefined
+    ? parseEstadoReproductivo(input.estadoReproductivo)
+    : existingAnimal.estadoReproductivo;
+  let nextLote = input.loteId !== undefined
+    ? await ensureActiveLoteExists(parseId(input.loteId, 'loteId'))
+    : existingAnimal.lote;
 
   if (input.nombre !== undefined) data.nombre = normalizeOptionalString(input.nombre, 'Nombre');
-  if (input.fechaNacimiento !== undefined) data.fechaNacimiento = parseDate(input.fechaNacimiento);
+  if (input.fechaNacimiento !== undefined) data.fechaNacimiento = nextFechaNacimiento;
   if (input.raza !== undefined) data.raza = normalizeOptionalString(input.raza, 'Raza');
-  if (input.categoriaAnimal !== undefined || input.categoria !== undefined) {
-    data.categoriaAnimal = parseCategoria(input.categoriaAnimal ?? input.categoria);
-  }
-  if (input.estadoReproductivo !== undefined) {
-    data.estadoReproductivo = parseEstadoReproductivo(input.estadoReproductivo);
-  }
+  const consistencia = validarConsistenciaAnimal({
+    categoriaAnimal: nextCategoriaAnimal,
+    fechaNacimiento: nextFechaNacimiento,
+    estadoReproductivo: nextEstadoReproductivo,
+    loteNombre: nextLote.nombre,
+  });
+  nextLote = await ensureActiveLoteByNombre(consistencia.loteNombre);
+  data.categoriaAnimal = consistencia.categoriaAnimal;
+  data.estadoReproductivo = consistencia.estadoReproductivo;
+  data.loteId = nextLote.id;
   if (input.estadoAnimal !== undefined) data.estadoAnimal = parseEstadoAnimal(input.estadoAnimal);
   if (input.activo !== undefined) data.activo = Boolean(input.activo);
   if (input.fechaBaja !== undefined) {
@@ -235,11 +275,6 @@ export async function updateExistingAnimal(idParam: string, input: Record<string
   }
   if (input.observacionesBaja !== undefined) {
     data.observacionesBaja = normalizeOptionalString(input.observacionesBaja, 'Observaciones de baja');
-  }
-  if (input.loteId !== undefined) {
-    const loteId = parseId(input.loteId, 'loteId');
-    await ensureActiveLoteExists(loteId);
-    data.loteId = loteId;
   }
   if (input.madreId !== undefined) {
     const madreId = parseOptionalMadreId(input.madreId);

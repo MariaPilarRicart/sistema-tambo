@@ -28,6 +28,16 @@ const SEED_FACTURA_PREFIX = 'F-SEED-';
 const SEED_LOTE_LECHE_PREFIX = 'LT-SEED-';
 
 const physicalLotes = [
+  ['Guachera', 'Terneros y terneras desde nacimiento hasta antes de 4 meses'],
+  ['Escuelita', 'Terneras desde 4 hasta antes de 8 meses'],
+  ['Ternera 1', 'Terneras desde 8 hasta antes de 13 meses'],
+  ['Ternera 2', 'Vaquillonas desde 13 meses hasta primer parto'],
+  ['Producción', 'Vacas en produccion'],
+  ['Secas', 'Vacas secas'],
+  ['Preparto', 'Vacas en preparto'],
+  ['Recuperación', 'Vacas en recuperacion post parto'],
+  ['Toritos', 'Machos desde 4 hasta antes de 18 meses'],
+  ['Toros', 'Machos desde 18 meses en adelante'],
   ['Lote 001', 'Vacas en produccion de alta rotacion'],
   ['Lote 002', 'Vacas en produccion de control'],
   ['Lote 003', 'Animales de baja o salida historica'],
@@ -38,23 +48,23 @@ const physicalLotes = [
 ] as const;
 
 const animals = [
-  ['1001', 'Aurora', CategoriaAnimal.VACA_PRODUCCION, EstadoReproductivo.PRENADA, 'Lote 001', true],
-  ['1002', 'Brisa', CategoriaAnimal.VACA_PRODUCCION, EstadoReproductivo.VACIA, 'Lote 001', true],
-  ['1003', 'Clara', CategoriaAnimal.VACA_PRODUCCION, EstadoReproductivo.INSEMINADA, 'Lote 002', true],
-  ['1004', 'Dalia', CategoriaAnimal.VACA_PRODUCCION, EstadoReproductivo.VACIA, 'Lote 002', true],
-  ['1005', 'Estrella', CategoriaAnimal.VACA_SECA, EstadoReproductivo.PRENADA, 'Corral Norte', true],
-  ['1006', 'Flora', CategoriaAnimal.PREPARTO, EstadoReproductivo.PRENADA, 'Corral Sur', true],
-  ['1007', 'Gala', CategoriaAnimal.VACA_PRODUCCION, EstadoReproductivo.RECUPERACION, 'Lote 001', true],
-  ['1008', 'Hera', CategoriaAnimal.VACA_PRODUCCION, EstadoReproductivo.PRENADA, 'Lote 002', true],
-  ['2001', 'Iris', CategoriaAnimal.VAQUILLONA, EstadoReproductivo.VACIA, 'Potrero 1', true],
-  ['2002', 'Jazmin', CategoriaAnimal.VAQUILLONA, EstadoReproductivo.INSEMINADA, 'Potrero 1', true],
-  ['3001', 'Kira', CategoriaAnimal.TERNERA, EstadoReproductivo.NO_APLICA, 'Potrero 2', true],
-  ['3002', 'Luna', CategoriaAnimal.TERNERA, EstadoReproductivo.NO_APLICA, 'Potrero 2', true],
-  ['4001', 'Mora', CategoriaAnimal.GUACHERA, EstadoReproductivo.NO_APLICA, 'Corral Norte', true],
-  ['4002', 'Nina', CategoriaAnimal.GUACHERA, EstadoReproductivo.NO_APLICA, 'Corral Norte', true],
-  ['5001', 'Olivia', CategoriaAnimal.ESCUELITA, EstadoReproductivo.NO_APLICA, 'Corral Sur', true],
-  ['6001', 'Pampa', CategoriaAnimal.TORO, EstadoReproductivo.NO_APLICA, 'Potrero 1', true],
-  ['9001', 'Salida historica', CategoriaAnimal.BAJA, EstadoReproductivo.NO_APLICA, 'Lote 003', false],
+  ['1001', 'Aurora', CategoriaAnimal.VACA, EstadoReproductivo.PRENADA, 'Producción', true, 48],
+  ['1002', 'Brisa', CategoriaAnimal.VACA, EstadoReproductivo.VACIA, 'Producción', true, 50],
+  ['1003', 'Clara', CategoriaAnimal.VACA, EstadoReproductivo.INSEMINADA, 'Producción', true, 52],
+  ['1004', 'Dalia', CategoriaAnimal.VACA, EstadoReproductivo.VACIA, 'Producción', true, 46],
+  ['1005', 'Estrella', CategoriaAnimal.VACA, EstadoReproductivo.PRENADA, 'Secas', true, 56],
+  ['1006', 'Flora', CategoriaAnimal.VACA, EstadoReproductivo.PRENADA, 'Preparto', true, 54],
+  ['1007', 'Gala', CategoriaAnimal.VACA, EstadoReproductivo.RECUPERACION, 'Recuperación', true, 49],
+  ['1008', 'Hera', CategoriaAnimal.VACA, EstadoReproductivo.PRENADA, 'Producción', true, 51],
+  ['2001', 'Iris', CategoriaAnimal.VAQUILLONA, EstadoReproductivo.VACIA, 'Ternera 2', true, 15],
+  ['2002', 'Jazmin', CategoriaAnimal.VAQUILLONA, EstadoReproductivo.INSEMINADA, 'Ternera 2', true, 16],
+  ['3001', 'Kira', CategoriaAnimal.TERNERA, EstadoReproductivo.NO_APLICA, 'Ternera 1', true, 10],
+  ['3002', 'Luna', CategoriaAnimal.TERNERA, EstadoReproductivo.NO_APLICA, 'Escuelita', true, 6],
+  ['4001', 'Mora', CategoriaAnimal.TERNERA, EstadoReproductivo.NO_APLICA, 'Guachera', true, 2],
+  ['4002', 'Nina', CategoriaAnimal.TERNERO, EstadoReproductivo.NO_APLICA, 'Guachera', true, 2],
+  ['5001', 'Olivia', CategoriaAnimal.TORITO, EstadoReproductivo.NO_APLICA, 'Toritos', true, 8],
+  ['6001', 'Pampa', CategoriaAnimal.TORO, EstadoReproductivo.NO_APLICA, 'Toros', true, 24],
+  ['9001', 'Salida historica', CategoriaAnimal.BAJA, EstadoReproductivo.NO_APLICA, 'Lote 003', false, 60],
 ] as const;
 
 const raciones = [
@@ -174,11 +184,12 @@ async function seedAnimals() {
   const lotes = await prisma.lote.findMany();
   const loteByName = new Map(lotes.map((lote) => [lote.nombre, lote.id]));
 
-  for (const [caravana, nombre, categoriaAnimal, estadoReproductivo, loteNombre, activo] of animals) {
+  for (const [caravana, nombre, categoriaAnimal, estadoReproductivo, loteNombre, activo, edadMeses] of animals) {
     await prisma.animal.upsert({
       where: { caravana },
       update: {
         nombre,
+        fechaNacimiento: monthsFromToday(-edadMeses),
         raza: 'Holando',
         categoriaAnimal,
         estadoReproductivo,
@@ -191,9 +202,7 @@ async function seedAnimals() {
       create: {
         caravana,
         nombre,
-        fechaNacimiento: dateYearsAgo(
-          categoriaAnimal === CategoriaAnimal.TERNERA || categoriaAnimal === CategoriaAnimal.GUACHERA ? 1 : 4,
-        ),
+        fechaNacimiento: monthsFromToday(-edadMeses),
         raza: 'Holando',
         categoriaAnimal,
         estadoReproductivo,
