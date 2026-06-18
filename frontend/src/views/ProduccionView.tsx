@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Droplets, Edit2, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
+import { AlertTriangle, BarChart3, Droplets, Edit2, ListChecks, Milk, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { getAnimales } from '../services/animalesService';
@@ -264,13 +264,12 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
 
   return (
     <div className="module-page production-page">
-      <div className="page-heading">
+      <section className="settings-header production-header">
         <div>
-          <p className="eyebrow">Producción</p>
-          <h1>Producción</h1>
+          <h2>Producción</h2>
           <span>Registro diario por fecha y turno, con detalle opcional por vaca.</span>
         </div>
-      </div>
+      </section>
 
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
@@ -299,26 +298,31 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         </div>
       )}
 
-      <section className="dashboard-kpi-grid production-kpi-grid">
-        <article className="dashboard-kpi-card dashboard-kpi-emerald">
-          <strong>Litros buenos hoy</strong>
-          <h3>{formatLiters(resumen?.totalLitrosBuenos)}</h3>
+      <section className="operative-summary-grid production-summary-grid">
+        <article className="metric-card operative-card">
+          <div className="metric-icon metric-icon-emerald"><Droplets size={20} /></div>
+          <p className="metric-title">Litros buenos hoy</p>
+          <strong className="metric-value">{formatLiters(resumen?.totalLitrosBuenos)}</strong>
         </article>
-        <article className="dashboard-kpi-card dashboard-kpi-amber">
-          <strong>Descartados hoy</strong>
-          <h3>{formatLiters(resumen?.totalLitrosDescartados)}</h3>
+        <article className="metric-card operative-card">
+          <div className="metric-icon metric-icon-amber"><AlertTriangle size={20} /></div>
+          <p className="metric-title">Descartados hoy</p>
+          <strong className="metric-value">{formatLiters(resumen?.totalLitrosDescartados)}</strong>
         </article>
-        <article className="dashboard-kpi-card dashboard-kpi-blue">
-          <strong>Total ordeñado</strong>
-          <h3>{formatLiters(resumen?.totalLitros)}</h3>
+        <article className="metric-card operative-card">
+          <div className="metric-icon metric-icon-blue"><Milk size={20} /></div>
+          <p className="metric-title">Total ordeñado</p>
+          <strong className="metric-value">{formatLiters(resumen?.totalLitros)}</strong>
         </article>
-        <article className="dashboard-kpi-card dashboard-kpi-indigo">
-          <strong>Ordeñes hoy</strong>
-          <h3>{resumen?.cantidadOrdenes ?? 0}</h3>
+        <article className="metric-card operative-card">
+          <div className="metric-icon metric-icon-indigo"><ListChecks size={20} /></div>
+          <p className="metric-title">Ordeñes hoy</p>
+          <strong className="metric-value">{resumen?.cantidadOrdenes ?? 0}</strong>
         </article>
-        <article className="dashboard-kpi-card dashboard-kpi-rose">
-          <strong>Promedio por ordeñe</strong>
-          <h3>{formatLiters(resumen?.promedioPorOrdene)}</h3>
+        <article className="metric-card operative-card">
+          <div className="metric-icon metric-icon-rose"><BarChart3 size={20} /></div>
+          <p className="metric-title">Promedio por ordeñe</p>
+          <strong className="metric-value">{formatLiters(resumen?.promedioPorOrdene)}</strong>
         </article>
       </section>
 

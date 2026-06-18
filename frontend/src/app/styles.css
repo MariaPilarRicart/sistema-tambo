@@ -3200,8 +3200,26 @@ a {
   transform: translateY(-1px);
 }
 
+.production-header {
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
+.production-header h2 {
+  margin-bottom: 4px;
+}
+
+.production-header span {
+  color: var(--slate-500);
+}
+
 .production-summary-grid {
   grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-bottom: 24px;
+}
+
+.production-summary-grid .operative-card {
+  min-height: 138px;
 }
 
 .production-stats-controls {
