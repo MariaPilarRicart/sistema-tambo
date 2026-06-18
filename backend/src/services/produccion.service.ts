@@ -16,6 +16,7 @@ import {
   findOrdeneByFechaTurno,
   findOrdenes,
   updateLoteLeche,
+  updateOrdene,
   type OrdeneWithRelations,
   type OrdeneFilters,
   type ProduccionAnimalWithRelations,
@@ -396,6 +397,41 @@ export async function createNewProduccion(input: Record<string, unknown>, usuari
       litrosDescartados,
       observaciones: normalizeOptionalString(input.observaciones, 'Observaciones'),
       usuarioId,
+      detalles,
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new AppError('Ya existe un ordeñe para esa fecha y turno.', 409);
+    }
+    throw error;
+  }
+}
+
+export async function updateExistingProduccion(idParam: string, input: Record<string, unknown>) {
+  const id = parseId(idParam, 'Id de producción');
+  const existingOrdene = await findOrdeneById(id);
+  if (!existingOrdene) throw new AppError('Registro de producción no encontrado.', 404);
+  if (!existingOrdene.activo) throw new AppError('No se puede editar un ordeñe inactivo.', 400);
+
+  const fecha = parseOrdeneDate(input.fecha ?? input.fechaHora);
+  const turno = parseRequiredTurno(input.turno);
+  const litrosBuenos = parseDecimal(input.litrosBuenos ?? input.litrosProducidos, 'Litros buenos', { required: true, min: 0 })!;
+  const litrosDescartados = parseDecimal(input.litrosDescartados ?? 0, 'Litros descartados', { min: 0 }) ?? new Prisma.Decimal(0);
+  const detalles = parseOrdeneDetails(input.detalles);
+  await validateOrdeneDetails(detalles);
+
+  const duplicateOrdene = await findOrdeneByFechaTurno(fecha, turno);
+  if (duplicateOrdene && duplicateOrdene.id !== id) {
+    throw new AppError('Ya existe un ordeñe para esa fecha y turno.', 409);
+  }
+
+  try {
+    return await updateOrdene(id, {
+      fecha,
+      turno,
+      litrosBuenos,
+      litrosDescartados,
+      observaciones: normalizeOptionalString(input.observaciones, 'Observaciones'),
       detalles,
     });
   } catch (error) {

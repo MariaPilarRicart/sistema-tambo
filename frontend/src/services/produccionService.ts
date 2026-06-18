@@ -63,6 +63,15 @@ export async function createProduccion(token: string, values: ProduccionFormValu
   return response.produccion;
 }
 
+export async function updateProduccion(token: string, id: number, values: ProduccionFormValues) {
+  const response = await apiRequest<ProduccionResponse>(`/api/produccion/${id}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(buildProduccionPayload(values)),
+  });
+  return response.produccion;
+}
+
 export async function deleteProduccion(token: string, id: number) {
   const response = await apiRequest<ProduccionResponse>(`/api/produccion/${id}`, {
     method: 'DELETE',

@@ -13,6 +13,7 @@ import {
   listLotesLecheController,
   listProduccionesController,
   updateLoteLecheController,
+  updateProduccionController,
 } from '../controllers/produccion.controller';
 import { asyncHandler } from '../middlewares/async-handler.middleware';
 import { authenticate } from '../middlewares/auth.middleware';
@@ -37,6 +38,7 @@ produccionRouter.get('/api/produccion/por-animal/:animalId', authenticate, autho
 produccionRouter.get('/api/produccion/por-lote/:loteId', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(getProduccionPorLoteController));
 produccionRouter.get('/api/produccion/por-lote-leche/:loteLecheId', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(getProduccionPorLoteLecheController));
 produccionRouter.post('/api/produccion', authenticate, asyncHandler(createProduccionController));
+produccionRouter.patch('/api/produccion/:id', authenticate, authorizeRoles(RolUsuario.ADMIN), asyncHandler(updateProduccionController));
 produccionRouter.delete(
   '/api/produccion/:id',
   authenticate,

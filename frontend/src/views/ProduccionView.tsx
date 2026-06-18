@@ -1,15 +1,21 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Droplets, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
+import { Droplets, Edit2, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { getAnimales } from '../services/animalesService';
-import { createProduccion, deleteProduccion, getProducciones, getResumenProduccion } from '../services/produccionService';
+import { createProduccion, deleteProduccion, getProducciones, getResumenProduccion, updateProduccion } from '../services/produccionService';
 import type { Animal, CategoriaAnimal, EstadoReproductivo } from '../types/animales';
 import type { AuthUser } from '../types/auth';
 import type { Ordene, ProduccionFilters, ProduccionFormValues, ProduccionResumen, TurnoOrdene } from '../types/produccion';
 
 function localDateValue() {
   const date = new Date();
+  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+  return date.toISOString().slice(0, 10);
+}
+
+function toDateInputValue(value: string) {
+  const date = new Date(value);
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 10);
 }
@@ -107,7 +113,10 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
   const [form, setForm] = useState<ProduccionFormValues>(emptyForm);
   const [filters, setFilters] = useState<ProduccionFilters>(emptyFilters);
   const [showOrdeneModal, setShowOrdeneModal] = useState(false);
+  const [editingOrdene, setEditingOrdene] = useState<Ordene | null>(null);
+  const [detailOrdene, setDetailOrdene] = useState<Ordene | null>(null);
   const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -152,14 +161,38 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
 
   function openOrdeneModal() {
     setForm(emptyForm);
+    setEditingOrdene(null);
     setShowOrdeneModal(true);
     setError('');
+    setModalError('');
+    setSuccess('');
+  }
+
+  function openEditOrdeneModal(ordene: Ordene) {
+    setForm({
+      fecha: toDateInputValue(ordene.fecha),
+      turno: ordene.turno,
+      litrosBuenos: String(ordene.litrosBuenos ?? ''),
+      litrosDescartados: String(ordene.litrosDescartados ?? '0'),
+      observaciones: ordene.observaciones ?? '',
+      detalles: ordene.detalles.map((detalle) => ({
+        animalId: String(detalle.animalId),
+        litros: String(detalle.litros ?? ''),
+        observaciones: detalle.observaciones ?? '',
+      })),
+    });
+    setEditingOrdene(ordene);
+    setShowOrdeneModal(true);
+    setError('');
+    setModalError('');
     setSuccess('');
   }
 
   function closeOrdeneModal() {
     setShowOrdeneModal(false);
     setForm(emptyForm);
+    setEditingOrdene(null);
+    setModalError('');
   }
 
   function addDetalle() {
@@ -192,15 +225,21 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
     if (!authToken) return;
     setIsSaving(true);
     setError('');
+    setModalError('');
     setSuccess('');
     try {
-      await createProduccion(authToken, form);
-      setSuccess('Ordeñe registrado correctamente.');
+      if (editingOrdene) {
+        await updateProduccion(authToken, editingOrdene.id, form);
+        setSuccess('Ordeñe actualizado correctamente.');
+      } else {
+        await createProduccion(authToken, form);
+        setSuccess('Ordeñe registrado correctamente.');
+      }
       closeOrdeneModal();
       await loadData();
     } catch (err) {
       if (err instanceof ApiError && err.statusCode === 401) onUnauthorized();
-      else setError(err instanceof Error ? err.message : 'No se pudo registrar el ordeñe.');
+      else setModalError(err instanceof Error ? err.message : editingOrdene ? 'No se pudo actualizar el ordeñe.' : 'No se pudo registrar el ordeñe.');
     } finally {
       setIsSaving(false);
     }
@@ -232,12 +271,9 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
       <div className="page-heading">
         <div>
           <p className="eyebrow">Producción</p>
-          <h1>Ordeñes</h1>
+          <h1>Producción</h1>
           <span>Registro diario por fecha y turno, con detalle opcional por vaca.</span>
         </div>
-        <button type="button" className="primary-button" onClick={openOrdeneModal}>
-          <Plus size={18} /> Nuevo ordeñe
-        </button>
       </div>
 
       {error && <div className="form-error">{error}</div>}
@@ -284,10 +320,6 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         <article className="dashboard-kpi-card dashboard-kpi-indigo">
           <strong>Ordeñes hoy</strong>
           <h3>{resumen?.cantidadOrdenes ?? 0}</h3>
-        </article>
-        <article className="dashboard-kpi-card dashboard-kpi-pink">
-          <strong>Detalle individual</strong>
-          <h3>{formatLiters(resumen?.totalIndividualCargado)}</h3>
         </article>
         <article className="dashboard-kpi-card dashboard-kpi-rose">
           <strong>Promedio por ordeñe</strong>
@@ -347,7 +379,6 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                   <th>Descartados</th>
                   <th>Total</th>
                   <th>Detalle individual</th>
-                  <th>Vacas</th>
                   <th>Observaciones</th>
                   <th>Usuario</th>
                   <th>Acciones</th>
@@ -363,25 +394,35 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                     <td>
                       <strong>{formatLiters(ordeneTotal(registro))}</strong>
                     </td>
-                    <td>{formatLiters(detalleTotal(registro))}</td>
                     <td>
-                      <strong>{registro.detalles.length}</strong>
-                      <span>{registro.detalles.slice(0, 2).map((detalle) => detalle.animal.caravana).join(', ')}</span>
+                      {registro.detalles.length === 0 ? (
+                        <span>Sin detalle</span>
+                      ) : (
+                        <button type="button" className="link-button production-detail-link" onClick={() => setDetailOrdene(registro)}>
+                          {registro.detalles.length} {registro.detalles.length === 1 ? 'vaca cargada' : 'vacas cargadas'}
+                        </button>
+                      )}
+                      {registro.detalles.length > 0 && <span>Total individual: {formatLiters(detalleTotal(registro))}</span>}
                     </td>
                     <td>{registro.observaciones ?? '-'}</td>
                     <td>{registro.usuario?.nombre ?? '-'}</td>
                     <td>
                       {isAdmin && registro.activo && (
-                        <button type="button" className="icon-button" onClick={() => void handleDeleteRegistro(registro)} aria-label="Dar de baja ordeñe">
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="table-actions">
+                          <button type="button" className="icon-button" onClick={() => openEditOrdeneModal(registro)} aria-label="Editar ordeñe">
+                            <Edit2 size={16} />
+                          </button>
+                          <button type="button" className="icon-button" onClick={() => void handleDeleteRegistro(registro)} aria-label="Dar de baja ordeñe">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>
                 ))}
                 {registros.length === 0 && (
                   <tr>
-                    <td colSpan={10}>Sin ordeñes para los filtros seleccionados.</td>
+                    <td colSpan={9}>Sin ordeñes para los filtros seleccionados.</td>
                   </tr>
                 )}
               </tbody>
@@ -395,7 +436,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
           <section className="panel modal-panel animal-form-modal production-ordene-modal">
             <div className="panel-header">
               <div>
-                <h2>Nuevo ordeñe</h2>
+                <h2>{editingOrdene ? 'Editar ordeñe' : 'Nuevo ordeñe'}</h2>
                 <p>Cargá el total del turno. El detalle por vaca es opcional.</p>
               </div>
               <button type="button" className="icon-button" onClick={closeOrdeneModal} aria-label="Cerrar nuevo ordeñe">
@@ -403,6 +444,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
               </button>
             </div>
             <form className="user-form animal-modal-form" onSubmit={handleSubmit}>
+              {modalError && <div className="form-error production-modal-error">{modalError}</div>}
               <label>
                 <span>Fecha</span>
                 <input type="date" value={form.fecha} onChange={(event) => updateForm({ fecha: event.target.value })} required />
@@ -439,7 +481,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                 <div className="panel-header production-detail-header">
                   <div>
                     <h3>Detalle por vaca</h3>
-                    <p>Solo se pueden seleccionar vacas activas en lotes de Producción o Recuperación.</p>
+                    <p>Opcional: registrá solo las vacas medidas en este control. No hace falta cargar todas las vacas ni que la suma coincida con los litros buenos del ordeñe.</p>
                   </div>
                   <button type="button" className="secondary-button" onClick={addDetalle}>
                     <Plus size={16} /> Agregar vaca
@@ -462,7 +504,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                     </label>
                     <label>
                       <span>Litros</span>
-                      <input type="number" min="0" step="0.01" value={detalle.litros} onChange={(event) => updateDetalle(index, { litros: event.target.value })} required />
+                      <input type="number" min="0" step="0.01" placeholder="Ej.: 18,5" value={detalle.litros} onChange={(event) => updateDetalle(index, { litros: event.target.value })} required />
                     </label>
                     <label>
                       <span>Observaciones</span>
@@ -485,10 +527,51 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                   Cancelar
                 </button>
                 <button type="submit" className="primary-button" disabled={isSaving}>
-                  <Save size={18} /> Guardar ordeñe
+                  <Save size={18} /> {editingOrdene ? 'Guardar cambios' : 'Guardar ordeñe'}
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      )}
+
+      {detailOrdene && (
+        <div className="modal-backdrop">
+          <section className="panel modal-panel animal-form-modal production-detail-modal">
+            <div className="panel-header">
+              <div>
+                <h2>Detalle por vaca</h2>
+                <p>{formatDate(detailOrdene.fecha)} - {turnoLabels[detailOrdene.turno]}</p>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setDetailOrdene(null)} aria-label="Cerrar detalle por vaca">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="table-wrap">
+              <table className="users-table">
+                <thead>
+                  <tr>
+                    <th>Vaca</th>
+                    <th>Lote</th>
+                    <th>Litros</th>
+                    <th>Observaciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detailOrdene.detalles.map((detalle) => (
+                    <tr key={detalle.id}>
+                      <td>
+                        <strong>{detalle.animal.caravana}</strong>
+                        <span>{detalle.animal.nombre ?? '-'}</span>
+                      </td>
+                      <td>{detalle.animal.lote.nombre}</td>
+                      <td>{formatLiters(detalle.litros)}</td>
+                      <td>{detalle.observaciones ?? '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         </div>
       )}

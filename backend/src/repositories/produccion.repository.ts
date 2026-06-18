@@ -395,6 +395,34 @@ export async function createOrdene(data: {
   });
 }
 
+export async function updateOrdene(id: number, data: {
+  fecha: Date;
+  turno: TurnoOrdene;
+  litrosBuenos: Prisma.Decimal;
+  litrosDescartados: Prisma.Decimal;
+  observaciones?: string | null;
+  detalles: Array<{ animalId: number; litros: Prisma.Decimal; observaciones?: string | null }>;
+}) {
+  return prisma.$transaction(async (tx) => {
+    await tx.ordeneDetalle.deleteMany({ where: { ordeneId: id } });
+
+    return tx.ordene.update({
+      where: { id },
+      data: {
+        fecha: data.fecha,
+        turno: data.turno,
+        litrosBuenos: data.litrosBuenos,
+        litrosDescartados: data.litrosDescartados,
+        observaciones: data.observaciones,
+        detalles: {
+          create: data.detalles,
+        },
+      },
+      include: ordeneInclude,
+    });
+  });
+}
+
 export function deactivateOrdene(id: number) {
   return prisma.ordene.update({
     where: { id },

@@ -12,6 +12,7 @@ import {
   listLotesLeche,
   listProducciones,
   updateExistingLoteLeche,
+  updateExistingProduccion,
 } from '../services/produccion.service';
 
 export async function listLotesLecheController(_request: Request, response: Response) {
@@ -48,6 +49,11 @@ export async function getResumenProduccionController(_request: Request, response
 export async function createProduccionController(request: Request, response: Response) {
   const produccion = await createNewProduccion(request.body ?? {}, request.user?.id);
   response.status(201).json({ produccion });
+}
+
+export async function updateProduccionController(request: Request, response: Response) {
+  const produccion = await updateExistingProduccion(String(request.params.id), request.body ?? {});
+  response.status(200).json({ produccion });
 }
 
 export async function getProduccionPorAnimalController(request: Request, response: Response) {
