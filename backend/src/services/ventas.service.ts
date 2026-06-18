@@ -92,6 +92,20 @@ function toNumber(value: Prisma.Decimal | number | string | null | undefined) {
   return Number(value ?? 0);
 }
 
+function turnoLabel(turno: string) {
+  const labels: Record<string, string> = {
+    MANANA: 'Mañana',
+    MAÑANA: 'Mañana',
+    TARDE: 'Tarde',
+    NOCHE: 'Noche',
+  };
+  return labels[turno] ?? turno;
+}
+
+function formatDateLabel(date: Date) {
+  return date.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+}
+
 function parseEntregaFilters(input: Record<string, unknown>): EntregaLecheFilters {
   return {
     clienteId: parseOptionalId(input.clienteId, 'clienteId'),
@@ -139,7 +153,10 @@ async function validateCliente(clienteId: number) {
 async function buildEntregaOrdenes(ordeneIds: number[], excludeEntregaId?: number) {
   const [ordenes, asignadas] = await Promise.all([findOrdenesByIds(ordeneIds), findOrdenesAsignadas(ordeneIds, excludeEntregaId)]);
   if (ordenes.length !== ordeneIds.length) throw new AppError('Uno o más ordeñes no existen o están inactivos.', 404);
-  if (asignadas.length > 0) throw new AppError('Este ordeñe ya fue asignado a una empresa.', 409);
+  if (asignadas.length > 0) {
+    const asignada = asignadas[0];
+    throw new AppError(`El ordeñe del ${formatDateLabel(asignada.ordene.fecha)} - ${turnoLabel(asignada.ordene.turno)} ya fue asignado a un retiro activo.`, 409);
+  }
 
   return ordeneIds.map((ordeneId) => {
     const ordene = ordenes.find((item) => item.id === ordeneId);

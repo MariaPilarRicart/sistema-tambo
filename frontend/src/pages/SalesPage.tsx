@@ -232,6 +232,19 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     }
   }
 
+  async function refreshOrdenesDisponiblesForModal() {
+    if (!authToken) return;
+    try {
+      setOrdenesDisponibles(await getOrdenesDisponiblesVenta(authToken));
+    } catch (loadError) {
+      if (loadError instanceof ApiError && loadError.statusCode === 401) {
+        onUnauthorized();
+      } else {
+        setRetiroFormError(loadError instanceof Error ? loadError.message : 'No se pudieron cargar los ordeñes disponibles.');
+      }
+    }
+  }
+
   useEffect(() => {
     const timer = window.setTimeout(() => void loadData(), 250);
     return () => window.clearTimeout(timer);
@@ -264,6 +277,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     setRetiroFormError('');
     setError('');
     setSuccess('');
+    void refreshOrdenesDisponiblesForModal();
   }
 
   function openEditEntrega(entrega: EntregaLeche) {
@@ -278,6 +292,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     setRetiroFormError('');
     setError('');
     setSuccess('');
+    void refreshOrdenesDisponiblesForModal();
   }
 
   function closeEntregaModal() {

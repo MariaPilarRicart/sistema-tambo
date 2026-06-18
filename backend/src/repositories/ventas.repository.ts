@@ -234,7 +234,7 @@ export function findOrdenesDisponiblesParaEntrega() {
       entregas: {
         none: {
           entregaLeche: {
-            estado: { not: EstadoEntregaLeche.ANULADA },
+            estado: { in: [EstadoEntregaLeche.PENDIENTE, EstadoEntregaLeche.LIQUIDADA] },
           },
         },
       },
@@ -257,11 +257,12 @@ export function findOrdenesAsignadas(ids: number[], excludeEntregaId?: number) {
     where: {
       ordeneId: { in: ids },
       entregaLeche: {
-        estado: { not: EstadoEntregaLeche.ANULADA },
+        estado: { in: [EstadoEntregaLeche.PENDIENTE, EstadoEntregaLeche.LIQUIDADA] },
         id: excludeEntregaId ? { not: excludeEntregaId } : undefined,
       },
     },
     include: {
+      ordene: true,
       entregaLeche: {
         include: {
           cliente: true,
@@ -278,15 +279,24 @@ export function createEntregaLeche(data: {
   usuarioId?: number;
   ordenes: Array<{ ordeneId: number; litrosEntregados: Prisma.Decimal }>;
 }) {
-  return prisma.entregaLeche.create({
-    data: {
-      clienteId: data.clienteId,
-      fechaRetiro: data.fechaRetiro,
-      observacion: data.observacion,
-      usuarioId: data.usuarioId,
-      ordenes: { create: data.ordenes },
-    },
-    include: entregaLecheInclude,
+  const ordeneIds = data.ordenes.map((ordene) => ordene.ordeneId);
+  return prisma.$transaction(async (tx) => {
+    await tx.entregaLecheOrdene.deleteMany({
+      where: {
+        ordeneId: { in: ordeneIds },
+        entregaLeche: { estado: EstadoEntregaLeche.ANULADA },
+      },
+    });
+    return tx.entregaLeche.create({
+      data: {
+        clienteId: data.clienteId,
+        fechaRetiro: data.fechaRetiro,
+        observacion: data.observacion,
+        usuarioId: data.usuarioId,
+        ordenes: { create: data.ordenes },
+      },
+      include: entregaLecheInclude,
+    });
   });
 }
 
@@ -298,6 +308,12 @@ export async function updateEntregaLeche(id: number, data: {
 }) {
   return prisma.$transaction(async (tx) => {
     await tx.entregaLecheOrdene.deleteMany({ where: { entregaLecheId: id } });
+    await tx.entregaLecheOrdene.deleteMany({
+      where: {
+        ordeneId: { in: data.ordenes.map((ordene) => ordene.ordeneId) },
+        entregaLeche: { estado: EstadoEntregaLeche.ANULADA },
+      },
+    });
     return tx.entregaLeche.update({
       where: { id },
       data: {
