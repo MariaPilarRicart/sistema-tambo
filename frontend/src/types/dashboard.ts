@@ -82,6 +82,11 @@ export interface DashboardResumenVentas {
   precioPromedioLitro: number | null;
   cantidadRetiros: number;
   pendientesDeLiquidar: number;
+  principalEmpresa: {
+    id: number;
+    nombre: string;
+    litrosEntregados: number;
+  } | null;
   porcentajeProduccionEntregada: number;
   series: Array<{
     etiqueta: string;

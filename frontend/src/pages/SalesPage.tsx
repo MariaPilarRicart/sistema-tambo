@@ -283,11 +283,13 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     const fechaDesde = searchParams.get('fechaDesde') ?? '';
     const fechaHasta = searchParams.get('fechaHasta') ?? '';
     const estado = searchParams.get('estado') ?? '';
+    const clienteId = searchParams.get('clienteId') ?? '';
     const section = searchParams.get('section');
 
     if (section === 'retiros') {
       setEntregaFilters((current) => ({
         ...current,
+        clienteId,
         fechaDesde,
         fechaHasta,
         estado,
@@ -296,6 +298,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     if (section === 'liquidaciones') {
       setLiquidacionFilters((current) => ({
         ...current,
+        clienteId,
         fechaDesde,
         fechaHasta,
       }));

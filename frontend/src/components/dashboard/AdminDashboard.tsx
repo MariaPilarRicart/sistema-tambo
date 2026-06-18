@@ -260,12 +260,18 @@ export function AdminDashboard({
       url: buildUrl(paths.sales, { section: 'liquidaciones', ...periodParams }),
     },
     {
-      title: 'Nuevas empresas',
-      value: formatNumber(resumen.nuevosClientes),
-      subtitle: 'Empresas compradoras creadas en el período.',
+      title: 'Principal empresa',
+      value: resumen.resumenVentas.principalEmpresa?.nombre ?? 'Sin datos',
+      subtitle: resumen.resumenVentas.principalEmpresa
+        ? `${formatNumber(resumen.resumenVentas.principalEmpresa.litrosEntregados, ' L')} entregados`
+        : 'Empresa con más litros entregados en el período.',
       tone: 'indigo' as MetricTone,
       icon: UserPlus,
-      url: buildUrl(paths.sales, { section: 'empresas', ...periodParams }),
+      url: buildUrl(paths.sales, {
+        section: 'retiros',
+        ...(resumen.resumenVentas.principalEmpresa ? { clienteId: String(resumen.resumenVentas.principalEmpresa.id) } : {}),
+        ...periodParams,
+      }),
     },
     {
       title: 'Litros entregados',

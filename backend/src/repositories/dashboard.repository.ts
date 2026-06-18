@@ -122,6 +122,12 @@ export function countProduccionesForDashboard(fechaDesde: Date, fechaHasta: Date
   });
 }
 
+export function countOrdenesForDashboard(fechaDesde: Date, fechaHasta: Date) {
+  return prisma.ordene.count({
+    where: { activo: true, fecha: { gte: fechaDesde, lte: fechaHasta } },
+  });
+}
+
 export function countRegistrosAlimentacionForDashboard(fechaDesde: Date, fechaHasta: Date) {
   return prisma.registroAlimentacion.count({
     where: { fecha: { gte: fechaDesde, lte: fechaHasta } },
@@ -215,6 +221,25 @@ export function findVentasByDateRange(fechaDesde: Date, fechaHasta: Date) {
         select: {
           id: true,
           razonSocial: true,
+        },
+      },
+    },
+  });
+}
+
+export function findOrdenesByDateRange(fechaDesde: Date, fechaHasta: Date) {
+  return prisma.ordene.findMany({
+    where: { activo: true, fecha: { gte: fechaDesde, lte: fechaHasta } },
+    orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
+    select: {
+      id: true,
+      fecha: true,
+      turno: true,
+      litrosBuenos: true,
+      litrosDescartados: true,
+      detalles: {
+        select: {
+          animalId: true,
         },
       },
     },

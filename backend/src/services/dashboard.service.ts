@@ -6,7 +6,7 @@ import {
   countDashboardAgendaTasks,
   countEventosForDashboard,
   countLotesLecheVencidosForDashboard,
-  countProduccionesForDashboard,
+  countOrdenesForDashboard,
   countRodeoGeneralForDashboard,
   countRegistrosAlimentacionForDashboard,
   countSanitaryTasks,
@@ -17,7 +17,7 @@ import {
   findInsumosForDashboard,
   findLiquidacionesLecheByDateRange,
   findLotesLecheByDateRange,
-  findProduccionesByDateRange,
+  findOrdenesByDateRange,
   findSanitaryTasksForDashboard,
   findUltimosEventosSanitarios,
   findUltimosEventos,
@@ -155,34 +155,27 @@ function calculateCoverage(litrosNetos: number, litrosVendidos: number) {
 }
 
 function buildProductionSummary(
-  producciones: Awaited<ReturnType<typeof findProduccionesByDateRange>>,
+  ordenes: Awaited<ReturnType<typeof findOrdenesByDateRange>>,
   lotesPeriodo: Awaited<ReturnType<typeof findLotesLecheByDateRange>>,
   periodo: DashboardPeriodoInput,
 ) {
-  const litrosProducidos = producciones.reduce((total, item) => total + toNumber(item.litrosProducidos), 0);
-  const litrosDescartados = producciones.reduce((total, item) => total + toNumber(item.litrosDescartados), 0);
-  const litrosNetos = Math.max(litrosProducidos - litrosDescartados, 0);
-  const animalIds = new Set(producciones.map((item) => item.animalId));
+  const litrosNetos = ordenes.reduce((total, item) => total + toNumber(item.litrosBuenos), 0);
+  const litrosDescartados = ordenes.reduce((total, item) => total + toNumber(item.litrosDescartados), 0);
+  const litrosProducidos = litrosNetos + litrosDescartados;
+  const animalIds = new Set(ordenes.flatMap((item) => item.detalles.map((detalle) => detalle.animalId)));
   const seriesMap = new Map<string, { etiqueta: string; litrosProducidos: number; litrosNetos: number; litrosDescartados: number }>();
 
-  for (const item of producciones) {
-    const etiqueta = formatSeriesLabel(item.fechaHora, periodo, periodo === 'hoy' ? item.turno : undefined);
+  for (const item of ordenes) {
+    const etiqueta = formatSeriesLabel(item.fecha, periodo, periodo === 'hoy' ? item.turno : undefined);
     const current = seriesMap.get(etiqueta) ?? { etiqueta, litrosProducidos: 0, litrosNetos: 0, litrosDescartados: 0 };
-    const produced = toNumber(item.litrosProducidos);
+    const buenos = toNumber(item.litrosBuenos);
     const discarded = toNumber(item.litrosDescartados);
-    current.litrosProducidos += produced;
+    current.litrosProducidos += buenos + discarded;
     current.litrosDescartados += discarded;
-    current.litrosNetos += Math.max(produced - discarded, 0);
+    current.litrosNetos += buenos;
     seriesMap.set(etiqueta, current);
   }
 
-  const productionByLote = new Map<number, { codigo: string; litros: number }>();
-  for (const item of producciones) {
-    const current = productionByLote.get(item.loteLeche.id) ?? { codigo: item.loteLeche.codigo, litros: 0 };
-    current.litros += toNumber(item.litrosProducidos);
-    productionByLote.set(item.loteLeche.id, current);
-  }
-  const loteMayorProduccion = Array.from(productionByLote.values()).sort((a, b) => b.litros - a.litros)[0] ?? null;
   const ultimoLote = lotesPeriodo[0] ?? null;
   const series = Array.from(seriesMap.values()).map((item) => ({
     ...item,
@@ -190,7 +183,7 @@ function buildProductionSummary(
     litrosNetos: round(item.litrosNetos),
     litrosDescartados: round(item.litrosDescartados),
   }));
-  const uniqueProductionDays = new Set(producciones.map((item) => item.fechaHora.toISOString().slice(0, 10))).size;
+  const uniqueProductionDays = new Set(ordenes.map((item) => formatDateLabel(item.fecha))).size;
   const promedioDiarioProducido = uniqueProductionDays > 0 ? round(litrosProducidos / uniqueProductionDays) : null;
   const sortedSeries = [...series].sort((a, b) => a.etiqueta.localeCompare(b.etiqueta));
   const firstHalf = sortedSeries.slice(0, Math.max(Math.floor(sortedSeries.length / 2), 1));
@@ -215,9 +208,9 @@ function buildProductionSummary(
     litrosNetos: round(litrosNetos),
     litrosDescartados: round(litrosDescartados),
     porcentajeDescarte: litrosProducidos > 0 ? round((litrosDescartados / litrosProducidos) * 100) : 0,
-    cantidadRegistros: producciones.length,
+    cantidadRegistros: ordenes.length,
     animalesConProduccion: animalIds.size,
-    promedioLitrosPorAnimal: animalIds.size > 0 ? round(litrosProducidos / animalIds.size) : null,
+    promedioLitrosPorAnimal: animalIds.size > 0 ? round(litrosNetos / animalIds.size) : null,
     promedioDiarioProducido,
     diaMayorProduccion: diaMayorProduccion
       ? { etiqueta: diaMayorProduccion.etiqueta, litrosProducidos: diaMayorProduccion.litrosProducidos }
@@ -231,12 +224,7 @@ function buildProductionSummary(
           litrosNetos: round(toNumber(ultimoLote.litrosNetos)),
         }
       : null,
-    loteMayorProduccion: loteMayorProduccion
-      ? {
-          codigo: loteMayorProduccion.codigo,
-          litrosProducidos: round(loteMayorProduccion.litros),
-        }
-      : null,
+    loteMayorProduccion: null,
     series,
   };
 }
@@ -331,14 +319,20 @@ function buildSalesSummary(
   const ultimaEntrega = entregas[0] ?? null;
   const pendientesDeLiquidar = entregas.filter((entrega) => entrega.estado === 'PENDIENTE').length;
   const seriesMap = new Map<string, { etiqueta: string; litrosEntregados: number; importeLiquidado: number }>();
+  const empresasMap = new Map<number, { id: number; nombre: string; litrosEntregados: number }>();
 
   for (const entrega of entregas) {
+    const litrosEntrega = entrega.ordenes.reduce((subtotal, detalle) => subtotal + toNumber(detalle.litrosEntregados), 0);
     const etiqueta = periodo === 'anio'
       ? entrega.fechaRetiro.toLocaleString('es-AR', { month: 'short' })
       : formatDateLabel(entrega.fechaRetiro);
     const current = seriesMap.get(etiqueta) ?? { etiqueta, litrosEntregados: 0, importeLiquidado: 0 };
-    current.litrosEntregados += entrega.ordenes.reduce((subtotal, detalle) => subtotal + toNumber(detalle.litrosEntregados), 0);
+    current.litrosEntregados += litrosEntrega;
     seriesMap.set(etiqueta, current);
+
+    const empresa = empresasMap.get(entrega.cliente.id) ?? { id: entrega.cliente.id, nombre: entrega.cliente.razonSocial, litrosEntregados: 0 };
+    empresa.litrosEntregados += litrosEntrega;
+    empresasMap.set(entrega.cliente.id, empresa);
   }
 
   for (const liquidacion of liquidaciones) {
@@ -356,6 +350,10 @@ function buildSalesSummary(
     precioPromedioLitro: litrosEntregados > 0 ? round(importeLiquidado / litrosEntregados) : null,
     cantidadRetiros: entregas.length,
     pendientesDeLiquidar,
+    principalEmpresa: (() => {
+      const principal = Array.from(empresasMap.values()).sort((a, b) => b.litrosEntregados - a.litrosEntregados)[0] ?? null;
+      return principal ? { ...principal, litrosEntregados: round(principal.litrosEntregados) } : null;
+    })(),
     porcentajeProduccionEntregada: litrosProducidos > 0 ? round((litrosEntregados / litrosProducidos) * 100) : 0,
     series: Array.from(seriesMap.values()).map((item) => ({
       etiqueta: item.etiqueta,
@@ -848,7 +846,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     partosPendientes,
     ultimosEventos,
     rodeoGeneral,
-    produccionesPeriodo,
+    ordenesPeriodo,
     lotesPeriodo,
     entregasLechePeriodo,
     liquidacionesLechePeriodo,
@@ -891,7 +889,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     countTareas(openTaskWhere({ tipo: TipoTarea.PARTO }, effectiveTaskDateBetween(todayStart, todayEnd))),
     findUltimosEventos(),
     countRodeoGeneralForDashboard(),
-    findProduccionesByDateRange(fechaDesde, fechaHasta),
+    findOrdenesByDateRange(fechaDesde, fechaHasta),
     findLotesLecheByDateRange(fechaDesde, fechaHasta),
     findEntregasLecheByDateRange(fechaDesde, fechaHasta),
     findLiquidacionesLecheByDateRange(fechaDesde, fechaHasta),
@@ -913,7 +911,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
         { fechaObjetivo: null, fechaProgramada: { gt: todayEnd, lte: nextSevenDaysEnd } },
       ],
     })),
-    countProduccionesForDashboard(todayStart, todayEnd),
+    countOrdenesForDashboard(todayStart, todayEnd),
     countRegistrosAlimentacionForDashboard(todayStart, todayEnd),
     countEventosForDashboard(todayStart, todayEnd),
     countClientesForDashboard(fechaDesde, fechaHasta),
@@ -921,7 +919,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     countDashboardAgendaTasks(openTaskWhere(effectiveTaskDateBetween(fechaDesde, fechaHasta), effectiveTaskDateBetween(todayStart, todayEnd))),
     countDashboardAgendaTasks(openTaskWhere(effectiveTaskDateBetween(fechaDesde, fechaHasta), effectiveTaskDateBefore(todayStart))),
   ]);
-  const resumenProduccion = buildProductionSummary(produccionesPeriodo, lotesPeriodo, periodo);
+  const resumenProduccion = buildProductionSummary(ordenesPeriodo, lotesPeriodo, periodo);
   const resumenVentas = buildSalesSummary(entregasLechePeriodo, liquidacionesLechePeriodo, resumenProduccion.litrosProducidos, periodo);
   const resumenLeche = buildMilkSummary(lotesDisponibles, todayStart);
   const resumenAlimentacion = buildFeedingSummary(insumos, ultimosMovimientosStock, ultimosRegistrosAlimentacion);
