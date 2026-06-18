@@ -2980,6 +2980,27 @@ a {
   grid-column: 1 / -1;
 }
 
+.form-subsection {
+  border: 1px solid var(--slate-200);
+  border-radius: 12px;
+  display: grid;
+  gap: 12px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 12px;
+}
+
+.event-detail-list {
+  display: grid;
+  gap: 4px;
+}
+
+.event-detail-list small {
+  color: var(--slate-500);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .modal-actions {
   display: flex;
   gap: 12px;

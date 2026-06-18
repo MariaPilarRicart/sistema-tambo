@@ -8,6 +8,13 @@ const eventoInclude = {
       caravana: true,
       categoriaAnimal: true,
       estadoReproductivo: true,
+      lote: {
+        select: {
+          id: true,
+          nombre: true,
+          tipoFuncional: true,
+        },
+      },
     },
   },
   usuario: {

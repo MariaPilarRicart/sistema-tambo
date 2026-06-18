@@ -28,6 +28,30 @@ export async function getEventos(token: string, filters: EventoFilters) {
 }
 
 export async function createEvento(token: string, animalId: number, values: EventoFormValues) {
+  const datosJson = values.tipo === 'TACTO'
+    ? { resultado: values.resultadoTacto }
+    : values.tipo === 'PARTO'
+      ? {
+          parto: {
+            cantidadCrias: values.cantidadCrias,
+            guacheraLoteId: values.guacheraLoteId ? Number(values.guacheraLoteId) : null,
+            crias: values.crias.map((cria) => ({
+              categoria: cria.categoria,
+              estadoNacimiento: cria.estadoNacimiento,
+              caravana: cria.caravana.trim() || null,
+              observacion: cria.observacion.trim() || null,
+            })),
+          },
+        }
+      : values.tipo === 'CAMBIO_LOTE'
+        ? {
+            cambioLote: {
+              loteDestinoId: Number(values.cambioLoteDestinoId),
+              motivo: values.observaciones.trim() || null,
+            },
+          }
+        : undefined;
+
   const response = await apiRequest<EventoResponse>('/eventos', {
     method: 'POST',
     token,
@@ -36,9 +60,7 @@ export async function createEvento(token: string, animalId: number, values: Even
       tipo: values.tipo,
       fecha: buildEventDate(values.fecha),
       observaciones: values.observaciones.trim() || null,
-      ...(values.tipo === 'TACTO'
-        ? { datosJson: { resultado: values.resultadoTacto } }
-        : {}),
+      ...(datosJson ? { datosJson } : {}),
     }),
   });
 

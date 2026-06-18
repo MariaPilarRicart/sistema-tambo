@@ -30,6 +30,7 @@ export interface Evento {
     lote?: {
       id: number;
       nombre: string;
+      tipoFuncional?: string;
     } | null;
   };
   usuario: {
@@ -52,4 +53,13 @@ export interface EventoFormValues {
   fecha: string;
   observaciones: string;
   resultadoTacto: 'POSITIVO' | 'NEGATIVO';
+  cambioLoteDestinoId: string;
+  cantidadCrias: 1 | 2 | 3;
+  guacheraLoteId: string;
+  crias: Array<{
+    categoria: 'TERNERO' | 'TERNERA';
+    estadoNacimiento: 'VIVA' | 'MUERTA';
+    caravana: string;
+    observacion: string;
+  }>;
 }

@@ -53,11 +53,12 @@ const tipoEventoOptions: TipoEvento[] = [
   'PARTO',
   'ABORTO',
   'CLINICO',
+  'CAMBIO_LOTE',
   'VENTA',
   'MUERTE',
 ];
 
-const nonReproductiveEventOptions: TipoEvento[] = ['CLINICO', 'VENTA', 'MUERTE'];
+const nonReproductiveEventOptions: TipoEvento[] = ['CLINICO', 'CAMBIO_LOTE', 'VENTA', 'MUERTE'];
 const noAplicaCategories: CategoriaAnimal[] = ['TERNERO', 'TERNERA', 'TORITO', 'TORO'];
 const maleCategories: CategoriaAnimal[] = ['TERNERO', 'TORITO', 'TORO'];
 const cowLoteTypes: TipoFuncionalLote[] = ['PRODUCCION', 'SECAS', 'PREPARTO', 'RECUPERACION'];
@@ -96,6 +97,10 @@ const emptyEventoForm: EventoFormValues = {
   fecha: localDateInput(new Date()),
   observaciones: '',
   resultadoTacto: 'POSITIVO',
+  cambioLoteDestinoId: '',
+  cantidadCrias: 1,
+  guacheraLoteId: '',
+  crias: [{ categoria: 'TERNERA', estadoNacimiento: 'VIVA', caravana: '', observacion: '' }],
 };
 
 const emptyDeactivateForm: AnimalDeactivateValues = {
@@ -224,6 +229,29 @@ function getAvailableEventOptions(animal: Animal) {
   return isReproductiveAnimal(animal)
     ? tipoEventoOptions
     : nonReproductiveEventOptions;
+}
+
+function getCompatibleLoteTypesForAnimal(animal: Animal): TipoFuncionalLote[] {
+  const ageMonths = calculateAgeMonths(localDateInput(animal.fechaNacimiento));
+  const category = toFunctionalCategory(animal.categoriaAnimal);
+
+  if (category === 'VACA') return cowLoteTypes;
+  if (category === 'VAQUILLONA') return ['TERNERA_2'];
+  if (category === 'TORITO') return ['TORITOS'];
+  if (category === 'TORO') return ['TOROS'];
+  if (category === 'TERNERO' || category === 'TERNERA') {
+    if (ageMonths === null || ageMonths < 4) return ['GUACHERA'];
+    if (ageMonths < 8) return ['ESCUELITA'];
+    return ['TERNERA_1'];
+  }
+
+  return [];
+}
+
+function buildCrias(cantidadCrias: 1 | 2 | 3, current: EventoFormValues['crias']) {
+  return Array.from({ length: cantidadCrias }, (_, index) => (
+    current[index] ?? { categoria: 'TERNERA', estadoNacimiento: 'VIVA', caravana: '', observacion: '' }
+  ));
 }
 
 interface HerdPageProps {
@@ -375,8 +403,14 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
 
   function startRegisteringEvent(animal: Animal) {
     const availableEvents = getAvailableEventOptions(animal);
+    const guacheraLotes = activeLotes.filter((lote) => lote.tipoFuncional === 'GUACHERA');
     setEventAnimal(animal);
-    setEventFormValues({ ...emptyEventoForm, tipo: availableEvents[0], fecha: localDateInput(new Date()) });
+    setEventFormValues({
+      ...emptyEventoForm,
+      tipo: availableEvents[0],
+      fecha: localDateInput(new Date()),
+      guacheraLoteId: guacheraLotes.length === 1 ? String(guacheraLotes[0].id) : '',
+    });
     setError('');
     setSuccess('');
   }
@@ -889,11 +923,42 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                 <span>Tipo de evento</span>
                 <select
                   value={eventFormValues.tipo}
-                  onChange={(event) => setEventFormValues({ ...eventFormValues, tipo: event.target.value as TipoEvento })}
+                  onChange={(event) => {
+                    const nextTipo = event.target.value as TipoEvento;
+                    const guacheraLotes = activeLotes.filter((lote) => lote.tipoFuncional === 'GUACHERA');
+                    setEventFormValues({
+                      ...eventFormValues,
+                      tipo: nextTipo,
+                      guacheraLoteId: nextTipo === 'PARTO' && guacheraLotes.length === 1
+                        ? String(guacheraLotes[0].id)
+                        : eventFormValues.guacheraLoteId,
+                    });
+                  }}
                 >
                   {getAvailableEventOptions(eventAnimal).map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </label>
+
+              {eventFormValues.tipo === 'CAMBIO_LOTE' && (
+                <>
+                  <div className="form-warning">
+                    Lote actual: {eventAnimal.lote.nombre}. Seleccione un lote destino compatible.
+                  </div>
+                  <label>
+                    <span>Lote destino</span>
+                    <select
+                      value={eventFormValues.cambioLoteDestinoId}
+                      onChange={(event) => setEventFormValues({ ...eventFormValues, cambioLoteDestinoId: event.target.value })}
+                      required
+                    >
+                      <option value="">Seleccionar lote</option>
+                      {activeLotes
+                        .filter((lote) => getCompatibleLoteTypesForAnimal(eventAnimal).includes(lote.tipoFuncional))
+                        .map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
+                    </select>
+                  </label>
+                </>
+              )}
 
               <label>
                 <span>Fecha del evento</span>
@@ -916,6 +981,107 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                     <option value="NEGATIVO">NEGATIVO</option>
                   </select>
                 </label>
+              )}
+
+              {eventFormValues.tipo === 'PARTO' && (
+                <>
+                  <label>
+                    <span>Crías nacidas</span>
+                    <select
+                      value={eventFormValues.cantidadCrias}
+                      onChange={(event) => {
+                        const cantidadCrias = Number(event.target.value) as 1 | 2 | 3;
+                        setEventFormValues({
+                          ...eventFormValues,
+                          cantidadCrias,
+                          crias: buildCrias(cantidadCrias, eventFormValues.crias),
+                        });
+                      }}
+                    >
+                      <option value={1}>Simple</option>
+                      <option value={2}>Mellizos</option>
+                      <option value={3}>Trillizos</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Lote Guachera para crías vivas</span>
+                    <select
+                      value={eventFormValues.guacheraLoteId}
+                      onChange={(event) => setEventFormValues({ ...eventFormValues, guacheraLoteId: event.target.value })}
+                      required={eventFormValues.crias.some((cria) => cria.estadoNacimiento === 'VIVA')}
+                    >
+                      <option value="">Seleccionar Guachera</option>
+                      {activeLotes
+                        .filter((lote) => lote.tipoFuncional === 'GUACHERA')
+                        .map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
+                    </select>
+                  </label>
+                  {activeLotes.every((lote) => lote.tipoFuncional !== 'GUACHERA') && (
+                    <div className="form-error">No existe un lote Guachera activo para registrar crías vivas.</div>
+                  )}
+                  <div className="form-warning">
+                    La caravana es obligatoria para crías nacidas vivas.
+                  </div>
+                  <div className="form-warning">
+                    Las crías nacidas muertas se registran en el parto, pero no se agregan al Rodeo.
+                  </div>
+                  {eventFormValues.crias.map((cria, index) => (
+                    <div className="form-subsection" key={index}>
+                      <label>
+                        <span>Cría {index + 1}</span>
+                        <select
+                          value={cria.categoria}
+                          onChange={(event) => {
+                            const crias = [...eventFormValues.crias];
+                            crias[index] = { ...cria, categoria: event.target.value as 'TERNERO' | 'TERNERA' };
+                            setEventFormValues({ ...eventFormValues, crias });
+                          }}
+                        >
+                          <option value="TERNERO">Ternero</option>
+                          <option value="TERNERA">Ternera</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Estado al nacer</span>
+                        <select
+                          value={cria.estadoNacimiento}
+                          onChange={(event) => {
+                            const crias = [...eventFormValues.crias];
+                            crias[index] = { ...cria, estadoNacimiento: event.target.value as 'VIVA' | 'MUERTA' };
+                            setEventFormValues({ ...eventFormValues, crias });
+                          }}
+                        >
+                          <option value="VIVA">Viva</option>
+                          <option value="MUERTA">Muerta</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Caravana</span>
+                        <input
+                          value={cria.caravana}
+                          onChange={(event) => {
+                            const crias = [...eventFormValues.crias];
+                            crias[index] = { ...cria, caravana: event.target.value };
+                            setEventFormValues({ ...eventFormValues, crias });
+                          }}
+                          required={cria.estadoNacimiento === 'VIVA'}
+                          placeholder={cria.estadoNacimiento === 'VIVA' ? 'Obligatoria' : 'Opcional'}
+                        />
+                      </label>
+                      <label>
+                        <span>Observación</span>
+                        <input
+                          value={cria.observacion}
+                          onChange={(event) => {
+                            const crias = [...eventFormValues.crias];
+                            crias[index] = { ...cria, observacion: event.target.value };
+                            setEventFormValues({ ...eventFormValues, crias });
+                          }}
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </>
               )}
 
               <label>

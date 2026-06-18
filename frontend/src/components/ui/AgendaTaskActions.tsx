@@ -23,6 +23,10 @@ function buildEventForm(task: AgendaTarea): EventoFormValues {
     fecha: new Date().toISOString().slice(0, 10),
     observaciones: task.descripcion ?? '',
     resultadoTacto: 'POSITIVO',
+    cambioLoteDestinoId: '',
+    cantidadCrias: 1,
+    guacheraLoteId: '',
+    crias: [{ categoria: 'TERNERA', estadoNacimiento: 'VIVA', caravana: '', observacion: '' }],
   };
 }
 

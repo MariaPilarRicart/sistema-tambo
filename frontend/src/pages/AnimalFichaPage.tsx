@@ -20,6 +20,48 @@ function InfoItem({ label, value }: { label: string; value: string | number | nu
   );
 }
 
+function renderEventoDetalle(evento: AnimalFicha['eventos'][number]) {
+  const datos = evento.datosJson && typeof evento.datosJson === 'object' && !Array.isArray(evento.datosJson)
+    ? evento.datosJson as Record<string, unknown>
+    : null;
+  const parto = datos?.parto && typeof datos.parto === 'object' && !Array.isArray(datos.parto)
+    ? datos.parto as { cantidadCrias?: unknown; crias?: unknown }
+    : null;
+  const cambioLote = datos?.cambioLote && typeof datos.cambioLote === 'object' && !Array.isArray(datos.cambioLote)
+    ? datos.cambioLote as { loteAnterior?: { nombre?: string }; loteNuevo?: { nombre?: string }; motivo?: string | null }
+    : null;
+
+  if (parto && Array.isArray(parto.crias)) {
+    return (
+      <div className="event-detail-list">
+        <span>{evento.observaciones || `Parto con ${parto.cantidadCrias ?? parto.crias.length} cría(s)`}</span>
+        {parto.crias.map((cria, index) => {
+          const item = cria as { categoria?: string; estadoNacimiento?: string; caravana?: string | null; agregadaARodeo?: boolean; observacion?: string | null };
+          return (
+            <small key={index}>
+              Cría {index + 1}: {item.categoria} · {item.estadoNacimiento}
+              {item.caravana ? ` · #${item.caravana}` : ''}
+              {item.agregadaARodeo ? ' · agregada a Rodeo' : ' · no agregada a Rodeo'}
+              {item.observacion ? ` · ${item.observacion}` : ''}
+            </small>
+          );
+        })}
+      </div>
+    );
+  }
+
+  if (cambioLote) {
+    return (
+      <div className="event-detail-list">
+        <span>{evento.observaciones || cambioLote.motivo || 'Cambio de lote'}</span>
+        <small>{cambioLote.loteAnterior?.nombre ?? '-'} → {cambioLote.loteNuevo?.nombre ?? '-'}</small>
+      </div>
+    );
+  }
+
+  return evento.observaciones || '-';
+}
+
 export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPageProps) {
   const { id } = useParams();
   const location = useLocation();
@@ -186,7 +228,7 @@ export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPagePr
                       <td>{formatDateTime(evento.fecha)}</td>
                       <td><span className="status-pill status-active">{evento.tipo}</span></td>
                       <td>{evento.usuario?.nombre ?? 'Sin usuario'}</td>
-                      <td>{evento.observaciones || '-'}</td>
+                      <td>{renderEventoDetalle(evento)}</td>
                     </tr>
                   ))}
                   {animal.eventos.length === 0 && (
