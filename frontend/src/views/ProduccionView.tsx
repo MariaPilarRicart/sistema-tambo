@@ -574,42 +574,6 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         </div>
       )}
 
-      <section className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>Vacas habilitadas</h2>
-            <p>Compatibles con producción por lote funcional.</p>
-          </div>
-          <Droplets size={20} />
-        </div>
-        <div className="table-wrap">
-          <table className="users-table">
-            <thead>
-              <tr>
-                <th>Caravana</th>
-                <th>Nombre</th>
-                <th>Lote</th>
-                <th>Estado reproductivo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {animalesHabilitados.map((animal) => (
-                <tr key={animal.id}>
-                  <td>{animal.caravana}</td>
-                  <td>{animal.nombre ?? '-'}</td>
-                  <td>{animal.lote.nombre}</td>
-                  <td>{estadoReproductivoLabels[animal.estadoReproductivo]}</td>
-                </tr>
-              ))}
-              {animalesHabilitados.length === 0 && (
-                <tr>
-                  <td colSpan={4}>No hay vacas activas en lotes de Producción o Recuperación.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   );
 }
