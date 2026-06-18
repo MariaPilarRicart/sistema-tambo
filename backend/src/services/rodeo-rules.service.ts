@@ -26,9 +26,6 @@ const categoriasHembra: CategoriaAnimal[] = [
   CategoriaAnimal.VACA,
   CategoriaAnimal.GUACHERA,
   CategoriaAnimal.ESCUELITA,
-  CategoriaAnimal.VACA_PRODUCCION,
-  CategoriaAnimal.VACA_SECA,
-  CategoriaAnimal.PREPARTO,
 ];
 
 const categoriasConEstadoReproductivo: CategoriaAnimal[] = [
@@ -51,6 +48,21 @@ const lotesVaca = [
   RODEO_LOTES.PREPARTO,
   RODEO_LOTES.RECUPERACION,
 ];
+
+// Compatibilidad: categorias viejas de vaca se convierten a VACA + lote canonico.
+const lotesCompatibilidadVacaLegacy: Partial<Record<CategoriaAnimal, string>> = {
+  [CategoriaAnimal.VACA_PRODUCCION]: RODEO_LOTES.PRODUCCION,
+  [CategoriaAnimal.VACA_SECA]: RODEO_LOTES.SECAS,
+  [CategoriaAnimal.PREPARTO]: RODEO_LOTES.PREPARTO,
+};
+
+function getLoteCompatibilidadVacaLegacy(categoriaAnimal: CategoriaAnimal) {
+  return lotesCompatibilidadVacaLegacy[categoriaAnimal] ?? null;
+}
+
+function esCategoriaLegacyVaca(categoriaAnimal: CategoriaAnimal) {
+  return Boolean(getLoteCompatibilidadVacaLegacy(categoriaAnimal));
+}
 
 export function calcularEdadMeses(fechaNacimiento: Date, referencia = new Date()) {
   let meses = (referencia.getFullYear() - fechaNacimiento.getFullYear()) * 12;
@@ -76,11 +88,7 @@ export function normalizarCategoriaFuncional(categoriaAnimal: CategoriaAnimal) {
     return CategoriaAnimal.TERNERA;
   }
 
-  if (
-    categoriaAnimal === CategoriaAnimal.VACA_PRODUCCION ||
-    categoriaAnimal === CategoriaAnimal.VACA_SECA ||
-    categoriaAnimal === CategoriaAnimal.PREPARTO
-  ) {
+  if (esCategoriaLegacyVaca(categoriaAnimal)) {
     return CategoriaAnimal.VACA;
   }
 
@@ -185,27 +193,12 @@ export function normalizarCategoriaLoteEstado(input: {
       throw new AppError('Solo Vaquillona y Vaca pueden tener estado reproductivo.', 400);
     }
 
-    if (input.categoriaAnimal === CategoriaAnimal.VACA_PRODUCCION) {
+    const loteLegacy = getLoteCompatibilidadVacaLegacy(input.categoriaAnimal);
+    if (loteLegacy) {
       return {
         categoriaAnimal: CategoriaAnimal.VACA,
         estadoReproductivo: input.estadoReproductivo,
-        loteNombre: RODEO_LOTES.PRODUCCION,
-      };
-    }
-
-    if (input.categoriaAnimal === CategoriaAnimal.VACA_SECA) {
-      return {
-        categoriaAnimal: CategoriaAnimal.VACA,
-        estadoReproductivo: input.estadoReproductivo,
-        loteNombre: RODEO_LOTES.SECAS,
-      };
-    }
-
-    if (input.categoriaAnimal === CategoriaAnimal.PREPARTO) {
-      return {
-        categoriaAnimal: CategoriaAnimal.VACA,
-        estadoReproductivo: input.estadoReproductivo,
-        loteNombre: RODEO_LOTES.PREPARTO,
+        loteNombre: loteLegacy,
       };
     }
 

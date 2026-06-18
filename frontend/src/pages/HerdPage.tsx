@@ -61,6 +61,12 @@ const nonReproductiveEventOptions: TipoEvento[] = ['CLINICO', 'VENTA', 'MUERTE']
 const noAplicaCategories: CategoriaAnimal[] = ['TERNERO', 'TERNERA', 'TORITO', 'TORO'];
 const maleCategories: CategoriaAnimal[] = ['TERNERO', 'TORITO', 'TORO'];
 const cowLotes = ['Producción', 'Secas', 'Preparto', 'Recuperación'];
+// Compatibilidad visual: categorias viejas de vaca se editan como VACA.
+const legacyCowCategoryMap: Partial<Record<CategoriaAnimal, CategoriaAnimal>> = {
+  VACA_PRODUCCION: 'VACA',
+  VACA_SECA: 'VACA',
+  PREPARTO: 'VACA',
+};
 
 const emptyFilters: AnimalFilters = {
   caravana: '',
@@ -125,7 +131,7 @@ function isReproductiveCategory(category: CategoriaAnimal) {
 
 function toFunctionalCategory(category: CategoriaAnimal): CategoriaAnimal {
   if (category === 'GUACHERA' || category === 'ESCUELITA') return 'TERNERA';
-  if (category === 'VACA_PRODUCCION' || category === 'VACA_SECA' || category === 'PREPARTO') return 'VACA';
+  if (legacyCowCategoryMap[category]) return legacyCowCategoryMap[category];
   return category;
 }
 
