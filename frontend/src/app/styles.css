@@ -3558,6 +3558,10 @@ a {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.sale-detail-summary {
+  margin-bottom: 18px;
+}
+
 .animal-status-grid .info-item:last-child {
   grid-column: 1 / -1;
 }

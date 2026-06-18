@@ -1,9 +1,9 @@
 import { EstadoEntregaLeche, Prisma } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 import {
-  anularEntregaLeche,
   createEntregaLeche,
   createLiquidacionLeche,
+  deleteEntregaLeche,
   findClienteForVenta,
   findEntregaLecheById,
   findEntregasLeche,
@@ -151,7 +151,9 @@ async function buildEntregaOrdenes(ordeneIds: number[], excludeEntregaId?: numbe
 }
 
 export async function listEntregas(query: Record<string, unknown>) {
-  return findEntregasLeche(parseEntregaFilters(query));
+  const filters = parseEntregaFilters(query);
+  const entregas = await findEntregasLeche(filters);
+  return filters.estado ? entregas : entregas.filter((entrega) => entrega.estado !== EstadoEntregaLeche.ANULADA);
 }
 
 export async function listOrdenesDisponibles() {
@@ -208,8 +210,10 @@ export async function deleteExistingEntrega(idParam: string) {
   const id = parseId(idParam, 'Id de retiro');
   const existing = await findEntregaLecheById(id);
   if (!existing) throw new AppError('Retiro de leche no encontrado.', 404);
-  if (existing.estado !== EstadoEntregaLeche.PENDIENTE) throw new AppError('Solo se pueden anular retiros pendientes de liquidar.', 400);
-  return anularEntregaLeche(id);
+  if (existing.estado === EstadoEntregaLeche.LIQUIDADA || existing.liquidacionId) {
+    throw new AppError('No se puede eliminar un retiro que ya fue liquidado.', 400);
+  }
+  return deleteEntregaLeche(id);
 }
 
 export async function listLiquidaciones(query: Record<string, unknown>) {

@@ -130,8 +130,14 @@ function clienteLabel(cliente: Cliente) {
   return `${cliente.cuit} - ${cliente.razonSocial}`;
 }
 
-function ordeneLabel(ordene: Ordene) {
-  return `${formatDate(ordene.fecha)} - ${ordene.turno} - ${formatLiters(ordene.litrosBuenos)}`;
+function turnoLabel(turno: string) {
+  const labels: Record<string, string> = {
+    MANANA: 'Mañana',
+    MAÑANA: 'Mañana',
+    TARDE: 'Tarde',
+    NOCHE: 'Noche',
+  };
+  return labels[turno] ?? turno;
 }
 
 function entregaLitros(entrega: EntregaLeche) {
@@ -169,6 +175,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   const [showEntregaModal, setShowEntregaModal] = useState(false);
   const [showLiquidacionModal, setShowLiquidacionModal] = useState(false);
   const [showClienteModal, setShowClienteModal] = useState(false);
+  const [retiroFormError, setRetiroFormError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -254,6 +261,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   function openEntregaModal() {
     resetEntregaForm();
     setShowEntregaModal(true);
+    setRetiroFormError('');
     setError('');
     setSuccess('');
   }
@@ -267,12 +275,14 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
       observacion: entrega.observacion ?? '',
     });
     setShowEntregaModal(true);
+    setRetiroFormError('');
     setError('');
     setSuccess('');
   }
 
   function closeEntregaModal() {
     setShowEntregaModal(false);
+    setRetiroFormError('');
     resetEntregaForm();
   }
 
@@ -316,6 +326,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     event.preventDefault();
     if (!authToken) return onUnauthorized();
     setIsSaving(true);
+    setRetiroFormError('');
     setError('');
     setSuccess('');
     try {
@@ -329,7 +340,11 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
       closeEntregaModal();
       await loadData();
     } catch (saveError) {
-      handleRequestError(saveError, editingEntrega ? 'No se pudo actualizar el retiro.' : 'No se pudo registrar el retiro.');
+      if (saveError instanceof ApiError && saveError.statusCode === 401) {
+        onUnauthorized();
+      } else {
+        setRetiroFormError(saveError instanceof Error ? saveError.message : (editingEntrega ? 'No se pudo actualizar el retiro.' : 'No se pudo registrar el retiro.'));
+      }
     } finally {
       setIsSaving(false);
     }
@@ -337,16 +352,16 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
 
   async function handleDeleteEntrega(entrega: EntregaLeche) {
     if (!authToken) return onUnauthorized();
-    if (!window.confirm('¿Deseás anular este retiro de leche?')) return;
+    if (!window.confirm('¿Deseás eliminar este retiro de leche? Los ordeñes quedarán disponibles nuevamente.')) return;
     setIsSaving(true);
     setError('');
     setSuccess('');
     try {
       await deleteEntregaLeche(authToken, entrega.id);
-      setSuccess('Retiro anulado correctamente.');
+      setSuccess('Retiro eliminado correctamente.');
       await loadData();
     } catch (deleteError) {
-      handleRequestError(deleteError, 'No se pudo anular el retiro.');
+      handleRequestError(deleteError, 'No se pudo eliminar el retiro.');
     } finally {
       setIsSaving(false);
     }
@@ -486,7 +501,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                       <div className="table-actions">
                         <button type="button" onClick={() => setSelectedEntrega(entrega)} aria-label="Ver detalle de retiro"><Eye size={16} /></button>
                         {entrega.estado === 'PENDIENTE' && <button type="button" onClick={() => openEditEntrega(entrega)} aria-label="Editar retiro"><Edit2 size={16} /></button>}
-                        {entrega.estado === 'PENDIENTE' && <button type="button" onClick={() => void handleDeleteEntrega(entrega)} aria-label="Anular retiro"><Trash2 size={16} /></button>}
+                        {(entrega.estado === 'PENDIENTE' || entrega.estado === 'ANULADA') && <button type="button" onClick={() => void handleDeleteEntrega(entrega)} aria-label="Eliminar retiro"><Trash2 size={16} /></button>}
                       </div>
                     </td>
                   </tr>
@@ -592,6 +607,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
               <button type="button" className="icon-button" onClick={closeEntregaModal} aria-label="Cerrar retiro"><X size={18} /></button>
             </div>
             <form className="user-form production-form sale-form" onSubmit={handleEntregaSubmit}>
+              {retiroFormError && <div className="form-error production-wide-field">{retiroFormError}</div>}
               <label><span>Empresa</span><select value={entregaForm.clienteId} onChange={(event) => setEntregaForm({ ...entregaForm, clienteId: event.target.value })} required><option value="">Seleccionar empresa</option>{activeClientes.map((cliente) => <option key={cliente.id} value={cliente.id}>{clienteLabel(cliente)}</option>)}</select></label>
               <label><span>Fecha de retiro</span><input type="date" value={entregaForm.fechaRetiro} onChange={(event) => setEntregaForm({ ...entregaForm, fechaRetiro: event.target.value })} required /></label>
               <label className="production-wide-field"><span>Observación</span><textarea rows={2} value={entregaForm.observacion} onChange={(event) => setEntregaForm({ ...entregaForm, observacion: event.target.value })} /></label>
@@ -603,7 +619,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                       <tr key={ordene.id}>
                         <td><input type="checkbox" checked={selectedEntregaOrdeneIds.has(String(ordene.id))} onChange={() => toggleOrdene(ordene.id)} /></td>
                         <td>{formatDate(ordene.fecha)}</td>
-                        <td>{ordene.turno}</td>
+                        <td>{turnoLabel(ordene.turno)}</td>
                         <td><strong>{formatLiters(ordene.litrosBuenos)}</strong></td>
                       </tr>
                     ))}
@@ -684,18 +700,25 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             <div className="panel-header">
               <div>
                 <h2>Detalle del retiro</h2>
-                <p>{selectedEntrega.cliente.razonSocial} / {formatDate(selectedEntrega.fechaRetiro)}</p>
+                <p>Ordeñes incluidos en este retiro de leche.</p>
               </div>
               <button type="button" className="icon-button" onClick={() => setSelectedEntrega(null)} aria-label="Cerrar detalle"><X size={18} /></button>
             </div>
+            <div className="info-grid sale-detail-summary">
+              <div className="info-item"><span>Empresa</span><strong>{selectedEntrega.cliente.razonSocial}</strong></div>
+              <div className="info-item"><span>Fecha de retiro</span><strong>{formatDate(selectedEntrega.fechaRetiro)}</strong></div>
+              <div className="info-item"><span>Total entregado</span><strong>{formatLiters(entregaLitros(selectedEntrega))}</strong></div>
+              <div className="info-item"><span>Estado</span><strong>{estadoEntregaLabels[selectedEntrega.estado]}</strong></div>
+            </div>
             <div className="table-wrap">
               <table className="users-table">
-                <thead><tr><th>Ordeñe</th><th>Litros entregados</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Turno</th><th>Litros entregados</th></tr></thead>
                 <tbody>
                   {selectedEntrega.ordenes.map((detalle) => (
                     <tr key={detalle.id}>
-                      <td>{ordeneLabel(detalle.ordene)}</td>
-                      <td>{formatLiters(detalle.litrosEntregados)}</td>
+                      <td>{formatDate(detalle.ordene.fecha)}</td>
+                      <td>{turnoLabel(detalle.ordene.turno)}</td>
+                      <td><strong>{formatLiters(detalle.litrosEntregados)}</strong></td>
                     </tr>
                   ))}
                 </tbody>

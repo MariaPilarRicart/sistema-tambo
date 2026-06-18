@@ -311,11 +311,13 @@ export async function updateEntregaLeche(id: number, data: {
   });
 }
 
-export function anularEntregaLeche(id: number) {
-  return prisma.entregaLeche.update({
-    where: { id },
-    data: { estado: EstadoEntregaLeche.ANULADA },
-    include: entregaLecheInclude,
+export function deleteEntregaLeche(id: number) {
+  return prisma.$transaction(async (tx) => {
+    await tx.entregaLecheOrdene.deleteMany({ where: { entregaLecheId: id } });
+    return tx.entregaLeche.delete({
+      where: { id },
+      include: entregaLecheInclude,
+    });
   });
 }
 
