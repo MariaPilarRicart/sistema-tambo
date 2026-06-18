@@ -126,6 +126,7 @@ function DashboardKpiCard({
   title,
   tone,
   value,
+  valueVariant = 'numeric',
 }: {
   icon: LucideIcon;
   onClick: () => void;
@@ -133,6 +134,7 @@ function DashboardKpiCard({
   title: string;
   tone: MetricTone;
   value: string;
+  valueVariant?: 'numeric' | 'text';
 }) {
   return (
     <button className={`metric-card dashboard-kpi-card dashboard-kpi-clickable dashboard-kpi-${tone}`} type="button" onClick={onClick}>
@@ -140,7 +142,7 @@ function DashboardKpiCard({
         <div className={`metric-icon metric-icon-${tone}`}>
           <Icon size={22} />
         </div>
-        <h3>{value}</h3>
+        <h3 className={valueVariant === 'text' ? 'dashboard-kpi-text-value' : undefined}>{value}</h3>
       </div>
       <strong>{title}</strong>
       <p>{subtitle}</p>
@@ -267,6 +269,7 @@ export function AdminDashboard({
         : 'Empresa con más litros entregados en el período.',
       tone: 'indigo' as MetricTone,
       icon: UserPlus,
+      valueVariant: 'text' as const,
       url: buildUrl(paths.sales, {
         section: 'retiros',
         ...(resumen.resumenVentas.principalEmpresa ? { clienteId: String(resumen.resumenVentas.principalEmpresa.id) } : {}),
@@ -388,6 +391,7 @@ export function AdminDashboard({
             value={card.value}
             subtitle={card.subtitle}
             tone={card.tone}
+            valueVariant={card.valueVariant}
             onClick={() => navigate(card.url)}
           />
         ))}

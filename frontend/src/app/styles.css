@@ -1122,6 +1122,18 @@ a {
   margin: 0;
 }
 
+.dashboard-kpi-top .dashboard-kpi-text-value {
+  display: -webkit-box;
+  font-size: 18px;
+  line-height: 1.15;
+  max-width: calc(100% - 52px);
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .dashboard-kpi-card strong {
   color: var(--slate-800);
   font-size: 14px;
