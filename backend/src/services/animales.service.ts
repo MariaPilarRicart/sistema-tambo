@@ -1,10 +1,9 @@
-import { CategoriaAnimal, EstadoAnimal, EstadoReproductivo, Prisma } from '@prisma/client';
+import { CategoriaAnimal, EstadoAnimal, EstadoReproductivo, Prisma, TipoFuncionalLote } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 import {
   createAnimal,
   deactivateAnimal,
   findActiveLoteById,
-  findActiveLoteByNombre,
   findAnimalFichaById,
   findAnimalByCaravana,
   findAnimalById,
@@ -110,16 +109,6 @@ async function ensureActiveLoteExists(loteId: number) {
   return lote;
 }
 
-async function ensureActiveLoteByNombre(nombre: string) {
-  const lote = await findActiveLoteByNombre(nombre);
-
-  if (!lote) {
-    throw new AppError(`El lote ${nombre} debe existir y estar activo.`, 400);
-  }
-
-  return lote;
-}
-
 async function ensureMadreExists(madreId: number, animalId?: number) {
   if (animalId && madreId === animalId) {
     throw new AppError('La madre no puede ser el mismo animal.', 400);
@@ -129,6 +118,15 @@ async function ensureMadreExists(madreId: number, animalId?: number) {
 
   if (!madre) {
     throw new AppError('La madre informada no existe.', 400);
+  }
+}
+
+function ensureLoteCompatible(
+  lote: { tipoFuncional: TipoFuncionalLote },
+  tipoFuncionalEsperado: TipoFuncionalLote,
+) {
+  if (lote.tipoFuncional !== tipoFuncionalEsperado) {
+    throw new AppError('El lote seleccionado no es compatible con la edad, categoria y estado del animal.', 400);
   }
 }
 
@@ -206,9 +204,9 @@ export async function createNewAnimal(input: Record<string, unknown>) {
     categoriaAnimal,
     fechaNacimiento,
     estadoReproductivo,
-    loteNombre: lote.nombre,
+    loteTipoFuncional: lote.tipoFuncional,
   });
-  const loteNormalizado = await ensureActiveLoteByNombre(consistencia.loteNombre);
+  ensureLoteCompatible(lote, consistencia.loteTipoFuncional);
 
   try {
     return await createAnimal({
@@ -220,7 +218,7 @@ export async function createNewAnimal(input: Record<string, unknown>) {
       estadoReproductivo: consistencia.estadoReproductivo,
       estadoAnimal: parseEstadoAnimal(input.estadoAnimal ?? EstadoAnimal.ACTIVO),
       activo: input.activo === undefined ? true : Boolean(input.activo),
-      loteId: loteNormalizado.id,
+      loteId: lote.id,
       madreId,
       padreNombre: normalizeOptionalString(input.padreNombre, 'Padre'),
     });
@@ -262,9 +260,9 @@ export async function updateExistingAnimal(idParam: string, input: Record<string
     categoriaAnimal: nextCategoriaAnimal,
     fechaNacimiento: nextFechaNacimiento,
     estadoReproductivo: nextEstadoReproductivo,
-    loteNombre: nextLote.nombre,
+    loteTipoFuncional: nextLote.tipoFuncional,
   });
-  nextLote = await ensureActiveLoteByNombre(consistencia.loteNombre);
+  ensureLoteCompatible(nextLote, consistencia.loteTipoFuncional);
   data.categoriaAnimal = consistencia.categoriaAnimal;
   data.estadoReproductivo = consistencia.estadoReproductivo;
   data.loteId = nextLote.id;

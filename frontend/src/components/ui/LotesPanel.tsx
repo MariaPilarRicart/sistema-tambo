@@ -3,15 +3,29 @@ import { Edit2, Plus, RefreshCcw, RotateCcw, Trash2, X } from 'lucide-react';
 import { ApiError } from '../../services/apiClient';
 import { createLote, getLotes, updateLote } from '../../services/lotesService';
 import { useDataChangedRefresh } from '../../hooks/useDataChangedRefresh';
-import type { Lote, LoteFormValues } from '../../types/lotes';
+import type { Lote, LoteFormValues, TipoFuncionalLote } from '../../types/lotes';
 
 type EstadoFilter = '' | 'true' | 'false';
 
 const emptyLoteForm: LoteFormValues = {
   nombre: '',
   descripcion: '',
+  tipoFuncional: 'PRODUCCION',
   activo: true,
 };
+
+const tipoFuncionalOptions: Array<{ value: TipoFuncionalLote; label: string }> = [
+  { value: 'GUACHERA', label: 'Guachera' },
+  { value: 'ESCUELITA', label: 'Escuelita' },
+  { value: 'TERNERA_1', label: 'Ternera 1' },
+  { value: 'TERNERA_2', label: 'Ternera 2' },
+  { value: 'TORITOS', label: 'Toritos' },
+  { value: 'TOROS', label: 'Toros' },
+  { value: 'PRODUCCION', label: 'Producción' },
+  { value: 'SECAS', label: 'Secas' },
+  { value: 'PREPARTO', label: 'Preparto' },
+  { value: 'RECUPERACION', label: 'Recuperación' },
+];
 
 interface LotesPanelProps {
   authToken: string | null;
@@ -38,6 +52,10 @@ function renderStatus(isActive: boolean) {
       {isActive ? 'ACTIVO' : 'INACTIVO'}
     </span>
   );
+}
+
+function formatTipoFuncional(value: TipoFuncionalLote) {
+  return tipoFuncionalOptions.find((option) => option.value === value)?.label ?? value;
 }
 
 export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin = true }: LotesPanelProps) {
@@ -121,6 +139,7 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin 
     setLoteFormValues({
       nombre: lote.nombre,
       descripcion: lote.descripcion ?? '',
+      tipoFuncional: lote.tipoFuncional,
       activo: lote.activo,
     });
     setShowLoteModal(true);
@@ -161,6 +180,7 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin 
       await updateLote(authToken, lote.id, {
         nombre: lote.nombre,
         descripcion: lote.descripcion ?? '',
+        tipoFuncional: lote.tipoFuncional,
         activo,
       });
       setSuccess(activo ? 'Lote reactivado correctamente.' : 'Lote dado de baja correctamente.');
@@ -251,6 +271,7 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin 
               <thead>
                 <tr>
                   <th>Lote</th>
+                  <th>Tipo funcional</th>
                   <th>Animales</th>
                   <th>Estado</th>
                   {isAdmin && <th>Acciones</th>}
@@ -263,6 +284,7 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin 
                       <strong>{lote.nombre}</strong>
                       <span>{lote.descripcion || 'Sin descripción'}</span>
                     </td>
+                    <td>{formatTipoFuncional(lote.tipoFuncional)}</td>
                     <td>{lote.cantidadAnimales}</td>
                     <td>{renderStatus(lote.activo)}</td>
                     {isAdmin && <td>
@@ -317,6 +339,21 @@ export function LotesPanel({ authToken, onUnauthorized, onLotesChanged, isAdmin 
                   value={loteFormValues.descripcion}
                   onChange={(event) => setLoteFormValues({ ...loteFormValues, descripcion: event.target.value })}
                 />
+              </label>
+              <label>
+                <span>Tipo funcional</span>
+                <select
+                  value={loteFormValues.tipoFuncional}
+                  onChange={(event) => setLoteFormValues({
+                    ...loteFormValues,
+                    tipoFuncional: event.target.value as TipoFuncionalLote,
+                  })}
+                  required
+                >
+                  {tipoFuncionalOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </label>
               {editingLote && (
                 <label>

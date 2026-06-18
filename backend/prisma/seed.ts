@@ -12,6 +12,7 @@ import {
   RolUsuario,
   TipoAlimento,
   TipoCalculoAlimentacion,
+  TipoFuncionalLote,
   TipoEvento,
   TipoMovimientoStockAlimentacion,
   TipoReglaSanitaria,
@@ -28,23 +29,23 @@ const SEED_FACTURA_PREFIX = 'F-SEED-';
 const SEED_LOTE_LECHE_PREFIX = 'LT-SEED-';
 
 const physicalLotes = [
-  ['Guachera', 'Terneros y terneras desde nacimiento hasta antes de 4 meses'],
-  ['Escuelita', 'Terneras desde 4 hasta antes de 8 meses'],
-  ['Ternera 1', 'Terneras desde 8 hasta antes de 13 meses'],
-  ['Ternera 2', 'Vaquillonas desde 13 meses hasta primer parto'],
-  ['Producción', 'Vacas en produccion'],
-  ['Secas', 'Vacas secas'],
-  ['Preparto', 'Vacas en preparto'],
-  ['Recuperación', 'Vacas en recuperacion post parto'],
-  ['Toritos', 'Machos desde 4 hasta antes de 18 meses'],
-  ['Toros', 'Machos desde 18 meses en adelante'],
-  ['Lote 001', 'Vacas en produccion de alta rotacion'],
-  ['Lote 002', 'Vacas en produccion de control'],
-  ['Lote 003', 'Animales de baja o salida historica'],
-  ['Corral Norte', 'Guachera y controles sanitarios'],
-  ['Corral Sur', 'Preparto y recria inicial'],
-  ['Potrero 1', 'Vaquillonas y reproductores'],
-  ['Potrero 2', 'Terneras y escuelita'],
+  ['Guachera', 'Terneros y terneras desde nacimiento hasta antes de 4 meses', TipoFuncionalLote.GUACHERA],
+  ['Escuelita', 'Terneras desde 4 hasta antes de 8 meses', TipoFuncionalLote.ESCUELITA],
+  ['Ternera 1', 'Terneras desde 8 hasta antes de 13 meses', TipoFuncionalLote.TERNERA_1],
+  ['Ternera 2', 'Vaquillonas desde 13 meses hasta primer parto', TipoFuncionalLote.TERNERA_2],
+  ['Producción', 'Vacas en produccion', TipoFuncionalLote.PRODUCCION],
+  ['Secas', 'Vacas secas', TipoFuncionalLote.SECAS],
+  ['Preparto', 'Vacas en preparto', TipoFuncionalLote.PREPARTO],
+  ['Recuperación', 'Vacas en recuperacion post parto', TipoFuncionalLote.RECUPERACION],
+  ['Toritos', 'Machos desde 4 hasta antes de 18 meses', TipoFuncionalLote.TORITOS],
+  ['Toros', 'Machos desde 18 meses en adelante', TipoFuncionalLote.TOROS],
+  ['Lote 001', 'Vacas en produccion de alta rotacion', TipoFuncionalLote.PRODUCCION],
+  ['Lote 002', 'Vacas en produccion de control', TipoFuncionalLote.PRODUCCION],
+  ['Lote 003', 'Animales de baja o salida historica', TipoFuncionalLote.PRODUCCION],
+  ['Corral Norte', 'Guachera y controles sanitarios', TipoFuncionalLote.GUACHERA],
+  ['Corral Sur', 'Preparto y recria inicial', TipoFuncionalLote.PREPARTO],
+  ['Potrero 1', 'Vaquillonas y reproductores', TipoFuncionalLote.TERNERA_2],
+  ['Potrero 2', 'Terneras y escuelita', TipoFuncionalLote.TERNERA_1],
 ] as const;
 
 const animals = [
@@ -171,11 +172,11 @@ async function seedUsers() {
 }
 
 async function seedLotes() {
-  for (const [nombre, descripcion] of physicalLotes) {
+  for (const [nombre, descripcion, tipoFuncional] of physicalLotes) {
     await prisma.lote.upsert({
       where: { nombre },
-      update: { activo: true, descripcion },
-      create: { nombre, descripcion, activo: true },
+      update: { activo: true, descripcion, tipoFuncional },
+      create: { nombre, descripcion, tipoFuncional, activo: true },
     });
   }
 }

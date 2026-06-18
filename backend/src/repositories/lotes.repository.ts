@@ -1,10 +1,11 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, type TipoFuncionalLote } from '@prisma/client';
 import { prisma } from '../config/prisma';
 
 const loteSelect = {
   id: true,
   nombre: true,
   descripcion: true,
+  tipoFuncional: true,
   activo: true,
   createdAt: true,
   updatedAt: true,
@@ -41,7 +42,12 @@ export function countAnimalesByLoteId(loteId: number) {
   });
 }
 
-export function createLote(data: { nombre: string; descripcion?: string | null; activo?: boolean }) {
+export function createLote(data: {
+  nombre: string;
+  descripcion?: string | null;
+  tipoFuncional: TipoFuncionalLote;
+  activo?: boolean;
+}) {
   return prisma.lote.create({
     data,
     select: loteSelect,
@@ -53,6 +59,7 @@ export function updateLote(
   data: Partial<{
     nombre: string;
     descripcion: string | null;
+    tipoFuncional: TipoFuncionalLote;
     activo: boolean;
   }>,
 ) {

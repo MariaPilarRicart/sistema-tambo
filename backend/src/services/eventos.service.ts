@@ -4,6 +4,7 @@ import {
   EstadoReproductivo,
   Prisma,
   TipoEvento,
+  TipoFuncionalLote,
   TipoTarea,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -105,16 +106,17 @@ async function findActiveAnimalOrThrow(tx: Prisma.TransactionClient, animalId: n
   return animal;
 }
 
-async function findActiveLoteByNombreOrThrow(tx: Prisma.TransactionClient, nombre: string) {
+async function findActiveLoteByTipoFuncionalOrThrow(tx: Prisma.TransactionClient, tipoFuncional: TipoFuncionalLote) {
   const lote = await tx.lote.findFirst({
     where: {
-      nombre,
+      tipoFuncional,
       activo: true,
     },
+    orderBy: { id: 'asc' },
   });
 
   if (!lote) {
-    throw new AppError(`El lote ${nombre} debe existir y estar activo.`, 400);
+    throw new AppError(`Debe existir un lote activo de tipo funcional ${tipoFuncional}.`, 400);
   }
 
   return lote;
@@ -334,7 +336,7 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
 
       case TipoEvento.SECADO: {
         await closePendingTaskOrThrow(tx, animalId, 'SECADO', evento.id);
-        const loteSecas = await findActiveLoteByNombreOrThrow(tx, getLotePostEvento(tipo)!);
+        const loteSecas = await findActiveLoteByTipoFuncionalOrThrow(tx, getLotePostEvento(tipo)!);
         await tx.animal.update({
           where: { id: animalId },
           data: {
@@ -348,7 +350,7 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
 
       case TipoEvento.PARTO:
         await closePendingTaskOrThrow(tx, animalId, 'PARTO', evento.id);
-        const loteRecuperacion = await findActiveLoteByNombreOrThrow(tx, getLotePostEvento(tipo)!);
+        const loteRecuperacion = await findActiveLoteByTipoFuncionalOrThrow(tx, getLotePostEvento(tipo)!);
         await tx.animal.update({
           where: { id: animalId },
           data: {

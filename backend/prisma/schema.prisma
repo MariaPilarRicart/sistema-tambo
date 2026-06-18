@@ -45,6 +45,19 @@ enum EstadoAnimal {
   OTRO
 }
 
+enum TipoFuncionalLote {
+  GUACHERA
+  ESCUELITA
+  TERNERA_1
+  TERNERA_2
+  TORITOS
+  TOROS
+  PRODUCCION
+  SECAS
+  PREPARTO
+  RECUPERACION
+}
+
 enum TipoEvento {
   CELO
   INSEMINACION
@@ -198,6 +211,7 @@ model Lote {
   id          Int      @id @default(autoincrement())
   nombre      String   @unique
   descripcion String?
+  tipoFuncional TipoFuncionalLote @default(PRODUCCION)
   activo      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

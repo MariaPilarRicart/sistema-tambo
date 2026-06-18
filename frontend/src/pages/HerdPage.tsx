@@ -21,7 +21,7 @@ import type {
 } from '../types/animales';
 import type { AuthUser } from '../types/auth';
 import type { EventoFormValues, TipoEvento } from '../types/eventos';
-import type { Lote } from '../types/lotes';
+import type { Lote, TipoFuncionalLote } from '../types/lotes';
 
 const categoriaOptions: CategoriaAnimal[] = [
   'TERNERO',
@@ -60,7 +60,7 @@ const tipoEventoOptions: TipoEvento[] = [
 const nonReproductiveEventOptions: TipoEvento[] = ['CLINICO', 'VENTA', 'MUERTE'];
 const noAplicaCategories: CategoriaAnimal[] = ['TERNERO', 'TERNERA', 'TORITO', 'TORO'];
 const maleCategories: CategoriaAnimal[] = ['TERNERO', 'TORITO', 'TORO'];
-const cowLotes = ['Producción', 'Secas', 'Preparto', 'Recuperación'];
+const cowLoteTypes: TipoFuncionalLote[] = ['PRODUCCION', 'SECAS', 'PREPARTO', 'RECUPERACION'];
 // Compatibilidad visual: categorias viejas de vaca se editan como VACA.
 const legacyCowCategoryMap: Partial<Record<CategoriaAnimal, CategoriaAnimal>> = {
   VACA_PRODUCCION: 'VACA',
@@ -146,7 +146,8 @@ function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
   const ageMonths = calculateAgeMonths(values.fechaNacimiento);
   const nextValues = { ...values };
   const isMale = maleCategories.includes(values.categoriaAnimal);
-  const findLoteId = (name: string) => lotes.find((lote) => lote.nombre === name)?.id.toString() ?? nextValues.loteId;
+  const findLoteId = (tipoFuncional: TipoFuncionalLote) =>
+    lotes.find((lote) => lote.tipoFuncional === tipoFuncional)?.id.toString() ?? nextValues.loteId;
 
   if (noAplicaCategories.includes(nextValues.categoriaAnimal)) {
     nextValues.estadoReproductivo = 'NO_APLICA';
@@ -158,13 +159,13 @@ function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
     nextValues.estadoReproductivo = 'NO_APLICA';
     if (ageMonths < 4) {
       nextValues.categoriaAnimal = 'TERNERO';
-      nextValues.loteId = findLoteId('Guachera');
+      nextValues.loteId = findLoteId('GUACHERA');
     } else if (ageMonths < 18) {
       nextValues.categoriaAnimal = 'TORITO';
-      nextValues.loteId = findLoteId('Toritos');
+      nextValues.loteId = findLoteId('TORITOS');
     } else {
       nextValues.categoriaAnimal = 'TORO';
-      nextValues.loteId = findLoteId('Toros');
+      nextValues.loteId = findLoteId('TOROS');
     }
     return nextValues;
   }
@@ -172,45 +173,45 @@ function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
   if (ageMonths < 4) {
     nextValues.categoriaAnimal = 'TERNERA';
     nextValues.estadoReproductivo = 'NO_APLICA';
-    nextValues.loteId = findLoteId('Guachera');
+    nextValues.loteId = findLoteId('GUACHERA');
   } else if (ageMonths < 8) {
     nextValues.categoriaAnimal = 'TERNERA';
     nextValues.estadoReproductivo = 'NO_APLICA';
-    nextValues.loteId = findLoteId('Escuelita');
+    nextValues.loteId = findLoteId('ESCUELITA');
   } else if (ageMonths < 13) {
     nextValues.categoriaAnimal = 'TERNERA';
     nextValues.estadoReproductivo = 'NO_APLICA';
-    nextValues.loteId = findLoteId('Ternera 1');
+    nextValues.loteId = findLoteId('TERNERA_1');
   } else if (nextValues.categoriaAnimal !== 'VACA') {
     nextValues.categoriaAnimal = 'VAQUILLONA';
     nextValues.estadoReproductivo = nextValues.estadoReproductivo === 'NO_APLICA' ? 'VACIA' : nextValues.estadoReproductivo;
-    nextValues.loteId = findLoteId('Ternera 2');
+    nextValues.loteId = findLoteId('TERNERA_2');
   } else if (nextValues.estadoReproductivo === 'NO_APLICA') {
     nextValues.estadoReproductivo = 'VACIA';
   }
 
   if (nextValues.categoriaAnimal === 'VACA') {
     const selectedLote = lotes.find((lote) => lote.id.toString() === nextValues.loteId);
-    if (!selectedLote || !cowLotes.includes(selectedLote.nombre)) {
-      nextValues.loteId = findLoteId('Producción');
+    if (!selectedLote || !cowLoteTypes.includes(selectedLote.tipoFuncional)) {
+      nextValues.loteId = findLoteId('PRODUCCION');
     }
   }
 
   return nextValues;
 }
 
-function getAllowedLoteNames(values: AnimalFormValues) {
+function getAllowedLoteTypes(values: AnimalFormValues) {
   const ageMonths = calculateAgeMonths(values.fechaNacimiento);
 
-  if (values.categoriaAnimal === 'VACA') return cowLotes;
-  if (values.categoriaAnimal === 'VAQUILLONA') return ['Ternera 2'];
+  if (values.categoriaAnimal === 'VACA') return cowLoteTypes;
+  if (values.categoriaAnimal === 'VAQUILLONA') return ['TERNERA_2'];
   if (values.categoriaAnimal === 'TERNERO' || values.categoriaAnimal === 'TERNERA') {
-    if (ageMonths === null || ageMonths < 4) return ['Guachera'];
-    if (ageMonths < 8) return ['Escuelita'];
-    return ['Ternera 1'];
+    if (ageMonths === null || ageMonths < 4) return ['GUACHERA'];
+    if (ageMonths < 8) return ['ESCUELITA'];
+    return ['TERNERA_1'];
   }
-  if (values.categoriaAnimal === 'TORITO') return ['Toritos'];
-  if (values.categoriaAnimal === 'TORO') return ['Toros'];
+  if (values.categoriaAnimal === 'TORITO') return ['TORITOS'];
+  if (values.categoriaAnimal === 'TORO') return ['TOROS'];
 
   return [];
 }
@@ -251,8 +252,8 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
   const canCreateAnimal = currentUser?.role === 'ADMIN' || currentUser?.role === 'EMPLEADO';
   const activeLotes = useMemo(() => lotes.filter((lote) => lote.activo), [lotes]);
   const allowedLotes = useMemo(() => {
-    const allowedNames = getAllowedLoteNames(formValues);
-    return activeLotes.filter((lote) => allowedNames.includes(lote.nombre));
+    const allowedTypes = getAllowedLoteTypes(formValues);
+    return activeLotes.filter((lote) => allowedTypes.includes(lote.tipoFuncional));
   }, [activeLotes, formValues]);
   const visibleAnimales = useMemo(() => {
     const fechaNacimientoDesde = searchParams.get('fechaNacimientoDesde');

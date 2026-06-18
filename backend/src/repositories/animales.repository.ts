@@ -6,6 +6,7 @@ const animalInclude = {
     select: {
       id: true,
       nombre: true,
+      tipoFuncional: true,
       activo: true,
     },
   },

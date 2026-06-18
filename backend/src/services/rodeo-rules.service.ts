@@ -1,18 +1,5 @@
-import { CategoriaAnimal, EstadoReproductivo, TipoEvento } from '@prisma/client';
+import { CategoriaAnimal, EstadoReproductivo, TipoEvento, TipoFuncionalLote } from '@prisma/client';
 import { AppError } from '../errors/AppError';
-
-export const RODEO_LOTES = {
-  GUACHERA: 'Guachera',
-  ESCUELITA: 'Escuelita',
-  TERNERA_1: 'Ternera 1',
-  TERNERA_2: 'Ternera 2',
-  PRODUCCION: 'Producción',
-  SECAS: 'Secas',
-  PREPARTO: 'Preparto',
-  RECUPERACION: 'Recuperación',
-  TORITOS: 'Toritos',
-  TOROS: 'Toros',
-} as const;
 
 const categoriasMacho: CategoriaAnimal[] = [
   CategoriaAnimal.TERNERO,
@@ -42,18 +29,18 @@ const eventosReproductivos: TipoEvento[] = [
   TipoEvento.ABORTO,
 ];
 
-const lotesVaca = [
-  RODEO_LOTES.PRODUCCION,
-  RODEO_LOTES.SECAS,
-  RODEO_LOTES.PREPARTO,
-  RODEO_LOTES.RECUPERACION,
+const lotesVaca: TipoFuncionalLote[] = [
+  TipoFuncionalLote.PRODUCCION,
+  TipoFuncionalLote.SECAS,
+  TipoFuncionalLote.PREPARTO,
+  TipoFuncionalLote.RECUPERACION,
 ];
 
 // Compatibilidad: categorias viejas de vaca se convierten a VACA + lote canonico.
-const lotesCompatibilidadVacaLegacy: Partial<Record<CategoriaAnimal, string>> = {
-  [CategoriaAnimal.VACA_PRODUCCION]: RODEO_LOTES.PRODUCCION,
-  [CategoriaAnimal.VACA_SECA]: RODEO_LOTES.SECAS,
-  [CategoriaAnimal.PREPARTO]: RODEO_LOTES.PREPARTO,
+const lotesCompatibilidadVacaLegacy: Partial<Record<CategoriaAnimal, TipoFuncionalLote>> = {
+  [CategoriaAnimal.VACA_PRODUCCION]: TipoFuncionalLote.PRODUCCION,
+  [CategoriaAnimal.VACA_SECA]: TipoFuncionalLote.SECAS,
+  [CategoriaAnimal.PREPARTO]: TipoFuncionalLote.PREPARTO,
 };
 
 function getLoteCompatibilidadVacaLegacy(categoriaAnimal: CategoriaAnimal) {
@@ -112,7 +99,7 @@ export function normalizarCategoriaLoteEstado(input: {
   categoriaAnimal: CategoriaAnimal;
   fechaNacimiento: Date;
   estadoReproductivo: EstadoReproductivo;
-  loteNombre?: string | null;
+  loteTipoFuncional?: TipoFuncionalLote | null;
 }) {
   const edadMeses = calcularEdadMeses(input.fechaNacimiento);
   const sexo = getSexoFuncional(input.categoriaAnimal);
@@ -127,7 +114,7 @@ export function normalizarCategoriaLoteEstado(input: {
       return {
         categoriaAnimal: CategoriaAnimal.TERNERO,
         estadoReproductivo: EstadoReproductivo.NO_APLICA,
-        loteNombre: RODEO_LOTES.GUACHERA,
+        loteTipoFuncional: TipoFuncionalLote.GUACHERA,
       };
     }
 
@@ -135,14 +122,14 @@ export function normalizarCategoriaLoteEstado(input: {
       return {
         categoriaAnimal: CategoriaAnimal.TORITO,
         estadoReproductivo: EstadoReproductivo.NO_APLICA,
-        loteNombre: RODEO_LOTES.TORITOS,
+        loteTipoFuncional: TipoFuncionalLote.TORITOS,
       };
     }
 
     return {
       categoriaAnimal: CategoriaAnimal.TORO,
       estadoReproductivo: EstadoReproductivo.NO_APLICA,
-      loteNombre: RODEO_LOTES.TOROS,
+      loteTipoFuncional: TipoFuncionalLote.TOROS,
     };
   }
 
@@ -151,14 +138,14 @@ export function normalizarCategoriaLoteEstado(input: {
   }
 
   if (edadMeses < 4) {
-    if (input.loteNombre && input.loteNombre !== RODEO_LOTES.GUACHERA) {
+    if (input.loteTipoFuncional && input.loteTipoFuncional !== TipoFuncionalLote.GUACHERA) {
       throw new AppError('La Guachera solo admite terneros y terneras menores de 4 meses.', 400);
     }
 
     return {
       categoriaAnimal: CategoriaAnimal.TERNERA,
       estadoReproductivo: EstadoReproductivo.NO_APLICA,
-      loteNombre: RODEO_LOTES.GUACHERA,
+      loteTipoFuncional: TipoFuncionalLote.GUACHERA,
     };
   }
 
@@ -166,7 +153,7 @@ export function normalizarCategoriaLoteEstado(input: {
     return {
       categoriaAnimal: CategoriaAnimal.TERNERA,
       estadoReproductivo: EstadoReproductivo.NO_APLICA,
-      loteNombre: RODEO_LOTES.ESCUELITA,
+      loteTipoFuncional: TipoFuncionalLote.ESCUELITA,
     };
   }
 
@@ -174,7 +161,7 @@ export function normalizarCategoriaLoteEstado(input: {
     return {
       categoriaAnimal: CategoriaAnimal.TERNERA,
       estadoReproductivo: EstadoReproductivo.NO_APLICA,
-      loteNombre: RODEO_LOTES.TERNERA_1,
+      loteTipoFuncional: TipoFuncionalLote.TERNERA_1,
     };
   }
 
@@ -184,7 +171,7 @@ export function normalizarCategoriaLoteEstado(input: {
       estadoReproductivo: input.estadoReproductivo === EstadoReproductivo.NO_APLICA
         ? EstadoReproductivo.VACIA
         : input.estadoReproductivo,
-      loteNombre: RODEO_LOTES.TERNERA_2,
+      loteTipoFuncional: TipoFuncionalLote.TERNERA_2,
     };
   }
 
@@ -198,18 +185,18 @@ export function normalizarCategoriaLoteEstado(input: {
       return {
         categoriaAnimal: CategoriaAnimal.VACA,
         estadoReproductivo: input.estadoReproductivo,
-        loteNombre: loteLegacy,
+        loteTipoFuncional: loteLegacy,
       };
     }
 
-    if (input.loteNombre && !lotesVaca.includes(input.loteNombre as typeof lotesVaca[number])) {
+    if (input.loteTipoFuncional && !lotesVaca.includes(input.loteTipoFuncional)) {
       throw new AppError('Una vaca solo puede estar en Producción, Secas, Preparto o Recuperación.', 400);
     }
 
     return {
       categoriaAnimal: CategoriaAnimal.VACA,
       estadoReproductivo: input.estadoReproductivo,
-      loteNombre: input.loteNombre ?? RODEO_LOTES.PRODUCCION,
+      loteTipoFuncional: input.loteTipoFuncional ?? TipoFuncionalLote.PRODUCCION,
     };
   }
 
@@ -220,7 +207,7 @@ export function normalizarCategoriaLoteEstado(input: {
   return {
     categoriaAnimal: CategoriaAnimal.VAQUILLONA,
     estadoReproductivo: input.estadoReproductivo,
-    loteNombre: RODEO_LOTES.TERNERA_2,
+    loteTipoFuncional: TipoFuncionalLote.TERNERA_2,
   };
 }
 
@@ -228,7 +215,7 @@ export function validarConsistenciaAnimal(input: {
   categoriaAnimal: CategoriaAnimal;
   fechaNacimiento: Date;
   estadoReproductivo: EstadoReproductivo;
-  loteNombre?: string | null;
+  loteTipoFuncional?: TipoFuncionalLote | null;
 }) {
   return normalizarCategoriaLoteEstado(input);
 }
@@ -256,7 +243,7 @@ export function validarEventoCompatibleConAnimal(animal: {
 }
 
 export function getLotePostEvento(tipo: TipoEvento) {
-  if (tipo === TipoEvento.SECADO) return RODEO_LOTES.SECAS;
-  if (tipo === TipoEvento.PARTO) return RODEO_LOTES.RECUPERACION;
+  if (tipo === TipoEvento.SECADO) return TipoFuncionalLote.SECAS;
+  if (tipo === TipoEvento.PARTO) return TipoFuncionalLote.RECUPERACION;
   return null;
 }

@@ -13,6 +13,7 @@ function buildLotePayload(values: LoteFormValues) {
   return {
     nombre: values.nombre.trim(),
     descripcion: values.descripcion.trim() || null,
+    tipoFuncional: values.tipoFuncional,
     activo: values.activo,
   };
 }

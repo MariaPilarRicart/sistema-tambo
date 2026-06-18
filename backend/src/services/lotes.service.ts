@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, TipoFuncionalLote } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 import {
   createLote,
@@ -33,6 +33,14 @@ function normalizeDescripcion(descripcion: unknown) {
   return descripcion.trim() || null;
 }
 
+function parseTipoFuncional(value: unknown) {
+  if (Object.values(TipoFuncionalLote).includes(value as TipoFuncionalLote)) {
+    return value as TipoFuncionalLote;
+  }
+
+  throw new AppError('Tipo funcional del lote invalido.', 400);
+}
+
 function handlePrismaUniqueError(error: unknown): never {
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
     throw new AppError(LOTE_EXISTS_MESSAGE, 409);
@@ -54,6 +62,7 @@ export async function listLotes() {
 export async function createNewLote(input: {
   nombre?: string;
   descripcion?: string | null;
+  tipoFuncional?: TipoFuncionalLote;
   activo?: boolean;
 }) {
   const nombre = input.nombre?.trim();
@@ -72,6 +81,7 @@ export async function createNewLote(input: {
     const lote = await createLote({
       nombre,
       descripcion: normalizeDescripcion(input.descripcion),
+      tipoFuncional: parseTipoFuncional(input.tipoFuncional),
       activo: input.activo ?? true,
     });
 
@@ -86,6 +96,7 @@ export async function updateExistingLote(
   input: {
     nombre?: string;
     descripcion?: string | null;
+    tipoFuncional?: TipoFuncionalLote;
     activo?: boolean;
   },
 ) {
@@ -110,6 +121,10 @@ export async function updateExistingLote(
 
   if (input.descripcion !== undefined) {
     data.descripcion = normalizeDescripcion(input.descripcion);
+  }
+
+  if (input.tipoFuncional !== undefined) {
+    data.tipoFuncional = parseTipoFuncional(input.tipoFuncional);
   }
 
   if (input.activo !== undefined) {
