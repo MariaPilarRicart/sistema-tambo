@@ -8,6 +8,7 @@ import { getLotes } from '../services/lotesService';
 import { LotesPanel } from '../components/ui/LotesPanel';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { useScrollToSection } from '../hooks/useScrollToSection';
+import { getAvailableEventOptions, isReproductiveAnimal } from '../utils/eventRules';
 import type {
   Animal,
   AnimalDeactivateValues,
@@ -45,20 +46,6 @@ const motivoBajaOptions: Array<{ value: MotivoBajaAnimal; label: string }> = [
   { value: 'ROBADO', label: 'Robado / extraviado' },
   { value: 'OTRO', label: 'Otro' },
 ];
-const tipoEventoOptions: TipoEvento[] = [
-  'CELO',
-  'INSEMINACION',
-  'TACTO',
-  'SECADO',
-  'PARTO',
-  'ABORTO',
-  'CLINICO',
-  'CAMBIO_LOTE',
-  'VENTA',
-  'MUERTE',
-];
-
-const nonReproductiveEventOptions: TipoEvento[] = ['CLINICO', 'CAMBIO_LOTE', 'VENTA', 'MUERTE'];
 const noAplicaCategories: CategoriaAnimal[] = ['TERNERO', 'TERNERA', 'TORITO', 'TORO'];
 const maleCategories: CategoriaAnimal[] = ['TERNERO', 'TORITO', 'TORO'];
 const cowLoteTypes: TipoFuncionalLote[] = ['PRODUCCION', 'SECAS', 'PREPARTO', 'RECUPERACION'];
@@ -151,13 +138,6 @@ function toFunctionalCategory(category: CategoriaAnimal): CategoriaAnimal {
   return category;
 }
 
-function isReproductiveAnimal(animal: Animal) {
-  return isReproductiveCategory(animal.categoriaAnimal)
-    && calculateAgeMonths(localDateInput(animal.fechaNacimiento)) !== null
-    && (calculateAgeMonths(localDateInput(animal.fechaNacimiento)) ?? 0) >= 13
-    && animal.estadoReproductivo !== 'NO_APLICA';
-}
-
 function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
   const ageMonths = calculateAgeMonths(values.fechaNacimiento);
   const nextValues = { ...values };
@@ -235,12 +215,6 @@ function getAllowedLoteTypes(values: AnimalFormValues) {
   if (values.categoriaAnimal === 'TORO') return ['TOROS'];
 
   return [];
-}
-
-function getAvailableEventOptions(animal: Animal) {
-  return isReproductiveAnimal(animal)
-    ? tipoEventoOptions
-    : nonReproductiveEventOptions;
 }
 
 function getCompatibleLoteTypesForAnimal(animal: Animal): TipoFuncionalLote[] {
@@ -551,6 +525,10 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
     event.preventDefault();
     if (!authToken) return onUnauthorized();
     if (!eventAnimal) return;
+    if (!eventFormValues.tipo) {
+      setError('Seleccionar tipo de evento.');
+      return;
+    }
 
     setPendingEventConfirmation(true);
     setError('');
@@ -940,7 +918,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                 <select
                   value={eventFormValues.tipo}
                   onChange={(event) => {
-                    const nextTipo = event.target.value as TipoEvento;
+                    const nextTipo = event.target.value as TipoEvento | '';
                     const guacheraLotes = activeLotes.filter((lote) => lote.tipoFuncional === 'GUACHERA');
                     setEventFormValues({
                       ...eventFormValues,
@@ -950,7 +928,9 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                         : eventFormValues.guacheraLoteId,
                     });
                   }}
+                  required
                 >
+                  <option value="">Seleccionar tipo de evento</option>
                   {getAvailableEventOptions(eventAnimal).map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </label>

@@ -230,15 +230,50 @@ export function validarEventoCompatibleConAnimal(animal: {
   const categoria = normalizarCategoriaFuncional(animal.categoriaAnimal);
   const edadMeses = calcularEdadMeses(animal.fechaNacimiento);
 
-  if (
-    !categoriasConEstadoReproductivo.includes(categoria) ||
-    edadMeses < 13 ||
-    animal.estadoReproductivo === EstadoReproductivo.NO_APLICA
-  ) {
-    throw new AppError(
-      'El animal debe ser Vaquillona o Vaca y tener al menos 13 meses para registrar eventos reproductivos.',
-      400,
-    );
+  if (!categoriasConEstadoReproductivo.includes(categoria)) {
+    throw new AppError('Solo se pueden registrar eventos reproductivos en vacas o vaquillonas.', 400);
+  }
+
+  if (edadMeses < 13) {
+    throw new AppError('El animal debe tener al menos 13 meses para registrar eventos reproductivos.', 400);
+  }
+
+  switch (tipo) {
+    case TipoEvento.PARTO:
+      if (animal.estadoReproductivo !== EstadoReproductivo.PRENADA) {
+        throw new AppError('Solo se puede registrar un parto en animales preñados.', 400);
+      }
+      return;
+
+    case TipoEvento.ABORTO:
+      if (animal.estadoReproductivo !== EstadoReproductivo.PRENADA) {
+        throw new AppError('Solo se puede registrar un aborto en animales preñados.', 400);
+      }
+      return;
+
+    case TipoEvento.INSEMINACION:
+      if (animal.estadoReproductivo !== EstadoReproductivo.VACIA) {
+        throw new AppError('Solo se puede registrar una inseminación en animales vacíos.', 400);
+      }
+      return;
+
+    case TipoEvento.CELO:
+      if (animal.estadoReproductivo !== EstadoReproductivo.VACIA) {
+        throw new AppError('Solo se puede registrar celo en animales vacíos.', 400);
+      }
+      return;
+
+    case TipoEvento.TACTO:
+      if (animal.estadoReproductivo !== EstadoReproductivo.INSEMINADA) {
+        throw new AppError('Solo se puede registrar tacto en animales inseminados.', 400);
+      }
+      return;
+
+    case TipoEvento.SECADO:
+      if (categoria !== CategoriaAnimal.VACA || animal.estadoReproductivo !== EstadoReproductivo.PRENADA) {
+        throw new AppError('Solo se puede registrar secado en vacas preñadas.', 400);
+      }
+      return;
   }
 }
 

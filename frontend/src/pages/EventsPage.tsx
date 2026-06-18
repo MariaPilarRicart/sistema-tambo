@@ -5,6 +5,7 @@ import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { getAnimales } from '../services/animalesService';
 import { getLotes } from '../services/lotesService';
 import { createEvento, getEventos } from '../services/eventosService';
+import { getAvailableEventOptions, isReproductiveAnimal } from '../utils/eventRules';
 import { formatDateTime } from '../utils/display';
 import type { Animal, CategoriaAnimal } from '../types/animales';
 import type { Evento, EventoFilters, EventoFormValues, TipoEvento } from '../types/eventos';
@@ -31,8 +32,6 @@ const emptyFilters: EventoFilters = {
   fechaHasta: '',
 };
 
-const reproductiveEventOptions: TipoEvento[] = ['CELO', 'INSEMINACION', 'TACTO', 'SECADO', 'PARTO', 'ABORTO', 'CLINICO', 'CAMBIO_LOTE', 'VENTA', 'MUERTE'];
-const nonReproductiveEventOptions: TipoEvento[] = ['CLINICO', 'CAMBIO_LOTE', 'VENTA', 'MUERTE'];
 const cowLoteTypes: TipoFuncionalLote[] = ['PRODUCCION', 'SECAS', 'PREPARTO', 'RECUPERACION'];
 const legacyCowCategoryMap: Partial<Record<CategoriaAnimal, CategoriaAnimal>> = {
   VACA_PRODUCCION: 'VACA',
@@ -75,17 +74,6 @@ function calculateAgeMonths(fechaNacimiento: string) {
 function toFunctionalCategory(category: CategoriaAnimal): CategoriaAnimal {
   if (category === 'GUACHERA' || category === 'ESCUELITA') return 'TERNERA';
   return legacyCowCategoryMap[category] ?? category;
-}
-
-function isReproductiveAnimal(animal: Animal | null) {
-  if (!animal) return false;
-  const category = toFunctionalCategory(animal.categoriaAnimal);
-  const ageMonths = calculateAgeMonths(localDateInput(animal.fechaNacimiento));
-  return (category === 'VAQUILLONA' || category === 'VACA') && ageMonths !== null && ageMonths >= 13 && animal.estadoReproductivo !== 'NO_APLICA';
-}
-
-function getAvailableEventOptions(animal: Animal | null) {
-  return isReproductiveAnimal(animal) ? reproductiveEventOptions : nonReproductiveEventOptions;
 }
 
 function getCompatibleLoteTypesForAnimal(animal: Animal | null): TipoFuncionalLote[] {
@@ -219,7 +207,7 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
     setSelectedAnimalId(nextAnimalId);
     setEventFormValues({
       ...emptyEventForm(),
-      tipo: availableEvents[0],
+      tipo: animal ? availableEvents[0] : '',
       guacheraLoteId: guacheraLotes.length === 1 ? String(guacheraLotes[0].id) : '',
     });
     setIsEventModalOpen(true);
@@ -238,6 +226,10 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
     if (!authToken) return onUnauthorized();
     if (!selectedAnimal) {
       setError('Debe seleccionar un animal.');
+      return;
+    }
+    if (!eventFormValues.tipo) {
+      setError('Seleccionar tipo de evento.');
       return;
     }
 
@@ -375,8 +367,9 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
                     setSelectedAnimalId(nextAnimalId);
                     setEventFormValues({
                       ...eventFormValues,
-                      tipo: availableEvents.includes(eventFormValues.tipo) ? eventFormValues.tipo : availableEvents[0],
+                      tipo: availableEvents.includes(eventFormValues.tipo as TipoEvento) ? eventFormValues.tipo : '',
                       cambioLoteDestinoId: '',
+                      guacheraLoteId: '',
                     });
                   }}
                   required
@@ -399,7 +392,7 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
                 <select
                   value={eventFormValues.tipo}
                   onChange={(event) => {
-                    const nextTipo = event.target.value as TipoEvento;
+                    const nextTipo = event.target.value as TipoEvento | '';
                     const guacheraLotes = activeLotes.filter((lote) => lote.tipoFuncional === 'GUACHERA');
                     setEventFormValues({
                       ...eventFormValues,
@@ -409,7 +402,9 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
                         : eventFormValues.guacheraLoteId,
                     });
                   }}
+                  required
                 >
+                  <option value="">Seleccionar tipo de evento</option>
                   {getAvailableEventOptions(selectedAnimal).map((option) => (
                     <option key={option} value={option}>{option}</option>
                   ))}

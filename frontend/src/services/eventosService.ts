@@ -28,6 +28,10 @@ export async function getEventos(token: string, filters: EventoFilters) {
 }
 
 export async function createEvento(token: string, animalId: number, values: EventoFormValues) {
+  if (!values.tipo) {
+    throw new Error('Seleccionar tipo de evento.');
+  }
+
   const datosJson = values.tipo === 'TACTO'
     ? { resultado: values.resultadoTacto }
     : values.tipo === 'PARTO'
