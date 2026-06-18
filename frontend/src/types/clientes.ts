@@ -1,5 +1,3 @@
-import type { Venta } from './ventas';
-
 export interface Cliente {
   id: number;
   cuit: string;
@@ -13,8 +11,16 @@ export interface Cliente {
   updatedAt: string;
 }
 
+export interface ClienteVentaLegacy {
+  id: number;
+  numeroFactura: string;
+  fechaVenta: string;
+  totalLitros: number | string;
+  precioTotal: number | string;
+}
+
 export interface ClienteDetalle extends Cliente {
-  ventas: Venta[];
+  ventas: ClienteVentaLegacy[];
   resumen: {
     cantidadVentas: number;
     litrosComprados: number;

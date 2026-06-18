@@ -1,10 +1,15 @@
 import { RolUsuario } from '@prisma/client';
 import { Router } from 'express';
 import {
-  createVentaController,
-  getVentaController,
-  listLotesDisponiblesVentaController,
-  listVentasController,
+  createEntregaController,
+  createLiquidacionController,
+  deleteEntregaController,
+  getResumenVentasController,
+  getSugerenciaLiquidacionController,
+  listEntregasController,
+  listLiquidacionesController,
+  listOrdenesDisponiblesController,
+  updateEntregaController,
 } from '../controllers/ventas.controller';
 import { asyncHandler } from '../middlewares/async-handler.middleware';
 import { authenticate } from '../middlewares/auth.middleware';
@@ -14,8 +19,12 @@ export const ventasRouter = Router();
 
 ventasRouter.use('/api/ventas', authenticate, authorizeRoles(RolUsuario.ADMIN));
 
-ventasRouter.get('/api/ventas', asyncHandler(listVentasController));
-ventasRouter.get('/api/ventas/lotes-disponibles', asyncHandler(listLotesDisponiblesVentaController));
-ventasRouter.get('/api/ventas/:id', asyncHandler(getVentaController));
-ventasRouter.post('/api/ventas', asyncHandler(createVentaController));
-
+ventasRouter.get('/api/ventas/resumen', asyncHandler(getResumenVentasController));
+ventasRouter.get('/api/ventas/ordenes-disponibles', asyncHandler(listOrdenesDisponiblesController));
+ventasRouter.get('/api/ventas/entregas', asyncHandler(listEntregasController));
+ventasRouter.post('/api/ventas/entregas', asyncHandler(createEntregaController));
+ventasRouter.patch('/api/ventas/entregas/:id', asyncHandler(updateEntregaController));
+ventasRouter.delete('/api/ventas/entregas/:id', asyncHandler(deleteEntregaController));
+ventasRouter.get('/api/ventas/liquidaciones', asyncHandler(listLiquidacionesController));
+ventasRouter.get('/api/ventas/liquidaciones/sugerencia', asyncHandler(getSugerenciaLiquidacionController));
+ventasRouter.post('/api/ventas/liquidaciones', asyncHandler(createLiquidacionController));

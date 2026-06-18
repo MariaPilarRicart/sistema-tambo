@@ -1,59 +1,95 @@
 import type { Cliente } from './clientes';
 import type { AuthUser } from './auth';
-import type { LoteLeche } from './produccion';
+import type { Ordene } from './produccion';
 
-export interface VentaDetalle {
+export type EstadoEntregaLeche = 'PENDIENTE' | 'LIQUIDADA' | 'ANULADA';
+
+export interface EntregaLecheOrdene {
   id: number;
-  ventaId: number;
-  loteLecheId: number;
-  litrosVendidos: number | string;
-  precioUnitario: number | string;
-  subtotal: number | string;
-  loteLeche: LoteLeche;
+  entregaLecheId: number;
+  ordeneId: number;
+  litrosEntregados: number | string;
+  ordene: Ordene;
 }
 
-export interface Venta {
+export interface EntregaLeche {
   id: number;
   clienteId: number;
-  numeroFactura: string;
-  fechaVenta: string;
-  precioPorLitro: number | string;
-  totalLitros: number | string;
-  precioTotal: number | string;
-  observaciones: string | null;
-  usuarioId: number;
+  fechaRetiro: string;
+  observacion: string | null;
+  estado: EstadoEntregaLeche;
+  liquidacionId: number | null;
   createdAt: string;
   updatedAt: string;
   cliente: Cliente;
-  usuario: Pick<AuthUser, 'id' | 'username'> & { nombre: string; rol: AuthUser['role'] };
-  detalles: VentaDetalle[];
+  usuario: (Pick<AuthUser, 'id' | 'username'> & { nombre: string; rol: AuthUser['role'] }) | null;
+  liquidacion: {
+    id: number;
+    numero: string;
+    mes: number;
+    anio: number;
+  } | null;
+  ordenes: EntregaLecheOrdene[];
 }
 
-export interface LoteLecheDisponible extends LoteLeche {
-  litrosVendidos: number;
-  litrosDisponibles: number;
-  estadoCalculado: LoteLeche['estado'];
-  ventasAsociadas: Venta[];
+export interface LiquidacionLeche {
+  id: number;
+  clienteId: number;
+  mes: number;
+  anio: number;
+  numero: string;
+  fechaLiquidacion: string;
+  precioLitro: number | string;
+  litrosLiquidados: number | string;
+  importeTotal: number | string;
+  observacion: string | null;
+  createdAt: string;
+  updatedAt: string;
+  cliente: Cliente;
+  usuario: (Pick<AuthUser, 'id' | 'username'> & { nombre: string; rol: AuthUser['role'] }) | null;
+  entregas: EntregaLeche[];
 }
 
-export interface VentaDetalleFormValues {
-  loteLecheId: string;
-  litrosVendidos: string;
+export interface VentasResumen {
+  litrosEntregadosMes: number;
+  retirosPendientes: number;
+  liquidacionesMes: number;
+  importeLiquidadoMes: number;
 }
 
-export interface VentaFormValues {
+export interface EntregaFilters {
   clienteId: string;
-  numeroFactura: string;
-  fechaVenta: string;
-  precioPorLitro: string;
-  observaciones: string;
-  detalles: VentaDetalleFormValues[];
-}
-
-export interface VentaFilters {
-  clienteId: string;
-  clienteSearch: string;
   fechaDesde: string;
   fechaHasta: string;
-  factura: string;
+  estado: string;
+}
+
+export interface LiquidacionFilters {
+  clienteId: string;
+  mes: string;
+  anio: string;
+}
+
+export interface EntregaFormValues {
+  clienteId: string;
+  fechaRetiro: string;
+  ordeneIds: string[];
+  observacion: string;
+}
+
+export interface LiquidacionFormValues {
+  clienteId: string;
+  mes: string;
+  anio: string;
+  numero: string;
+  fechaLiquidacion: string;
+  precioLitro: string;
+  litrosLiquidados: string;
+  observacion: string;
+}
+
+export interface SugerenciaLiquidacion {
+  litrosSugeridos: number;
+  cantidadRetiros: number;
+  entregas: EntregaLeche[];
 }

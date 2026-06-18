@@ -1,15 +1,22 @@
-import { EstadoLoteLeche, Prisma } from '@prisma/client';
+import { EstadoEntregaLeche, Prisma } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 import {
-  createVentaConDetalles,
+  anularEntregaLeche,
+  createEntregaLeche,
+  createLiquidacionLeche,
   findClienteForVenta,
-  findLotesLecheConVentas,
-  findLotesLecheForVenta,
-  findVentaByFactura,
-  findVentaById,
-  findVentaDetallesByLoteIds,
-  findVentas,
-  type VentaFilters,
+  findEntregaLecheById,
+  findEntregasLeche,
+  findEntregasPendientesPeriodo,
+  findLiquidacionLecheByPeriodo,
+  findLiquidacionesLeche,
+  findOrdenesAsignadas,
+  findOrdenesByIds,
+  findOrdenesDisponiblesParaEntrega,
+  updateEntregaLeche,
+  type EntregaLecheFilters,
+  type EntregaLecheWithRelations,
+  type LiquidacionLecheFilters,
 } from '../repositories/ventas.repository';
 
 function parseId(value: unknown, fieldName: string) {
@@ -28,6 +35,7 @@ function parseDate(value: unknown, fieldName: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : new Date(value);
   if (Number.isNaN(date.getTime())) throw new AppError(`${fieldName} inválida.`, 400);
+  date.setHours(0, 0, 0, 0);
   return date;
 }
 
@@ -36,6 +44,25 @@ function parseDateFilter(value: unknown, endOfDay = false) {
   const date = parseDate(value, 'Fecha de filtro');
   date.setHours(endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
   return date;
+}
+
+function parseOptionalNumber(value: unknown, fieldName: string) {
+  if (value === undefined || value === null || value === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) throw new AppError(`${fieldName} inválido.`, 400);
+  return parsed;
+}
+
+function parseMes(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 12) throw new AppError('Mes inválido.', 400);
+  return parsed;
+}
+
+function parseAnio(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 2000 || parsed > 2100) throw new AppError('Año inválido.', 400);
+  return parsed;
 }
 
 function normalizeRequiredString(value: unknown, fieldName: string) {
@@ -49,166 +76,202 @@ function normalizeOptionalString(value: unknown, fieldName: string) {
   return value.trim() || null;
 }
 
+function parseDecimal(value: unknown, fieldName: string, min = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < min) throw new AppError(`${fieldName} debe ser mayor o igual a ${min}.`, 400);
+  return new Prisma.Decimal(parsed).toDecimalPlaces(2);
+}
+
 function parsePositiveDecimal(value: unknown, fieldName: string) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) throw new AppError(`${fieldName} debe ser mayor a 0.`, 400);
-  return new Prisma.Decimal(parsed);
-}
-
-function toDecimal(value: Prisma.Decimal | number | string | null | undefined) {
-  return new Prisma.Decimal(value ?? 0).toDecimalPlaces(2);
+  return new Prisma.Decimal(parsed).toDecimalPlaces(2);
 }
 
 function toNumber(value: Prisma.Decimal | number | string | null | undefined) {
   return Number(value ?? 0);
 }
 
-function isExpired(fechaVencimiento: Date, fechaVenta = new Date()) {
-  const vencimiento = new Date(fechaVencimiento);
-  vencimiento.setHours(23, 59, 59, 999);
-  return fechaVenta > vencimiento;
-}
-
-function parseFilters(input: Record<string, unknown>): VentaFilters {
+function parseEntregaFilters(input: Record<string, unknown>): EntregaLecheFilters {
   return {
     clienteId: parseOptionalId(input.clienteId, 'clienteId'),
-    clienteSearch: typeof input.clienteSearch === 'string' && input.clienteSearch.trim() ? input.clienteSearch.trim() : undefined,
     fechaDesde: parseDateFilter(input.fechaDesde),
     fechaHasta: parseDateFilter(input.fechaHasta, true),
-    factura: typeof input.factura === 'string' && input.factura.trim() ? input.factura.trim() : undefined,
+    estado: input.estado === 'PENDIENTE' || input.estado === 'LIQUIDADA' || input.estado === 'ANULADA' ? input.estado : undefined,
   };
 }
 
-function parseDetalles(input: unknown) {
-  if (!Array.isArray(input) || input.length === 0) throw new AppError('La venta debe tener al menos un detalle.', 400);
-  const loteLecheIds = new Set<number>();
+function parseLiquidacionFilters(input: Record<string, unknown>): LiquidacionLecheFilters {
+  return {
+    clienteId: parseOptionalId(input.clienteId, 'clienteId'),
+    mes: parseOptionalNumber(input.mes, 'mes'),
+    anio: parseOptionalNumber(input.anio, 'anio'),
+  };
+}
 
-  return input.map((item, index) => {
-    if (!item || typeof item !== 'object') throw new AppError(`Detalle ${index + 1} inválido.`, 400);
-    const detalle = item as Record<string, unknown>;
-    const loteLecheId = parseId(detalle.loteLecheId, `loteLecheId del detalle ${index + 1}`);
-    if (loteLecheIds.has(loteLecheId)) {
-      throw new AppError('No se puede vender el mismo lote más de una vez en la misma venta.', 400);
+function periodoRange(mes: number, anio: number) {
+  const desde = new Date(anio, mes - 1, 1, 0, 0, 0, 0);
+  const hasta = new Date(anio, mes, 0, 23, 59, 59, 999);
+  return { desde, hasta };
+}
+
+function totalLitrosEntregados(entregas: EntregaLecheWithRelations[]) {
+  return entregas.reduce(
+    (total, entrega) => total + entrega.ordenes.reduce((subtotal, detalle) => subtotal + toNumber(detalle.litrosEntregados), 0),
+    0,
+  );
+}
+
+function parseOrdeneIds(input: unknown) {
+  if (!Array.isArray(input) || input.length === 0) throw new AppError('Debe seleccionar al menos un ordeñe.', 400);
+  const ids = input.map((value) => parseId(value, 'ordeneId'));
+  if (new Set(ids).size !== ids.length) throw new AppError('No se puede repetir el mismo ordeñe en un retiro.', 400);
+  return ids;
+}
+
+async function validateCliente(clienteId: number) {
+  const cliente = await findClienteForVenta(clienteId);
+  if (!cliente) throw new AppError('Empresa compradora no encontrada.', 404);
+  if (!cliente.activo) throw new AppError('No se pueden registrar retiros para empresas inactivas.', 400);
+  return cliente;
+}
+
+async function buildEntregaOrdenes(ordeneIds: number[], excludeEntregaId?: number) {
+  const [ordenes, asignadas] = await Promise.all([findOrdenesByIds(ordeneIds), findOrdenesAsignadas(ordeneIds, excludeEntregaId)]);
+  if (ordenes.length !== ordeneIds.length) throw new AppError('Uno o más ordeñes no existen o están inactivos.', 404);
+  if (asignadas.length > 0) throw new AppError('Este ordeñe ya fue asignado a una empresa.', 409);
+
+  return ordeneIds.map((ordeneId) => {
+    const ordene = ordenes.find((item) => item.id === ordeneId);
+    if (!ordene) throw new AppError('Uno o más ordeñes no existen o están inactivos.', 404);
+    const litrosEntregados = new Prisma.Decimal(ordene.litrosBuenos).toDecimalPlaces(2);
+    if (litrosEntregados.lte(0)) throw new AppError('Solo se pueden entregar ordeñes con litros buenos mayores a cero.', 400);
+    return { ordeneId, litrosEntregados };
+  });
+}
+
+export async function listEntregas(query: Record<string, unknown>) {
+  return findEntregasLeche(parseEntregaFilters(query));
+}
+
+export async function listOrdenesDisponibles() {
+  return findOrdenesDisponiblesParaEntrega();
+}
+
+export async function createNewEntrega(input: Record<string, unknown>, usuarioId?: number) {
+  const clienteId = parseId(input.clienteId, 'empresa');
+  await validateCliente(clienteId);
+  const ordenes = await buildEntregaOrdenes(parseOrdeneIds(input.ordeneIds));
+
+  try {
+    return await createEntregaLeche({
+      clienteId,
+      fechaRetiro: parseDate(input.fechaRetiro, 'Fecha de retiro'),
+      observacion: normalizeOptionalString(input.observacion, 'Observación'),
+      usuarioId,
+      ordenes,
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new AppError('Este ordeñe ya fue asignado a una empresa.', 409);
     }
-    loteLecheIds.add(loteLecheId);
-
-    return {
-      loteLecheId,
-      litrosVendidos: parsePositiveDecimal(detalle.litrosVendidos, `Litros vendidos del detalle ${index + 1}`),
-    };
-  });
+    throw error;
+  }
 }
 
-async function availabilityByLote(loteLecheIds: number[]) {
-  const [lotes, ventasPorLote] = await Promise.all([findLotesLecheForVenta(loteLecheIds), findVentaDetallesByLoteIds(loteLecheIds)]);
-  const soldMap = new Map(ventasPorLote.map((item) => [item.loteLecheId, toDecimal(item._sum.litrosVendidos)]));
-  return lotes.map((lote) => {
-    const litrosVendidos = soldMap.get(lote.id) ?? new Prisma.Decimal(0);
-    const litrosDisponibles = toDecimal(lote.litrosNetos).minus(litrosVendidos).toDecimalPlaces(2);
-    return { ...lote, litrosVendidos, litrosDisponibles };
-  });
-}
+export async function updateExistingEntrega(idParam: string, input: Record<string, unknown>) {
+  const id = parseId(idParam, 'Id de retiro');
+  const existing = await findEntregaLecheById(id);
+  if (!existing) throw new AppError('Retiro de leche no encontrado.', 404);
+  if (existing.estado !== EstadoEntregaLeche.PENDIENTE) throw new AppError('Solo se pueden editar retiros pendientes de liquidar.', 400);
 
-export async function listVentas(query: Record<string, unknown>) {
-  return findVentas(parseFilters(query));
-}
+  const clienteId = parseId(input.clienteId, 'empresa');
+  await validateCliente(clienteId);
+  const ordenes = await buildEntregaOrdenes(parseOrdeneIds(input.ordeneIds), id);
 
-export async function getVenta(idParam: string) {
-  const id = parseId(idParam, 'Id de venta');
-  const venta = await findVentaById(id);
-  if (!venta) throw new AppError('Venta no encontrada.', 404);
-  return venta;
-}
-
-export async function listLotesDisponiblesParaVenta() {
-  const lotes = await findLotesLecheConVentas();
-  const now = new Date();
-  return lotes.map((lote) => {
-    const litrosVendidos = lote.ventaDetalles.reduce((total, detalle) => total.plus(toDecimal(detalle.litrosVendidos)), new Prisma.Decimal(0));
-    const litrosDisponibles = toDecimal(lote.litrosNetos).minus(litrosVendidos).toDecimalPlaces(2);
-    const estadoCalculado = isExpired(lote.fechaVencimiento, now)
-      ? EstadoLoteLeche.VENCIDO
-      : litrosDisponibles.lte(0)
-        ? EstadoLoteLeche.VENDIDO
-        : EstadoLoteLeche.DISPONIBLE;
-
-    return {
-      ...lote,
-      litrosVendidos: toNumber(litrosVendidos),
-      litrosDisponibles: Math.max(toNumber(litrosDisponibles), 0),
-      estadoCalculado,
-      ventasAsociadas: lote.ventaDetalles.map((detalle) => detalle.venta),
-    };
-  });
-}
-
-export async function createNewVenta(input: Record<string, unknown>, usuarioId?: number) {
-  if (!usuarioId) throw new AppError('Usuario no autenticado.', 401);
-  const clienteId = parseId(input.clienteId, 'clienteId');
-  const numeroFactura = normalizeRequiredString(input.numeroFactura, 'Número de factura');
-  const fechaVenta = parseDate(input.fechaVenta, 'Fecha de venta');
-  const precioPorLitro = parsePositiveDecimal(input.precioPorLitro, 'Precio por litro');
-  const detallesInput = parseDetalles(input.detalles);
-
-  const [cliente, existingFactura] = await Promise.all([findClienteForVenta(clienteId), findVentaByFactura(numeroFactura)]);
-  if (!cliente) throw new AppError('Cliente no encontrado.', 404);
-  if (!cliente.activo) throw new AppError('No se pueden registrar ventas para clientes inactivos.', 400);
-  if (existingFactura) throw new AppError('Ya existe una venta con ese número de factura.', 409);
-
-  const litrosPorLote = new Map<number, Prisma.Decimal>();
-  detallesInput.forEach((detalle) => {
-    litrosPorLote.set(detalle.loteLecheId, detalle.litrosVendidos.toDecimalPlaces(2));
-  });
-
-  const lotesConDisponibilidad = await availabilityByLote(Array.from(litrosPorLote.keys()));
-  if (lotesConDisponibilidad.length !== litrosPorLote.size) throw new AppError('Uno o más lotes de leche no existen.', 404);
-
-  const estadosLotes = lotesConDisponibilidad.map((lote) => {
-    if (isExpired(lote.fechaVencimiento, fechaVenta) || lote.estado === EstadoLoteLeche.VENCIDO) {
-      throw new AppError(`El lote ${lote.codigo} está vencido y no puede venderse.`, 400);
+  try {
+    return await updateEntregaLeche(id, {
+      clienteId,
+      fechaRetiro: parseDate(input.fechaRetiro, 'Fecha de retiro'),
+      observacion: normalizeOptionalString(input.observacion, 'Observación'),
+      ordenes,
+    });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new AppError('Este ordeñe ya fue asignado a una empresa.', 409);
     }
+    throw error;
+  }
+}
 
-    if (lote.estado !== EstadoLoteLeche.DISPONIBLE) {
-      throw new AppError(`El lote ${lote.codigo} no está disponible para la venta.`, 400);
-    }
+export async function deleteExistingEntrega(idParam: string) {
+  const id = parseId(idParam, 'Id de retiro');
+  const existing = await findEntregaLecheById(id);
+  if (!existing) throw new AppError('Retiro de leche no encontrado.', 404);
+  if (existing.estado !== EstadoEntregaLeche.PENDIENTE) throw new AppError('Solo se pueden anular retiros pendientes de liquidar.', 400);
+  return anularEntregaLeche(id);
+}
 
-    const litrosSolicitados = litrosPorLote.get(lote.id) ?? new Prisma.Decimal(0);
-    if (litrosSolicitados.gt(lote.litrosDisponibles)) {
-      throw new AppError(`No hay litros disponibles suficientes en el lote ${lote.codigo}.`, 400);
-    }
+export async function listLiquidaciones(query: Record<string, unknown>) {
+  return findLiquidacionesLeche(parseLiquidacionFilters(query));
+}
 
-    const litrosDisponiblesPosteriores = lote.litrosDisponibles.minus(litrosSolicitados).toDecimalPlaces(2);
-    return {
-      id: lote.id,
-      estado: litrosDisponiblesPosteriores.lte(0) ? EstadoLoteLeche.VENDIDO : EstadoLoteLeche.DISPONIBLE,
-      fechaVenta: litrosDisponiblesPosteriores.lte(0) ? fechaVenta : null,
-    };
-  });
+export async function getSugerenciaLiquidacion(query: Record<string, unknown>) {
+  const clienteId = parseId(query.clienteId, 'empresa');
+  const mes = parseMes(query.mes);
+  const anio = parseAnio(query.anio);
+  const { desde, hasta } = periodoRange(mes, anio);
+  const entregas = await findEntregasPendientesPeriodo(clienteId, desde, hasta);
+  return {
+    litrosSugeridos: totalLitrosEntregados(entregas),
+    cantidadRetiros: entregas.length,
+    entregas,
+  };
+}
 
-  const loteMap = new Map(lotesConDisponibilidad.map((lote) => [lote.id, lote]));
-  const detalles = detallesInput.map((detalle) => {
-    if (!loteMap.has(detalle.loteLecheId)) throw new AppError('Uno o más lotes de leche no existen.', 404);
-    return {
-      loteLecheId: detalle.loteLecheId,
-      litrosVendidos: detalle.litrosVendidos.toDecimalPlaces(2),
-      precioUnitario: precioPorLitro,
-      subtotal: detalle.litrosVendidos.mul(precioPorLitro).toDecimalPlaces(2),
-    };
-  });
+export async function createNewLiquidacion(input: Record<string, unknown>, usuarioId?: number) {
+  const clienteId = parseId(input.clienteId, 'empresa');
+  await validateCliente(clienteId);
+  const mes = parseMes(input.mes);
+  const anio = parseAnio(input.anio);
+  const numero = normalizeRequiredString(input.numero, 'Número de liquidación');
+  const precioLitro = parsePositiveDecimal(input.precioLitro, 'Precio por litro');
+  const litrosLiquidados = parseDecimal(input.litrosLiquidados, 'Litros liquidados', 0);
+  const existing = await findLiquidacionLecheByPeriodo(clienteId, mes, anio);
+  if (existing) throw new AppError('Ya existe una liquidación para esta empresa y período.', 409);
 
-  const totalLitros = detalles.reduce((total, detalle) => total.plus(detalle.litrosVendidos), new Prisma.Decimal(0));
-  const precioTotal = detalles.reduce((total, detalle) => total.plus(detalle.subtotal), new Prisma.Decimal(0));
+  const { desde, hasta } = periodoRange(mes, anio);
+  const entregas = await findEntregasPendientesPeriodo(clienteId, desde, hasta);
+  if (entregas.length === 0) throw new AppError('No existen retiros pendientes para esta empresa y período.', 400);
 
-  return createVentaConDetalles({
+  return createLiquidacionLeche({
     clienteId,
-    numeroFactura,
-    fechaVenta,
-    precioPorLitro,
-    totalLitros,
-    precioTotal,
-    observaciones: normalizeOptionalString(input.observaciones, 'Observaciones'),
+    mes,
+    anio,
+    numero,
+    fechaLiquidacion: parseDate(input.fechaLiquidacion, 'Fecha de liquidación'),
+    precioLitro,
+    litrosLiquidados,
+    importeTotal: litrosLiquidados.mul(precioLitro).toDecimalPlaces(2),
+    observacion: normalizeOptionalString(input.observacion, 'Observación'),
     usuarioId,
-    detalles,
-    estadosLotes,
+    entregaIds: entregas.map((entrega) => entrega.id),
   });
+}
+
+export async function getResumenVentas() {
+  const now = new Date();
+  const { desde, hasta } = periodoRange(now.getMonth() + 1, now.getFullYear());
+  const [entregasMes, entregasPendientes, liquidacionesMes] = await Promise.all([
+    findEntregasLeche({ fechaDesde: desde, fechaHasta: hasta }),
+    findEntregasLeche({ estado: EstadoEntregaLeche.PENDIENTE }),
+    findLiquidacionesLeche({ mes: now.getMonth() + 1, anio: now.getFullYear() }),
+  ]);
+
+  return {
+    litrosEntregadosMes: totalLitrosEntregados(entregasMes.filter((entrega) => entrega.estado !== EstadoEntregaLeche.ANULADA)),
+    retirosPendientes: entregasPendientes.length,
+    liquidacionesMes: liquidacionesMes.length,
+    importeLiquidadoMes: liquidacionesMes.reduce((total, liquidacion) => total + toNumber(liquidacion.importeTotal), 0),
+  };
 }

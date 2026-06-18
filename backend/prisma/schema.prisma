@@ -148,6 +148,12 @@ enum EstadoLoteLeche {
   INACTIVO
 }
 
+enum EstadoEntregaLeche {
+  PENDIENTE
+  LIQUIDADA
+  ANULADA
+}
+
 model Usuario {
   id           Int        @id @default(autoincrement())
   nombre       String
@@ -167,6 +173,8 @@ model Usuario {
   producciones          ProduccionAnimal[]
   ordenes               Ordene[]
   ventas                Venta[]
+  entregasLeche         EntregaLeche[]
+  liquidacionesLeche    LiquidacionLeche[]
   tareasAgenda          AgendaTarea[]
   notificacionesAtendidas NotificacionUsuarioAtendida[]
 
@@ -342,6 +350,8 @@ model Cliente {
   updatedAt   DateTime @updatedAt
 
   ventas Venta[]
+  entregasLeche EntregaLeche[]
+  liquidacionesLeche LiquidacionLeche[]
 
   @@index([activo])
   @@map("clientes")
@@ -384,6 +394,69 @@ model VentaDetalle {
   @@index([ventaId])
   @@index([loteLecheId])
   @@map("venta_detalles")
+}
+
+model EntregaLeche {
+  id            Int                @id @default(autoincrement())
+  clienteId     Int
+  fechaRetiro   DateTime
+  observacion   String?
+  estado        EstadoEntregaLeche @default(PENDIENTE)
+  liquidacionId Int?
+  usuarioId     Int?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  cliente     Cliente                 @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  liquidacion LiquidacionLeche?       @relation(fields: [liquidacionId], references: [id], onDelete: SetNull)
+  usuario     Usuario?                @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  ordenes     EntregaLecheOrdene[]
+
+  @@index([clienteId])
+  @@index([fechaRetiro])
+  @@index([estado])
+  @@index([liquidacionId])
+  @@index([usuarioId])
+  @@map("entregas_leche")
+}
+
+model EntregaLecheOrdene {
+  id                Int     @id @default(autoincrement())
+  entregaLecheId    Int
+  ordeneId          Int     @unique
+  litrosEntregados  Decimal @db.Decimal(10, 2)
+
+  entregaLeche EntregaLeche @relation(fields: [entregaLecheId], references: [id], onDelete: Cascade)
+  ordene       Ordene       @relation(fields: [ordeneId], references: [id], onDelete: Restrict)
+
+  @@index([entregaLecheId])
+  @@map("entregas_leche_ordenes")
+}
+
+model LiquidacionLeche {
+  id               Int      @id @default(autoincrement())
+  clienteId        Int
+  mes              Int
+  anio             Int
+  numero           String
+  fechaLiquidacion DateTime
+  precioLitro      Decimal  @db.Decimal(12, 2)
+  litrosLiquidados Decimal  @db.Decimal(10, 2)
+  importeTotal     Decimal  @db.Decimal(12, 2)
+  observacion      String?
+  usuarioId        Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  cliente  Cliente         @relation(fields: [clienteId], references: [id], onDelete: Restrict)
+  usuario  Usuario?        @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  entregas EntregaLeche[]
+
+  @@unique([clienteId, mes, anio])
+  @@index([clienteId])
+  @@index([mes, anio])
+  @@index([usuarioId])
+  @@map("liquidaciones_leche")
 }
 
 model MovimientoStockAlimentacion {
@@ -598,6 +671,7 @@ model Ordene {
 
   usuario  Usuario?        @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
   detalles OrdeneDetalle[]
+  entregas EntregaLecheOrdene[]
 
   @@unique([fecha, turno])
   @@index([fecha])
