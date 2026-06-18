@@ -289,3 +289,141 @@ export function findLotesLecheByEstado(estado: EstadoLoteLeche) {
     orderBy: [{ fechaProduccion: 'desc' }, { codigo: 'asc' }],
   });
 }
+
+export const ordeneInclude = {
+  detalles: {
+    include: {
+      animal: {
+        select: {
+          id: true,
+          caravana: true,
+          nombre: true,
+          categoriaAnimal: true,
+          estadoReproductivo: true,
+          activo: true,
+          estadoAnimal: true,
+          loteId: true,
+          lote: {
+            select: {
+              id: true,
+              nombre: true,
+              activo: true,
+              tipoFuncional: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { id: 'asc' },
+  },
+  usuario: {
+    select: {
+      id: true,
+      nombre: true,
+      username: true,
+      rol: true,
+    },
+  },
+} satisfies Prisma.OrdeneInclude;
+
+export type OrdeneWithRelations = Prisma.OrdeneGetPayload<{ include: typeof ordeneInclude }>;
+
+export interface OrdeneFilters {
+  fechaDesde?: Date;
+  fechaHasta?: Date;
+  turno?: TurnoOrdene;
+  activo?: boolean;
+}
+
+export function findOrdenes(filters: OrdeneFilters = {}) {
+  return prisma.ordene.findMany({
+    where: {
+      activo: filters.activo,
+      turno: filters.turno,
+      fecha: filters.fechaDesde || filters.fechaHasta
+        ? {
+            gte: filters.fechaDesde,
+            lte: filters.fechaHasta,
+          }
+        : undefined,
+    },
+    orderBy: [{ fecha: 'desc' }, { id: 'desc' }],
+    include: ordeneInclude,
+  });
+}
+
+export function findOrdeneById(id: number) {
+  return prisma.ordene.findUnique({
+    where: { id },
+    include: ordeneInclude,
+  });
+}
+
+export function findOrdeneByFechaTurno(fecha: Date, turno: TurnoOrdene) {
+  return prisma.ordene.findUnique({
+    where: {
+      fecha_turno: {
+        fecha,
+        turno,
+      },
+    },
+  });
+}
+
+export async function createOrdene(data: {
+  fecha: Date;
+  turno: TurnoOrdene;
+  litrosBuenos: Prisma.Decimal;
+  litrosDescartados: Prisma.Decimal;
+  observaciones?: string | null;
+  usuarioId: number;
+  detalles: Array<{ animalId: number; litros: Prisma.Decimal; observaciones?: string | null }>;
+}) {
+  return prisma.ordene.create({
+    data: {
+      fecha: data.fecha,
+      turno: data.turno,
+      litrosBuenos: data.litrosBuenos,
+      litrosDescartados: data.litrosDescartados,
+      observaciones: data.observaciones,
+      usuarioId: data.usuarioId,
+      detalles: {
+        create: data.detalles,
+      },
+    },
+    include: ordeneInclude,
+  });
+}
+
+export function deactivateOrdene(id: number) {
+  return prisma.ordene.update({
+    where: { id },
+    data: { activo: false },
+    include: ordeneInclude,
+  });
+}
+
+export function findAnimalesHabilitadosParaOrdene() {
+  return prisma.animal.findMany({
+    where: {
+      activo: true,
+      estadoAnimal: 'ACTIVO',
+      categoriaAnimal: 'VACA',
+      lote: {
+        activo: true,
+        tipoFuncional: { in: ['PRODUCCION', 'RECUPERACION'] },
+      },
+    },
+    orderBy: { caravana: 'asc' },
+    include: {
+      lote: {
+        select: {
+          id: true,
+          nombre: true,
+          activo: true,
+          tipoFuncional: true,
+        },
+      },
+    },
+  });
+}

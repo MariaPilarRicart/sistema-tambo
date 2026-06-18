@@ -41,52 +41,81 @@ export interface LoteLeche {
   updatedAt: string;
 }
 
-export interface ProduccionAnimal {
+export interface OrdeneDetalle {
   id: number;
+  ordeneId: number;
   animalId: number;
-  loteLecheId: number;
-  usuarioId: number;
-  fechaHora: string;
-  turno: TurnoOrdene;
-  litrosProducidos: number | string;
-  litrosDescartados: number | string;
-  motivoDescarte: MotivoDescarteLeche | null;
-  observacionDescarte: string | null;
-  activo: boolean;
-  createdAt: string;
-  updatedAt: string;
+  litros: number | string;
+  observaciones: string | null;
   animal: Pick<Animal, 'id' | 'caravana' | 'nombre' | 'categoriaAnimal' | 'estadoReproductivo' | 'activo' | 'estadoAnimal' | 'loteId'> & {
-    lote: Pick<Lote, 'id' | 'nombre' | 'activo'>;
+    lote: Pick<Lote, 'id' | 'nombre' | 'activo' | 'tipoFuncional'>;
   };
-  loteLeche: LoteLeche;
+}
+
+export interface Ordene {
+  id: number;
+  fecha: string;
+  turno: TurnoOrdene;
+  litrosBuenos: number | string;
+  litrosDescartados: number | string;
+  observaciones: string | null;
+  activo: boolean;
+  detalles: OrdeneDetalle[];
   usuario: {
     id: number;
     nombre: string;
     username: string;
     rol: UserRole;
-  };
+  } | null;
+  createdAt: string;
+  updatedAt: string;
 }
+
+export type ProduccionAnimal = Ordene;
 
 export interface ProduccionFilters {
   fechaDesde: string;
   fechaHasta: string;
-  animalId: string;
-  loteId: string;
-  loteLecheId: string;
   turno: string;
-  descartadosMayorA?: string;
+}
+
+export interface OrdeneDetalleFormValues {
+  animalId: string;
+  litros: string;
+  observaciones: string;
 }
 
 export interface ProduccionFormValues {
-  loteId: string;
-  animalId: string;
-  loteLecheId: string;
-  fechaHora: string;
+  fecha: string;
   turno: TurnoOrdene;
-  litrosProducidos: string;
+  litrosBuenos: string;
   litrosDescartados: string;
-  motivoDescarte: MotivoDescarteLeche | '';
-  observacionDescarte: string;
+  observaciones: string;
+  detalles: OrdeneDetalleFormValues[];
+}
+
+export interface ProduccionEvolucionDiaria {
+  fecha: string;
+  litrosBuenos: number;
+  litrosDescartados: number;
+  litrosTotales: number;
+  totalIndividualCargado: number;
+  cantidadOrdenes: number;
+}
+
+export interface ProduccionResumen {
+  totalLitrosProducidos: number;
+  totalLitrosBuenos: number;
+  totalLitrosDescartados: number;
+  totalLitrosNetos: number;
+  totalLitros: number;
+  promedioPorOrdene: number;
+  cantidadOrdenes: number;
+  cantidadRegistros: number;
+  cantidadAnimalesRegistrados: number;
+  totalIndividualCargado: number;
+  alertaDescarte: boolean;
+  evolucionDiaria: ProduccionEvolucionDiaria[];
 }
 
 export interface LoteLecheCreateValues {
@@ -109,35 +138,17 @@ export interface LoteLecheEditValues {
   observacionDescarte: string;
 }
 
-export interface ProduccionEvolucionDiaria {
-  fecha: string;
-  litrosNetos: number;
-  litrosProducidos: number;
-  litrosDescartados: number;
-}
-
-export interface ProduccionResumen {
-  totalLitrosProducidos: number;
-  totalLitrosDescartados: number;
-  totalLitrosNetos: number;
-  promedioPorAnimal: number;
-  cantidadAnimalesRegistrados: number;
-  cantidadRegistros: number;
-  alertaDescarte: boolean;
-  evolucionDiaria: ProduccionEvolucionDiaria[];
-}
-
 export interface ProduccionPorAnimal {
   animal: Animal;
-  historial: ProduccionAnimal[];
+  historial: Ordene[];
   litrosTotalesProducidos: number;
   litrosTotales: number;
   litrosDescartados: number;
   litrosNetos: number;
   promedioPorOrdene: number;
   cantidadOrdenes: number;
-  mejorRegistro: ProduccionAnimal | null;
-  peorRegistro: ProduccionAnimal | null;
+  mejorRegistro: Ordene | null;
+  peorRegistro: Ordene | null;
   grasaPromedio: number;
   proteinaPromedio: number;
   recuentoBacterianoPromedio: number;
@@ -156,14 +167,14 @@ export interface ProduccionPorLote {
   cantidadAnimalesConProduccion: number;
   cantidadOrdenes: number;
   rankingAnimales: Array<{
-    animal: ProduccionAnimal['animal'];
+    animal: OrdeneDetalle['animal'];
     litrosTotales: number;
     litrosDescartados: number;
     litrosNetos: number;
     promedioPorOrdene: number;
   }>;
   animalesBajoRendimiento: Array<{
-    animal: ProduccionAnimal['animal'];
+    animal: OrdeneDetalle['animal'];
     litrosTotales: number;
     litrosDescartados: number;
     litrosNetos: number;
@@ -178,29 +189,21 @@ export interface ProduccionPorLote {
 }
 
 export interface ProduccionPorLoteLeche {
-  loteLeche: LoteLeche & { producciones: ProduccionAnimal[] };
-  produccionesAsociadas: ProduccionAnimal[];
+  loteLeche: LoteLeche & { producciones: Ordene[] };
+  produccionesAsociadas: Ordene[];
   animales: Array<{
-    animal: ProduccionAnimal['animal'];
+    animal: OrdeneDetalle['animal'];
     litrosTotales: number;
     litrosDescartados: number;
     litrosNetos: number;
   }>;
   litrosPorAnimal: Array<{
-    animal: ProduccionAnimal['animal'];
+    animal: OrdeneDetalle['animal'];
     litrosTotales: number;
     litrosDescartados: number;
     litrosNetos: number;
   }>;
-  calidad: Pick<
-    LoteLeche,
-    | 'grasa'
-    | 'proteina'
-    | 'temperatura'
-    | 'recuentoBacteriano'
-    | 'recuentoCelulasSomaticas'
-    | 'observacionesCalidad'
-  >;
+  calidad: Pick<LoteLeche, 'grasa' | 'proteina' | 'temperatura' | 'recuentoBacteriano' | 'recuentoCelulasSomaticas' | 'observacionesCalidad'>;
   litrosTotales: number;
   litrosDescartados: number;
   litrosNetos: number;

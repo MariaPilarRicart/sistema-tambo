@@ -2,21 +2,23 @@ import { EstadoLoteLeche, MotivoDescarteLeche, Prisma, TurnoOrdene } from '@pris
 import { AppError } from '../errors/AppError';
 import {
   createLoteLeche,
-  createProduccionAnimal,
+  createOrdene,
+  deactivateOrdene,
   deactivateLoteLeche,
-  deactivateProduccionAnimal,
+  findAnimalesHabilitadosParaOrdene,
   findAnimalForProduccion,
   findLoteById,
   findLoteLecheById,
   findLoteLecheWithProducciones,
   findLotesLeche,
   findLotesLecheCodigos,
-  findProduccionAnimalById,
-  findProduccionesAnimales,
-  findProduccionesAnimalesAsc,
+  findOrdeneById,
+  findOrdeneByFechaTurno,
+  findOrdenes,
   updateLoteLeche,
+  type OrdeneWithRelations,
+  type OrdeneFilters,
   type ProduccionAnimalWithRelations,
-  type ProduccionFilters,
 } from '../repositories/produccion.repository';
 
 function parseId(value: unknown, fieldName: string) {
@@ -34,6 +36,15 @@ function parseDateTime(value: unknown, fieldName: string) {
   if (typeof value !== 'string' || !value) throw new AppError(`${fieldName} es obligatorio.`, 400);
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) throw new AppError(`${fieldName} inválido.`, 400);
+  return date;
+}
+
+function parseOrdeneDate(value: unknown) {
+  if (typeof value !== 'string' || !value) throw new AppError('Fecha es obligatoria.', 400);
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 0, 0, 0, 0) : new Date(value);
+  if (Number.isNaN(date.getTime())) throw new AppError('Fecha inválida.', 400);
+  date.setHours(0, 0, 0, 0);
   return date;
 }
 
@@ -151,72 +162,111 @@ function toNumber(value: Prisma.Decimal | number | string | null | undefined) {
   return Number(value ?? 0);
 }
 
-function defaultFechaVencimiento(fechaProduccion: Date) {
-  const fechaVencimiento = new Date(fechaProduccion);
-  fechaVencimiento.setDate(fechaVencimiento.getDate() + 3);
-  return fechaVencimiento;
+function summarizeOrdenes(ordenes: OrdeneWithRelations[]) {
+  const litrosBuenos = ordenes.reduce((total, ordene) => total + toNumber(ordene.litrosBuenos), 0);
+  const litrosDescartados = ordenes.reduce((total, ordene) => total + toNumber(ordene.litrosDescartados), 0);
+  const totalIndividualCargado = ordenes.reduce(
+    (total, ordene) => total + ordene.detalles.reduce((subtotal, detalle) => subtotal + toNumber(detalle.litros), 0),
+    0,
+  );
+
+  return {
+    totalLitrosProducidos: litrosBuenos,
+    totalLitrosBuenos: litrosBuenos,
+    totalLitrosDescartados: litrosDescartados,
+    totalLitrosNetos: litrosBuenos + litrosDescartados,
+    totalLitros: litrosBuenos + litrosDescartados,
+    promedioPorOrdene: ordenes.length > 0 ? (litrosBuenos + litrosDescartados) / ordenes.length : 0,
+    cantidadOrdenes: ordenes.length,
+    cantidadRegistros: ordenes.length,
+    cantidadAnimalesRegistrados: new Set(ordenes.flatMap((ordene) => ordene.detalles.map((detalle) => detalle.animalId))).size,
+    totalIndividualCargado,
+    alertaDescarte: litrosDescartados > 0,
+  };
 }
 
 function produccionNeta(registro: Pick<ProduccionAnimalWithRelations, 'litrosProducidos' | 'litrosDescartados'>) {
   return toNumber(registro.litrosProducidos) - toNumber(registro.litrosDescartados);
 }
 
+function defaultFechaVencimiento(fechaProduccion: Date) {
+  const fechaVencimiento = new Date(fechaProduccion);
+  fechaVencimiento.setDate(fechaVencimiento.getDate() + 3);
+  return fechaVencimiento;
+}
+
 function promedio(values: number[]) {
   return values.length > 0 ? values.reduce((total, value) => total + value, 0) / values.length : 0;
 }
 
-function buildDailyEvolution(registros: ProduccionAnimalWithRelations[]) {
-  const grouped = new Map<string, { fecha: string; litrosNetos: number; litrosProducidos: number; litrosDescartados: number }>();
+function parseOrdeneFilters(input: Record<string, unknown>): OrdeneFilters {
+  return {
+    fechaDesde: parseDateFilter(input.fechaDesde),
+    fechaHasta: parseDateFilter(input.fechaHasta, true),
+    turno: parseTurno(input.turno),
+    activo: true,
+  };
+}
 
-  registros.forEach((registro) => {
-    const key = dateKey(registro.fechaHora);
-    const current = grouped.get(key) ?? { fecha: key, litrosNetos: 0, litrosProducidos: 0, litrosDescartados: 0 };
-    current.litrosNetos += produccionNeta(registro);
-    current.litrosProducidos += toNumber(registro.litrosProducidos);
-    current.litrosDescartados += toNumber(registro.litrosDescartados);
+function buildOrdeneEvolution(ordenes: OrdeneWithRelations[]) {
+  const grouped = new Map<
+    string,
+    { fecha: string; litrosBuenos: number; litrosDescartados: number; litrosTotales: number; totalIndividualCargado: number; cantidadOrdenes: number }
+  >();
+
+  ordenes.forEach((ordene) => {
+    const key = dateKey(ordene.fecha);
+    const current = grouped.get(key) ?? {
+      fecha: key,
+      litrosBuenos: 0,
+      litrosDescartados: 0,
+      litrosTotales: 0,
+      totalIndividualCargado: 0,
+      cantidadOrdenes: 0,
+    };
+    const litrosBuenos = toNumber(ordene.litrosBuenos);
+    const litrosDescartados = toNumber(ordene.litrosDescartados);
+    current.litrosBuenos += litrosBuenos;
+    current.litrosDescartados += litrosDescartados;
+    current.litrosTotales += litrosBuenos + litrosDescartados;
+    current.totalIndividualCargado += ordene.detalles.reduce((total, detalle) => total + toNumber(detalle.litros), 0);
+    current.cantidadOrdenes += 1;
     grouped.set(key, current);
   });
 
   return Array.from(grouped.values()).sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
-function summarizeRecords(registros: ProduccionAnimalWithRelations[]) {
-  const totalLitrosProducidos = registros.reduce((total, item) => total + toNumber(item.litrosProducidos), 0);
-  const totalLitrosDescartados = registros.reduce((total, item) => total + toNumber(item.litrosDescartados), 0);
-  const totalLitrosNetos = totalLitrosProducidos - totalLitrosDescartados;
-  const animales = new Set(registros.map((item) => item.animalId));
+function parseOrdeneDetails(input: unknown) {
+  if (input === undefined || input === null || input === '') return [];
+  if (!Array.isArray(input)) throw new AppError('El detalle por animal debe ser una lista.', 400);
 
-  return {
-    totalLitrosProducidos,
-    totalLitrosDescartados,
-    totalLitrosNetos,
-    promedioPorAnimal: animales.size > 0 ? totalLitrosNetos / animales.size : 0,
-    cantidadAnimalesRegistrados: animales.size,
-    cantidadRegistros: registros.length,
-  };
+  const usedAnimalIds = new Set<number>();
+  return input
+    .filter((detalle) => detalle && typeof detalle === 'object')
+    .map((detalle) => {
+      const values = detalle as Record<string, unknown>;
+      const animalId = parseId(values.animalId, 'animalId');
+      if (usedAnimalIds.has(animalId)) throw new AppError('No se puede repetir el mismo animal en el detalle del ordeñe.', 400);
+      usedAnimalIds.add(animalId);
+
+      return {
+        animalId,
+        litros: parseDecimal(values.litros, 'Litros por animal', { required: true, min: 0 })!,
+        observaciones: normalizeOptionalString(values.observaciones, 'Observaciones del detalle'),
+      };
+    });
 }
 
-function qualityFromLotes(registros: ProduccionAnimalWithRelations[]) {
-  const lotes = Array.from(new Map(registros.map((registro) => [registro.loteLeche.id, registro.loteLeche])).values());
-  return {
-    grasaPromedio: promedio(lotes.map((lote) => toNumber(lote.grasa)).filter((value) => value > 0)),
-    proteinaPromedio: promedio(lotes.map((lote) => toNumber(lote.proteina)).filter((value) => value > 0)),
-    recuentoBacterianoPromedio: promedio(lotes.map((lote) => lote.recuentoBacteriano ?? 0).filter((value) => value > 0)),
-    recuentoCelulasSomaticasPromedio: promedio(lotes.map((lote) => lote.recuentoCelulasSomaticas ?? 0).filter((value) => value > 0)),
-    temperaturaPromedio: promedio(lotes.map((lote) => toNumber(lote.temperatura)).filter((value) => value > 0)),
-  };
-}
+async function validateOrdeneDetails(detalles: Array<{ animalId: number; litros: Prisma.Decimal; observaciones?: string | null }>) {
+  if (detalles.length === 0) return;
 
-function parseFilters(input: Record<string, unknown>): ProduccionFilters {
-  return {
-    fechaDesde: parseDateFilter(input.fechaDesde),
-    fechaHasta: parseDateFilter(input.fechaHasta, true),
-    animalId: parseOptionalId(input.animalId, 'animalId'),
-    loteId: parseOptionalId(input.loteId, 'loteId'),
-    loteLecheId: parseOptionalId(input.loteLecheId, 'loteLecheId'),
-    turno: parseTurno(input.turno),
-    descartadosMayorA: parseOptionalNumber(input.descartadosMayorA, 'descartadosMayorA'),
-  };
+  const habilitados = await findAnimalesHabilitadosParaOrdene();
+  const habilitadosIds = new Set(habilitados.map((animal) => animal.id));
+  const invalidDetail = detalles.find((detalle) => !habilitadosIds.has(detalle.animalId));
+  if (invalidDetail) {
+    throw new AppError('El detalle solo puede incluir vacas activas en lotes de Producción o Recuperación.', 400);
+  }
 }
 
 export async function listLotesLeche() {
@@ -322,45 +372,35 @@ export async function deleteExistingLoteLeche(idParam: string) {
 }
 
 export async function listProducciones(query: Record<string, unknown>) {
-  return { registros: await findProduccionesAnimales(parseFilters(query)) };
+  return { registros: await findOrdenes(parseOrdeneFilters(query)) };
 }
 
 export async function createNewProduccion(input: Record<string, unknown>, usuarioId?: number) {
   if (!usuarioId) throw new AppError('Usuario no autenticado.', 401);
 
-  const animalId = parseId(input.animalId, 'animalId');
-  const loteLecheId = parseId(input.loteLecheId, 'loteLecheId');
-  const fechaHora = parseDateTime(input.fechaHora, 'Fecha y hora del ordeñe');
+  const fecha = parseOrdeneDate(input.fecha ?? input.fechaHora);
   const turno = parseRequiredTurno(input.turno);
-  const litrosProducidos = parseDecimal(input.litrosProducidos, 'Litros producidos', { required: true, min: 0 })!;
+  const litrosBuenos = parseDecimal(input.litrosBuenos ?? input.litrosProducidos, 'Litros buenos', { required: true, min: 0 })!;
   const litrosDescartados = parseDecimal(input.litrosDescartados ?? 0, 'Litros descartados', { min: 0 }) ?? new Prisma.Decimal(0);
-  const motivoDescarte = parseMotivoDescarte(input.motivoDescarte);
+  const detalles = parseOrdeneDetails(input.detalles);
+  await validateOrdeneDetails(detalles);
 
-  if (litrosDescartados.gt(litrosProducidos)) throw new AppError('Litros descartados no puede superar litros producidos.', 400);
-  if (litrosDescartados.gt(0) && !motivoDescarte) throw new AppError('Motivo de descarte es obligatorio si hay litros descartados.', 400);
-
-  const [animal, loteLeche] = await Promise.all([findAnimalForProduccion(animalId), findLoteLecheById(loteLecheId)]);
-  if (!animal) throw new AppError('Animal no encontrado.', 404);
-  if (!animal.activo || animal.estadoAnimal !== 'ACTIVO') throw new AppError('Solo se puede cargar producción a animales activos.', 400);
-  if (animal.categoriaAnimal !== 'VACA_PRODUCCION') throw new AppError('Solo se puede cargar ordeñe a animales en categoría VACA_PRODUCCION.', 400);
-  if (!loteLeche) throw new AppError('Lote de leche no encontrado.', 404);
-  if (loteLeche.estado !== EstadoLoteLeche.DISPONIBLE) throw new AppError('El lote de leche debe estar disponible.', 400);
+  const existing = await findOrdeneByFechaTurno(fecha, turno);
+  if (existing) throw new AppError('Ya existe un ordeñe para esa fecha y turno.', 409);
 
   try {
-    return await createProduccionAnimal({
-      animalId,
-      loteLecheId,
-      usuarioId,
-      fechaHora,
+    return await createOrdene({
+      fecha,
       turno,
-      litrosProducidos,
+      litrosBuenos,
       litrosDescartados,
-      motivoDescarte,
-      observacionDescarte: normalizeOptionalString(input.observacionDescarte, 'Observación de descarte'),
+      observaciones: normalizeOptionalString(input.observaciones, 'Observaciones'),
+      usuarioId,
+      detalles,
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      throw new AppError('Ya existe un registro para ese animal, fecha y hora y turno.', 409);
+      throw new AppError('Ya existe un ordeñe para esa fecha y turno.', 409);
     }
     throw error;
   }
@@ -368,20 +408,19 @@ export async function createNewProduccion(input: Record<string, unknown>, usuari
 
 export async function deleteExistingProduccion(idParam: string) {
   const id = parseId(idParam, 'Id de producción');
-  const existing = await findProduccionAnimalById(id);
+  const existing = await findOrdeneById(id);
   if (!existing) throw new AppError('Registro de producción no encontrado.', 404);
   if (!existing.activo) return existing;
-  return deactivateProduccionAnimal(id);
+  return deactivateOrdene(id);
 }
 
 export async function getResumenProduccion() {
   const todayStart = startOfDay(new Date());
   const todayEnd = endOfDay(todayStart);
-  const registrosHoy = await findProduccionesAnimales({ fechaDesde: todayStart, fechaHasta: todayEnd, activo: true });
+  const registrosHoy = await findOrdenes({ fechaDesde: todayStart, fechaHasta: todayEnd, activo: true });
   return {
-    ...summarizeRecords(registrosHoy),
-    alertaDescarte: registrosHoy.some((item) => toNumber(item.litrosDescartados) > 0),
-    evolucionDiaria: buildDailyEvolution(registrosHoy),
+    ...summarizeOrdenes(registrosHoy),
+    evolucionDiaria: buildOrdeneEvolution(registrosHoy),
   };
 }
 
@@ -390,28 +429,31 @@ export async function getProduccionPorAnimal(idParam: string) {
   const animal = await findAnimalForProduccion(animalId);
   if (!animal) throw new AppError('Animal no encontrado.', 404);
 
-  const historial = await findProduccionesAnimalesAsc({ animalId, activo: true });
-  const resumen = summarizeRecords(historial);
-  const quality = qualityFromLotes(historial);
-  const orderedByNet = [...historial].sort((a, b) => produccionNeta(a) - produccionNeta(b));
+  const ordenes = await findOrdenes({ activo: true });
+  const historial = ordenes.filter((ordene) => ordene.detalles.some((detalle) => detalle.animalId === animalId));
+  const detalles = historial.flatMap((ordene) =>
+    ordene.detalles.filter((detalle) => detalle.animalId === animalId).map((detalle) => ({ ordene, detalle })),
+  );
+  const litrosTotales = detalles.reduce((total, item) => total + toNumber(item.detalle.litros), 0);
+  const orderedByLitros = [...detalles].sort((a, b) => toNumber(a.detalle.litros) - toNumber(b.detalle.litros));
 
   return {
     animal,
-    litrosTotalesProducidos: resumen.totalLitrosProducidos,
-    litrosTotales: resumen.totalLitrosProducidos,
-    litrosDescartados: resumen.totalLitrosDescartados,
-    litrosNetos: resumen.totalLitrosNetos,
-    promedioPorOrdene: historial.length > 0 ? resumen.totalLitrosNetos / historial.length : 0,
-    cantidadOrdenes: historial.length,
-    mejorRegistro: orderedByNet.at(-1) ?? null,
-    peorRegistro: orderedByNet[0] ?? null,
-    grasaPromedio: quality.grasaPromedio,
-    proteinaPromedio: quality.proteinaPromedio,
-    recuentoBacterianoPromedio: quality.recuentoBacterianoPromedio,
-    recuentoCelulasSomaticasPromedio: quality.recuentoCelulasSomaticasPromedio,
-    temperaturaPromedio: quality.temperaturaPromedio,
+    litrosTotalesProducidos: litrosTotales,
+    litrosTotales,
+    litrosDescartados: 0,
+    litrosNetos: litrosTotales,
+    promedioPorOrdene: detalles.length > 0 ? litrosTotales / detalles.length : 0,
+    cantidadOrdenes: detalles.length,
+    mejorRegistro: orderedByLitros.at(-1)?.ordene ?? null,
+    peorRegistro: orderedByLitros[0]?.ordene ?? null,
+    grasaPromedio: 0,
+    proteinaPromedio: 0,
+    recuentoBacterianoPromedio: 0,
+    recuentoCelulasSomaticasPromedio: 0,
+    temperaturaPromedio: 0,
     historial,
-    evolucion: buildDailyEvolution(historial),
+    evolucion: buildOrdeneEvolution(historial),
   };
 }
 
@@ -420,17 +462,18 @@ export async function getProduccionPorLote(idParam: string) {
   const lote = await findLoteById(loteId);
   if (!lote) throw new AppError('Lote no encontrado.', 404);
 
-  const registros = await findProduccionesAnimalesAsc({ loteId, activo: true });
-  const resumen = summarizeRecords(registros);
-  const quality = qualityFromLotes(registros);
-  const porAnimal = new Map<number, { animal: ProduccionAnimalWithRelations['animal']; total: number; descartado: number; registros: number }>();
+  const ordenes = await findOrdenes({ activo: true });
+  const porAnimal = new Map<number, { animal: OrdeneWithRelations['detalles'][number]['animal']; total: number; descartado: number; registros: number }>();
 
-  registros.forEach((registro) => {
-    const current = porAnimal.get(registro.animalId) ?? { animal: registro.animal, total: 0, descartado: 0, registros: 0 };
-    current.total += toNumber(registro.litrosProducidos);
-    current.descartado += toNumber(registro.litrosDescartados);
-    current.registros += 1;
-    porAnimal.set(registro.animalId, current);
+  ordenes.forEach((ordene) => {
+    ordene.detalles
+      .filter((detalle) => detalle.animal.loteId === loteId)
+      .forEach((detalle) => {
+        const current = porAnimal.get(detalle.animalId) ?? { animal: detalle.animal, total: 0, descartado: 0, registros: 0 };
+        current.total += toNumber(detalle.litros);
+        current.registros += 1;
+        porAnimal.set(detalle.animalId, current);
+      });
   });
 
   const rankingAnimales = Array.from(porAnimal.values())
@@ -443,24 +486,26 @@ export async function getProduccionPorLote(idParam: string) {
     }))
     .sort((a, b) => b.litrosNetos - a.litrosNetos);
   const promedioRanking = promedio(rankingAnimales.map((item) => item.litrosNetos));
+  const litrosTotales = rankingAnimales.reduce((total, item) => total + item.litrosTotales, 0);
+  const ordenesDelLote = ordenes.filter((ordene) => ordene.detalles.some((detalle) => detalle.animal.loteId === loteId));
 
   return {
     lote,
-    litrosTotalesProducidos: resumen.totalLitrosProducidos,
-    litrosTotales: resumen.totalLitrosProducidos,
-    litrosDescartados: resumen.totalLitrosDescartados,
-    litrosNetos: resumen.totalLitrosNetos,
-    promedioPorAnimal: resumen.promedioPorAnimal,
-    cantidadAnimalesConProduccion: resumen.cantidadAnimalesRegistrados,
-    cantidadOrdenes: resumen.cantidadRegistros,
+    litrosTotalesProducidos: litrosTotales,
+    litrosTotales,
+    litrosDescartados: 0,
+    litrosNetos: litrosTotales,
+    promedioPorAnimal: rankingAnimales.length > 0 ? litrosTotales / rankingAnimales.length : 0,
+    cantidadAnimalesConProduccion: rankingAnimales.length,
+    cantidadOrdenes: ordenesDelLote.length,
     rankingAnimales,
     animalesBajoRendimiento: rankingAnimales.filter((item) => promedioRanking > 0 && item.litrosNetos < promedioRanking * 0.7),
-    grasaPromedio: quality.grasaPromedio,
-    proteinaPromedio: quality.proteinaPromedio,
-    recuentoBacterianoPromedio: quality.recuentoBacterianoPromedio,
-    recuentoCelulasSomaticasPromedio: quality.recuentoCelulasSomaticasPromedio,
-    temperaturaPromedio: quality.temperaturaPromedio,
-    evolucionDiaria: buildDailyEvolution(registros),
+    grasaPromedio: 0,
+    proteinaPromedio: 0,
+    recuentoBacterianoPromedio: 0,
+    recuentoCelulasSomaticasPromedio: 0,
+    temperaturaPromedio: 0,
+    evolucionDiaria: buildOrdeneEvolution(ordenesDelLote),
   };
 }
 

@@ -165,6 +165,7 @@ model Usuario {
   registrosAlimentacion RegistroAlimentacion[]
   movimientosStock      MovimientoStockAlimentacion[]
   producciones          ProduccionAnimal[]
+  ordenes               Ordene[]
   ventas                Venta[]
   tareasAgenda          AgendaTarea[]
   notificacionesAtendidas NotificacionUsuarioAtendida[]
@@ -481,6 +482,7 @@ model Animal {
   eventos Evento[]
   tareas  AgendaTarea[]
   producciones ProduccionAnimal[]
+  ordenesDetalle OrdeneDetalle[]
 
   @@index([loteId])
   @@index([madreId])
@@ -580,4 +582,43 @@ model ProduccionAnimal {
   @@index([usuarioId])
   @@index([activo])
   @@map("producciones_animales")
+}
+
+model Ordene {
+  id                 Int          @id @default(autoincrement())
+  fecha              DateTime
+  turno              TurnoOrdene
+  litrosBuenos      Decimal      @default(0) @db.Decimal(10, 2)
+  litrosDescartados Decimal      @default(0) @db.Decimal(10, 2)
+  observaciones      String?
+  usuarioId          Int?
+  activo             Boolean      @default(true)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  usuario  Usuario?        @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  detalles OrdeneDetalle[]
+
+  @@unique([fecha, turno])
+  @@index([fecha])
+  @@index([turno])
+  @@index([activo])
+  @@map("ordenes")
+}
+
+model OrdeneDetalle {
+  id             Int      @id @default(autoincrement())
+  ordeneId       Int
+  animalId       Int
+  litros         Decimal  @default(0) @db.Decimal(10, 2)
+  observaciones  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  ordene Ordene @relation(fields: [ordeneId], references: [id], onDelete: Cascade)
+  animal Animal @relation(fields: [animalId], references: [id], onDelete: Restrict)
+
+  @@unique([ordeneId, animalId])
+  @@index([animalId])
+  @@map("ordenes_detalles")
 }

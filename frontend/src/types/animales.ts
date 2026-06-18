@@ -37,7 +37,7 @@ export interface Animal {
   padreNombre: string | null;
   createdAt: string;
   updatedAt: string;
-  lote: Pick<Lote, 'id' | 'nombre' | 'activo'>;
+  lote: Pick<Lote, 'id' | 'nombre' | 'activo' | 'tipoFuncional'>;
   madre: {
     id: number;
     caravana: string;
