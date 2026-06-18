@@ -47,10 +47,9 @@ export interface Animal {
 
 export interface AnimalFormValues {
   caravana: string;
-  nombre: string;
   fechaNacimiento: string;
   raza: string;
-  categoriaAnimal: CategoriaAnimal;
+  categoriaAnimal: CategoriaAnimal | '';
   estadoReproductivo: EstadoReproductivo;
   estadoAnimal: EstadoAnimal;
   activo: boolean;

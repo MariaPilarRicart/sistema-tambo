@@ -80,10 +80,9 @@ const emptyFilters: AnimalFilters = {
 
 const emptyAnimalForm: AnimalFormValues = {
   caravana: '',
-  nombre: '',
   fechaNacimiento: '',
   raza: '',
-  categoriaAnimal: 'TERNERA',
+  categoriaAnimal: '',
   estadoReproductivo: 'NO_APLICA',
   estadoAnimal: 'ACTIVO',
   activo: true,
@@ -130,8 +129,20 @@ function calculateAgeMonths(fechaNacimiento: string) {
   return Math.max(months, 0);
 }
 
-function isReproductiveCategory(category: CategoriaAnimal) {
+function isReproductiveCategory(category: CategoriaAnimal | '') {
   return category === 'VAQUILLONA' || category === 'VACA';
+}
+
+function categoriaLabel(category: CategoriaAnimal | '') {
+  const labels: Record<string, string> = {
+    TERNERO: 'Ternero',
+    TERNERA: 'Ternera',
+    VAQUILLONA: 'Vaquillona',
+    VACA: 'Vaca',
+    TORITO: 'Torito',
+    TORO: 'Toro',
+  };
+  return labels[category] ?? category;
 }
 
 function toFunctionalCategory(category: CategoriaAnimal): CategoriaAnimal {
@@ -150,7 +161,7 @@ function isReproductiveAnimal(animal: Animal) {
 function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
   const ageMonths = calculateAgeMonths(values.fechaNacimiento);
   const nextValues = { ...values };
-  const isMale = maleCategories.includes(values.categoriaAnimal);
+  const isMale = values.categoriaAnimal ? maleCategories.includes(values.categoriaAnimal) : false;
   const getCompatibleLoteId = (tiposFuncionales: TipoFuncionalLote[]) => {
     const selectedLote = lotes.find((lote) => lote.id.toString() === nextValues.loteId);
 
@@ -161,7 +172,7 @@ function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
     return lotes.find((lote) => lote.activo && tiposFuncionales.includes(lote.tipoFuncional))?.id.toString() ?? nextValues.loteId;
   };
 
-  if (noAplicaCategories.includes(nextValues.categoriaAnimal)) {
+  if (nextValues.categoriaAnimal && noAplicaCategories.includes(nextValues.categoriaAnimal)) {
     nextValues.estadoReproductivo = 'NO_APLICA';
   }
 
@@ -211,6 +222,7 @@ function getExpectedFormValues(values: AnimalFormValues, lotes: Lote[]) {
 
 function getAllowedLoteTypes(values: AnimalFormValues) {
   const ageMonths = calculateAgeMonths(values.fechaNacimiento);
+  if (!values.categoriaAnimal || ageMonths === null) return [];
 
   if (values.categoriaAnimal === 'VACA') return cowLoteTypes;
   if (values.categoriaAnimal === 'VAQUILLONA') return ['TERNERA_2'];
@@ -283,6 +295,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
   const isAdmin = currentUser?.role === 'ADMIN';
   const canCreateAnimal = currentUser?.role === 'ADMIN' || currentUser?.role === 'EMPLEADO';
   const activeLotes = useMemo(() => lotes.filter((lote) => lote.activo), [lotes]);
+  const canSelectLote = Boolean(formValues.categoriaAnimal && formValues.fechaNacimiento);
   const allowedLotes = useMemo(() => {
     const allowedTypes = getAllowedLoteTypes(formValues);
     return activeLotes.filter((lote) => allowedTypes.includes(lote.tipoFuncional));
@@ -386,7 +399,6 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
     setIsAnimalModalOpen(true);
     setFormValues({
       caravana: animal.caravana,
-      nombre: animal.nombre ?? '',
       fechaNacimiento: localDateInput(animal.fechaNacimiento),
       raza: animal.raza ?? '',
       categoriaAnimal: toFunctionalCategory(animal.categoriaAnimal),
@@ -488,6 +500,10 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!authToken) return onUnauthorized();
+    if (!formValues.categoriaAnimal) {
+      setError('Seleccioná una categoría.');
+      return;
+    }
     setIsSaving(true);
     setError('');
     setSuccess('');
@@ -634,7 +650,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
             </select>
             <select value={filters.categoriaAnimal} onChange={(event) => setFilters({ ...filters, categoriaAnimal: event.target.value })}>
               <option value="">Categoría</option>
-              {categoriaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              {categoriaOptions.map((option) => <option key={option} value={option}>{categoriaLabel(option)}</option>)}
             </select>
             <select value={filters.estadoReproductivo} onChange={(event) => setFilters({ ...filters, estadoReproductivo: event.target.value })}>
               <option value="">Estado reproductivo</option>
@@ -676,14 +692,13 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                         >
                           #{animal.caravana}
                         </Link>
-                        <span>{animal.nombre || animal.raza || 'Sin nombre'}</span>
                       </td>
                       <td>{animal.lote.nombre}</td>
                       <td>
                         <strong>{animal.madre ? `#${animal.madre.caravana}` : '-'}</strong>
                         <span>{animal.padreNombre || 'Sin padre'}</span>
                       </td>
-                      <td>{animal.categoriaAnimal}</td>
+                      <td>{categoriaLabel(toFunctionalCategory(animal.categoriaAnimal))}</td>
                       <td>
                         <span className={`status-pill ${animal.activo ? 'status-active' : 'status-inactive'}`}>
                           {animal.estadoAnimal}
@@ -735,8 +750,8 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
               </label>
               <label>
                 <span>Lote</span>
-                <select value={formValues.loteId} onChange={(event) => setFormValues({ ...formValues, loteId: event.target.value })} required>
-                  <option value="">Seleccionar lote</option>
+                <select value={formValues.loteId} onChange={(event) => setFormValues({ ...formValues, loteId: event.target.value })} required disabled={!canSelectLote}>
+                  <option value="">{canSelectLote ? 'Seleccionar lote' : 'Primero seleccioná categoría y fecha de nacimiento'}</option>
                   {allowedLotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
                 </select>
               </label>
@@ -747,13 +762,13 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                   {allAnimales
                     .filter((animal) => animal.id !== editingAnimal?.id)
                     .map((animal) => (
-                      <option key={animal.id} value={animal.id}>#{animal.caravana} {animal.nombre ? `- ${animal.nombre}` : ''}</option>
+                      <option key={animal.id} value={animal.id}>#{animal.caravana}</option>
                     ))}
                 </select>
               </label>
               <label>
                 <span>Padre</span>
-                <input value={formValues.padreNombre} onChange={(event) => setFormValues({ ...formValues, padreNombre: event.target.value })} placeholder="Nombre externo / toro" />
+                <input value={formValues.padreNombre} onChange={(event) => setFormValues({ ...formValues, padreNombre: event.target.value })} placeholder="Identificación externa / toro" />
               </label>
               <label>
                 <span>Categoria</span>
@@ -761,7 +776,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                   value={formValues.categoriaAnimal}
                   onChange={(event) => setFormValues({
                     ...formValues,
-                    categoriaAnimal: event.target.value as CategoriaAnimal,
+                    categoriaAnimal: event.target.value as CategoriaAnimal | '',
                     estadoReproductivo: noAplicaCategories.includes(event.target.value as CategoriaAnimal)
                       ? 'NO_APLICA'
                       : formValues.estadoReproductivo === 'NO_APLICA'
@@ -769,7 +784,8 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                         : formValues.estadoReproductivo,
                   })}
                 >
-                  {categoriaOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                  <option value="">Seleccionar categoría</option>
+                  {categoriaOptions.map((option) => <option key={option} value={option}>{categoriaLabel(option)}</option>)}
                 </select>
               </label>
               <label>
@@ -873,7 +889,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
 
       {eventAnimal && (
         <div className="modal-backdrop">
-          <section className="modal-panel">
+          <section className="modal-panel rodeo-event-modal">
             <div className="panel-header">
               <div>
                 <h2>Registrar evento</h2>
@@ -1095,10 +1111,15 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
 
               {error && <div className="form-error">{error}</div>}
 
-              <button type="submit" className="primary-button" disabled={isSaving}>
-                <CalendarPlus size={18} />
-                Continuar
-              </button>
+              <div className="modal-actions rodeo-event-actions">
+                <button type="button" className="secondary-button" onClick={closeEventModal} disabled={isSaving}>
+                  Cancelar
+                </button>
+                <button type="submit" className="primary-button" disabled={isSaving}>
+                  <CalendarPlus size={18} />
+                  Continuar
+                </button>
+              </div>
             </form>
             )}
           </section>

@@ -34,7 +34,6 @@ function buildQuery(filters: AnimalFilters) {
 function buildAnimalPayload(values: AnimalFormValues, includeCaravana: boolean) {
   return {
     ...(includeCaravana ? { caravana: values.caravana.trim() } : {}),
-    nombre: values.nombre.trim() || null,
     fechaNacimiento: values.fechaNacimiento,
     raza: values.raza.trim() || null,
     categoriaAnimal: values.categoriaAnimal,

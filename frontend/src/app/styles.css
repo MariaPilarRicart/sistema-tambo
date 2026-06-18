@@ -2970,6 +2970,31 @@ a {
   overflow: auto;
 }
 
+.rodeo-event-modal {
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+
+.rodeo-event-modal > .panel-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--slate-200);
+  margin: -24px -24px 20px;
+  padding: 24px;
+  position: sticky;
+  top: -24px;
+  z-index: 2;
+}
+
+.rodeo-event-modal .modal-actions {
+  background: #ffffff;
+  border-top: 1px solid var(--slate-200);
+  bottom: -24px;
+  margin: 18px -24px -24px;
+  padding: 16px 24px 24px;
+  position: sticky;
+  z-index: 2;
+}
+
 .animal-modal-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

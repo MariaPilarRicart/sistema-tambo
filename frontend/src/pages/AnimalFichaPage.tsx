@@ -20,6 +20,21 @@ function InfoItem({ label, value }: { label: string; value: string | number | nu
   );
 }
 
+function categoriaLabel(category: string) {
+  const labels: Record<string, string> = {
+    TERNERO: 'Ternero',
+    TERNERA: 'Ternera',
+    VAQUILLONA: 'Vaquillona',
+    VACA: 'Vaca',
+    VACA_PRODUCCION: 'Vaca',
+    VACA_SECA: 'Vaca',
+    PREPARTO: 'Vaca',
+    TORITO: 'Torito',
+    TORO: 'Toro',
+  };
+  return labels[category] ?? category;
+}
+
 function renderEventoDetalle(evento: AnimalFicha['eventos'][number]) {
   const datos = evento.datosJson && typeof evento.datosJson === 'object' && !Array.isArray(evento.datosJson)
     ? evento.datosJson as Record<string, unknown>
@@ -109,7 +124,7 @@ export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPagePr
             {backLabel}
           </Link>
           <h2>{animal ? `Ficha #${animal.caravana}` : 'Ficha del animal'}</h2>
-          <p>{animal?.nombre || 'Informacion integral del animal.'}</p>
+          <p>Informacion integral del animal.</p>
         </div>
         <button type="button" className="icon-button" onClick={() => void loadFicha()} aria-label="Actualizar ficha">
           <RefreshCcw size={18} />
@@ -144,8 +159,7 @@ export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPagePr
               </div>
               <div className="info-grid">
                 <InfoItem label="Caravana" value={`#${animal.caravana}`} />
-                <InfoItem label="Nombre" value={animal.nombre} />
-                <InfoItem label="Categoría" value={animal.categoriaAnimal} />
+                <InfoItem label="Categoría" value={categoriaLabel(animal.categoriaAnimal)} />
                 <InfoItem label="Estado reproductivo" value={animal.estadoReproductivo} />
                 <InfoItem label="Estado animal" value={animal.estadoAnimal} />
                 <InfoItem label="Lote" value={animal.lote.nombre} />
@@ -181,12 +195,12 @@ export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPagePr
               <div className="genealogy-box">
                 <span>Madre</span>
                 <strong>{animal.madre ? `#${animal.madre.caravana}` : '-'}</strong>
-                <p>{animal.madre?.nombre || 'Sin madre registrada'}</p>
+                <p>{animal.madre ? 'Madre registrada' : 'Sin madre registrada'}</p>
               </div>
               <div className="genealogy-box">
                 <span>Padre</span>
                 <strong>{animal.padreNombre || '-'}</strong>
-                <p>{animal.padreNombre ? 'Nombre externo registrado' : 'Sin padre registrado'}</p>
+                <p>{animal.padreNombre ? 'Padre externo registrado' : 'Sin padre registrado'}</p>
               </div>
               <div className="genealogy-box genealogy-box-wide">
                 <span>Crias / hijos</span>
