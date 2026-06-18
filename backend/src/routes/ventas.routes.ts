@@ -10,6 +10,7 @@ import {
   listLiquidacionesController,
   listOrdenesDisponiblesController,
   updateEntregaController,
+  updateLiquidacionController,
 } from '../controllers/ventas.controller';
 import { asyncHandler } from '../middlewares/async-handler.middleware';
 import { authenticate } from '../middlewares/auth.middleware';
@@ -28,3 +29,4 @@ ventasRouter.delete('/api/ventas/entregas/:id', asyncHandler(deleteEntregaContro
 ventasRouter.get('/api/ventas/liquidaciones', asyncHandler(listLiquidacionesController));
 ventasRouter.get('/api/ventas/liquidaciones/sugerencia', asyncHandler(getSugerenciaLiquidacionController));
 ventasRouter.post('/api/ventas/liquidaciones', asyncHandler(createLiquidacionController));
+ventasRouter.patch('/api/ventas/liquidaciones/:id', asyncHandler(updateLiquidacionController));

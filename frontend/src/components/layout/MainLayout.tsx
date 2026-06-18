@@ -10,6 +10,7 @@ const pageTitles: Record<string, string> = {
   [paths.events]: 'Historial de Eventos',
   [paths.agenda]: 'Agenda Pendiente',
   [paths.feed]: 'Alimentación',
+  [paths.sales]: 'Ventas',
   [paths.vaccination]: 'Control de Vacunación',
   [paths.production]: 'Producción',
   [paths.settings]: 'Usuarios',

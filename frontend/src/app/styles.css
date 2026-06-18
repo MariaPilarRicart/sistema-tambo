@@ -3562,6 +3562,34 @@ a {
   margin-bottom: 18px;
 }
 
+.section-subheader {
+  display: flex;
+  justify-content: space-between;
+  margin: 18px 0 10px;
+}
+
+.section-subheader h3 {
+  color: var(--slate-800);
+  font-size: 16px;
+  margin: 0;
+}
+
+.section-subheader p {
+  color: var(--slate-500);
+  font-size: 13px;
+  margin: 4px 0 0;
+}
+
+.sale-total-item {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.sale-total-item strong {
+  color: var(--emerald-dark);
+  font-size: 18px;
+}
+
 .animal-status-grid .info-item:last-child {
   grid-column: 1 / -1;
 }

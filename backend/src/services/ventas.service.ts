@@ -8,12 +8,14 @@ import {
   findEntregaLecheById,
   findEntregasLeche,
   findEntregasPendientesPeriodo,
+  findLiquidacionLecheById,
   findLiquidacionLecheByPeriodo,
   findLiquidacionesLeche,
   findOrdenesAsignadas,
   findOrdenesByIds,
   findOrdenesDisponiblesParaEntrega,
   updateEntregaLeche,
+  updateLiquidacionLeche,
   type EntregaLecheFilters,
   type EntregaLecheWithRelations,
   type LiquidacionLecheFilters,
@@ -277,6 +279,25 @@ export async function createNewLiquidacion(input: Record<string, unknown>, usuar
     observacion: normalizeOptionalString(input.observacion, 'Observación'),
     usuarioId,
     entregaIds: entregas.map((entrega) => entrega.id),
+  });
+}
+
+export async function updateExistingLiquidacion(idParam: string, input: Record<string, unknown>) {
+  const id = parseId(idParam, 'Id de liquidación');
+  const existing = await findLiquidacionLecheById(id);
+  if (!existing) throw new AppError('Liquidación no encontrada.', 404);
+
+  const numero = normalizeRequiredString(input.numero, 'Número de liquidación');
+  const precioLitro = parsePositiveDecimal(input.precioLitro, 'Precio por litro');
+  const litrosLiquidados = parseDecimal(input.litrosLiquidados, 'Litros liquidados', 0);
+
+  return updateLiquidacionLeche(id, {
+    numero,
+    fechaLiquidacion: parseDate(input.fechaLiquidacion, 'Fecha de liquidación'),
+    precioLitro,
+    litrosLiquidados,
+    importeTotal: litrosLiquidados.mul(precioLitro).toDecimalPlaces(2),
+    observacion: normalizeOptionalString(input.observacion, 'Observación'),
   });
 }
 

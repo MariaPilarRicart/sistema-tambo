@@ -14,6 +14,7 @@ import {
   getResumenVentas,
   getSugerenciaLiquidacion,
   updateEntregaLeche,
+  updateLiquidacionLeche,
 } from '../services/ventasService';
 import type { AuthUser } from '../types/auth';
 import type { Cliente, ClienteCreateValues, ClienteEditValues } from '../types/clientes';
@@ -144,8 +145,25 @@ function entregaLitros(entrega: EntregaLeche) {
   return entrega.ordenes.reduce((total, detalle) => total + Number(detalle.litrosEntregados ?? 0), 0);
 }
 
+function retiroCountLabel(count: number) {
+  return `${count} ${count === 1 ? 'ordeñe' : 'ordeñes'}`;
+}
+
 function periodoLabel(mes: number | string, anio: number | string) {
   return `${monthOptions.find(([value]) => value === String(mes))?.[1] ?? mes} ${anio}`;
+}
+
+function liquidacionFormFromLiquidacion(liquidacion: LiquidacionLeche): LiquidacionFormValues {
+  return {
+    clienteId: String(liquidacion.clienteId),
+    mes: String(liquidacion.mes),
+    anio: String(liquidacion.anio),
+    numero: liquidacion.numero,
+    fechaLiquidacion: toDateInputValue(liquidacion.fechaLiquidacion),
+    precioLitro: String(liquidacion.precioLitro ?? ''),
+    litrosLiquidados: String(liquidacion.litrosLiquidados ?? ''),
+    observacion: liquidacion.observacion ?? '',
+  };
 }
 
 interface SalesPageProps {
@@ -169,6 +187,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [clienteEditForm, setClienteEditForm] = useState<ClienteEditValues | null>(null);
   const [editingEntrega, setEditingEntrega] = useState<EntregaLeche | null>(null);
+  const [editingLiquidacion, setEditingLiquidacion] = useState<LiquidacionLeche | null>(null);
   const [selectedEntrega, setSelectedEntrega] = useState<EntregaLeche | null>(null);
   const [selectedLiquidacion, setSelectedLiquidacion] = useState<LiquidacionLeche | null>(null);
   const [sugerenciaLiquidacion, setSugerenciaLiquidacion] = useState<SugerenciaLiquidacion | null>(null);
@@ -176,6 +195,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   const [showLiquidacionModal, setShowLiquidacionModal] = useState(false);
   const [showClienteModal, setShowClienteModal] = useState(false);
   const [retiroFormError, setRetiroFormError] = useState('');
+  const [liquidacionFormError, setLiquidacionFormError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -254,7 +274,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   useDataChangedRefresh(loadData, [authToken, entregaFilters, liquidacionFilters, clientesSearch]);
 
   useEffect(() => {
-    if (!authToken || !showLiquidacionModal || !liquidacionForm.clienteId || !liquidacionForm.mes || !liquidacionForm.anio) {
+    if (!authToken || editingLiquidacion || !showLiquidacionModal || !liquidacionForm.clienteId || !liquidacionForm.mes || !liquidacionForm.anio) {
       setSugerenciaLiquidacion(null);
       return;
     }
@@ -264,7 +284,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
         setLiquidacionForm((current) => current.litrosLiquidados ? current : { ...current, litrosLiquidados: String(sugerencia.litrosSugeridos) });
       })
       .catch(() => setSugerenciaLiquidacion(null));
-  }, [authToken, showLiquidacionModal, liquidacionForm.clienteId, liquidacionForm.mes, liquidacionForm.anio]);
+  }, [authToken, editingLiquidacion, showLiquidacionModal, liquidacionForm.clienteId, liquidacionForm.mes, liquidacionForm.anio]);
 
   function resetEntregaForm() {
     setEntregaForm({ ...emptyEntregaForm, fechaRetiro: localDateValue(), ordeneIds: [] });
@@ -302,9 +322,21 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   }
 
   function openLiquidacionModal() {
+    setEditingLiquidacion(null);
     setLiquidacionForm({ ...emptyLiquidacionForm, mes: currentMonth(), anio: currentYear(), fechaLiquidacion: localDateValue() });
     setSugerenciaLiquidacion(null);
     setShowLiquidacionModal(true);
+    setLiquidacionFormError('');
+    setError('');
+    setSuccess('');
+  }
+
+  function openEditLiquidacion(liquidacion: LiquidacionLeche) {
+    setEditingLiquidacion(liquidacion);
+    setLiquidacionForm(liquidacionFormFromLiquidacion(liquidacion));
+    setSugerenciaLiquidacion(null);
+    setShowLiquidacionModal(true);
+    setLiquidacionFormError('');
     setError('');
     setSuccess('');
   }
@@ -313,6 +345,8 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
     setShowLiquidacionModal(false);
     setLiquidacionForm(emptyLiquidacionForm);
     setSugerenciaLiquidacion(null);
+    setEditingLiquidacion(null);
+    setLiquidacionFormError('');
   }
 
   function openClienteModal() {
@@ -385,16 +419,26 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   async function handleLiquidacionSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!authToken) return onUnauthorized();
+    const isEditingLiquidacion = Boolean(editingLiquidacion);
     setIsSaving(true);
+    setLiquidacionFormError('');
     setError('');
     setSuccess('');
     try {
-      await createLiquidacionLeche(authToken, liquidacionForm);
+      if (editingLiquidacion) {
+        await updateLiquidacionLeche(authToken, editingLiquidacion.id, liquidacionForm);
+      } else {
+        await createLiquidacionLeche(authToken, liquidacionForm);
+      }
       closeLiquidacionModal();
-      setSuccess('Liquidación única registrada correctamente.');
+      setSuccess(isEditingLiquidacion ? 'Liquidación actualizada correctamente.' : 'Liquidación única registrada correctamente.');
       await loadData();
     } catch (saveError) {
-      handleRequestError(saveError, 'No se pudo registrar la liquidación.');
+      if (saveError instanceof ApiError && saveError.statusCode === 401) {
+        onUnauthorized();
+      } else {
+        setLiquidacionFormError(saveError instanceof Error ? saveError.message : (editingLiquidacion ? 'No se pudo actualizar la liquidación.' : 'No se pudo registrar la liquidación.'));
+      }
     } finally {
       setIsSaving(false);
     }
@@ -476,7 +520,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
 
       <div className="operative-summary-grid">
         <article className="metric-card operative-card"><div className="metric-icon metric-icon-blue"><Building2 size={20} /></div><p className="metric-title">Litros entregados del mes</p><strong className="metric-value">{formatLiters(resumen?.litrosEntregadosMes)}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-amber"><CalendarClock size={20} /></div><p className="metric-title">Retiros pendientes</p><strong className="metric-value">{resumen?.retirosPendientes ?? 0}</strong></article>
+        <article className="metric-card operative-card"><div className="metric-icon metric-icon-amber"><CalendarClock size={20} /></div><p className="metric-title">Pendientes de liquidar</p><strong className="metric-value">{resumen?.retirosPendientes ?? 0}</strong></article>
         <article className="metric-card operative-card"><div className="metric-icon metric-icon-emerald"><CheckCircle2 size={20} /></div><p className="metric-title">Liquidaciones del mes</p><strong className="metric-value">{resumen?.liquidacionesMes ?? 0}</strong></article>
         <article className="metric-card operative-card"><div className="metric-icon metric-icon-indigo"><Save size={20} /></div><p className="metric-title">Importe liquidado del mes</p><strong className="metric-value">{formatCurrency(resumen?.importeLiquidadoMes)}</strong></article>
       </div>
@@ -558,7 +602,12 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                   <td>{formatLiters(liquidacion.litrosLiquidados)}</td>
                   <td>{formatCurrency(liquidacion.precioLitro)}</td>
                   <td><strong>{formatCurrency(liquidacion.importeTotal)}</strong></td>
-                  <td><button type="button" className="icon-button" onClick={() => setSelectedLiquidacion(liquidacion)} aria-label="Ver liquidación"><Eye size={16} /></button></td>
+                  <td>
+                    <div className="table-actions">
+                      <button type="button" className="icon-button" onClick={() => setSelectedLiquidacion(liquidacion)} aria-label="Ver liquidación"><Eye size={16} /></button>
+                      <button type="button" className="icon-button" onClick={() => openEditLiquidacion(liquidacion)} aria-label="Editar liquidación"><Edit2 size={16} /></button>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {liquidaciones.length === 0 && <tr><td colSpan={8}>Sin liquidaciones registradas.</td></tr>}
@@ -656,28 +705,29 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
           <section className="panel modal-panel sale-modal">
             <div className="panel-header">
               <div>
-                <h2>Nueva liquidación única</h2>
-                <p>Se carga mensualmente por empresa, cuando se conoce el precio por litro.</p>
+                <h2>{editingLiquidacion ? 'Editar liquidación' : 'Nueva liquidación'}</h2>
+                <p>{editingLiquidacion ? 'Empresa, mes y año quedan fijos para conservar el período liquidado.' : 'Se carga mensualmente por empresa, cuando se conoce el precio por litro.'}</p>
               </div>
               <button type="button" className="icon-button" onClick={closeLiquidacionModal} aria-label="Cerrar liquidación"><X size={18} /></button>
             </div>
             <form className="user-form production-form sale-form" onSubmit={handleLiquidacionSubmit}>
-              <label><span>Empresa</span><select value={liquidacionForm.clienteId} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, clienteId: event.target.value, litrosLiquidados: '' })} required><option value="">Seleccionar empresa</option>{activeClientes.map((cliente) => <option key={cliente.id} value={cliente.id}>{clienteLabel(cliente)}</option>)}</select></label>
-              <label><span>Mes</span><select value={liquidacionForm.mes} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, mes: event.target.value, litrosLiquidados: '' })}>{monthOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-              <label><span>Año</span><input value={liquidacionForm.anio} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, anio: event.target.value, litrosLiquidados: '' })} required /></label>
+              {liquidacionFormError && <div className="form-error production-wide-field">{liquidacionFormError}</div>}
+              <label><span>Empresa</span><select value={liquidacionForm.clienteId} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, clienteId: event.target.value, litrosLiquidados: '' })} required disabled={Boolean(editingLiquidacion)}><option value="">Seleccionar empresa</option>{(editingLiquidacion ? clientes : activeClientes).map((cliente) => <option key={cliente.id} value={cliente.id}>{clienteLabel(cliente)}</option>)}</select></label>
+              <label><span>Mes</span><select value={liquidacionForm.mes} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, mes: event.target.value, litrosLiquidados: '' })} disabled={Boolean(editingLiquidacion)}>{monthOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+              <label><span>Año</span><input value={liquidacionForm.anio} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, anio: event.target.value, litrosLiquidados: '' })} required readOnly={Boolean(editingLiquidacion)} /></label>
               <label><span>Número de liquidación</span><input value={liquidacionForm.numero} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, numero: event.target.value })} required /></label>
               <label><span>Fecha de liquidación</span><input type="date" value={liquidacionForm.fechaLiquidacion} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, fechaLiquidacion: event.target.value })} required /></label>
               <label><span>Precio por litro</span><input type="number" min="0.01" step="0.01" value={liquidacionForm.precioLitro} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, precioLitro: event.target.value })} required /></label>
-              <label><span>Litros sugeridos</span><input value={formatLiters(sugerenciaLiquidacion?.litrosSugeridos)} readOnly /></label>
+              {!editingLiquidacion && <label><span>Litros sugeridos</span><input value={formatLiters(sugerenciaLiquidacion?.litrosSugeridos)} readOnly /></label>}
               <label><span>Litros liquidados</span><input type="number" min="0" step="0.01" value={liquidacionForm.litrosLiquidados} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, litrosLiquidados: event.target.value })} required /></label>
               <label><span>Importe total</span><input value={formatCurrency(liquidacionImporte)} readOnly /></label>
               <label className="production-wide-field"><span>Observación</span><textarea rows={2} value={liquidacionForm.observacion} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, observacion: event.target.value })} /></label>
-              <p className="table-empty production-wide-field">
+              {!editingLiquidacion && <p className="table-empty production-wide-field">
                 {sugerenciaLiquidacion ? `${sugerenciaLiquidacion.cantidadRetiros} retiros pendientes para el período.` : 'Seleccioná empresa y período para calcular litros sugeridos.'}
-              </p>
+              </p>}
               <div className="modal-actions production-wide-field">
                 <button type="button" className="secondary-button" onClick={closeLiquidacionModal}>Cancelar</button>
-                <button type="submit" className="primary-button" disabled={isSaving || !liquidacionForm.clienteId || Number(liquidacionForm.precioLitro) <= 0}><Save size={18} />Guardar liquidación</button>
+                <button type="submit" className="primary-button" disabled={isSaving || !liquidacionForm.clienteId || Number(liquidacionForm.precioLitro) <= 0}><Save size={18} />{editingLiquidacion ? 'Guardar cambios' : 'Guardar liquidación'}</button>
               </div>
             </form>
           </section>
@@ -749,15 +799,41 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             <div className="panel-header">
               <div>
                 <h2>Liquidación {selectedLiquidacion.numero}</h2>
-                <p>{selectedLiquidacion.cliente.razonSocial} / {periodoLabel(selectedLiquidacion.mes, selectedLiquidacion.anio)}</p>
+                <p>{selectedLiquidacion.cliente.razonSocial} • {periodoLabel(selectedLiquidacion.mes, selectedLiquidacion.anio)}</p>
               </div>
               <button type="button" className="icon-button" onClick={() => setSelectedLiquidacion(null)} aria-label="Cerrar liquidación"><X size={18} /></button>
             </div>
-            <div className="info-grid">
+            <div className="info-grid sale-detail-summary">
+              <div className="info-item"><span>Empresa</span><strong>{selectedLiquidacion.cliente.razonSocial}</strong></div>
+              <div className="info-item"><span>Período</span><strong>{periodoLabel(selectedLiquidacion.mes, selectedLiquidacion.anio)}</strong></div>
+              <div className="info-item"><span>Número de liquidación</span><strong>{selectedLiquidacion.numero}</strong></div>
+              <div className="info-item"><span>Fecha de liquidación</span><strong>{formatDate(selectedLiquidacion.fechaLiquidacion)}</strong></div>
               <div className="info-item"><span>Litros liquidados</span><strong>{formatLiters(selectedLiquidacion.litrosLiquidados)}</strong></div>
               <div className="info-item"><span>Precio por litro</span><strong>{formatCurrency(selectedLiquidacion.precioLitro)}</strong></div>
-              <div className="info-item"><span>Importe total</span><strong>{formatCurrency(selectedLiquidacion.importeTotal)}</strong></div>
-              <div className="info-item"><span>Retiros asociados</span><strong>{selectedLiquidacion.entregas.length}</strong></div>
+              <div className="info-item sale-total-item"><span>Importe total</span><strong>{formatCurrency(selectedLiquidacion.importeTotal)}</strong></div>
+              {selectedLiquidacion.observacion && <div className="info-item"><span>Observación</span><strong>{selectedLiquidacion.observacion}</strong></div>}
+            </div>
+            <div className="section-subheader">
+              <div>
+                <h3>Retiros incluidos en la liquidación</h3>
+                <p>{selectedLiquidacion.entregas.length} retiros asociados.</p>
+              </div>
+            </div>
+            <div className="table-wrap">
+              <table className="users-table">
+                <thead><tr><th>Fecha de retiro</th><th>Ordeñes</th><th>Litros entregados</th><th>Estado</th></tr></thead>
+                <tbody>
+                  {selectedLiquidacion.entregas.map((entrega) => (
+                    <tr key={entrega.id}>
+                      <td>{formatDate(entrega.fechaRetiro)}</td>
+                      <td>{retiroCountLabel(entrega.ordenes.length)}</td>
+                      <td><strong>{formatLiters(entregaLitros(entrega))}</strong></td>
+                      <td><span className={`status-pill ${statusClass(entrega.estado)}`}>{estadoEntregaLabels[entrega.estado]}</span></td>
+                    </tr>
+                  ))}
+                  {selectedLiquidacion.entregas.length === 0 && <tr><td colSpan={4}>No hay retiros asociados a esta liquidación.</td></tr>}
+                </tbody>
+              </table>
             </div>
           </section>
         </div>

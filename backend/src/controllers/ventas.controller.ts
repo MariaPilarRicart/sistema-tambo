@@ -9,6 +9,7 @@ import {
   listLiquidaciones,
   listOrdenesDisponibles,
   updateExistingEntrega,
+  updateExistingLiquidacion,
 } from '../services/ventas.service';
 
 export async function getResumenVentasController(_request: Request, response: Response) {
@@ -45,4 +46,8 @@ export async function getSugerenciaLiquidacionController(request: Request, respo
 
 export async function createLiquidacionController(request: Request, response: Response) {
   response.status(201).json({ liquidacion: await createNewLiquidacion(request.body ?? {}, request.user?.id) });
+}
+
+export async function updateLiquidacionController(request: Request, response: Response) {
+  response.status(200).json({ liquidacion: await updateExistingLiquidacion(String(request.params.id), request.body ?? {}) });
 }

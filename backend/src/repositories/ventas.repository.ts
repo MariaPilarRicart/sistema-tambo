@@ -358,6 +358,13 @@ export function findLiquidacionLecheByPeriodo(clienteId: number, mes: number, an
   });
 }
 
+export function findLiquidacionLecheById(id: number) {
+  return prisma.liquidacionLeche.findUnique({
+    where: { id },
+    include: liquidacionLecheInclude,
+  });
+}
+
 export function findEntregasPendientesPeriodo(clienteId: number, desde: Date, hasta: Date) {
   return prisma.entregaLeche.findMany({
     where: {
@@ -414,5 +421,20 @@ export async function createLiquidacionLeche(data: {
       where: { id: liquidacion.id },
       include: liquidacionLecheInclude,
     });
+  });
+}
+
+export function updateLiquidacionLeche(id: number, data: {
+  numero: string;
+  fechaLiquidacion: Date;
+  precioLitro: Prisma.Decimal;
+  litrosLiquidados: Prisma.Decimal;
+  importeTotal: Prisma.Decimal;
+  observacion?: string | null;
+}) {
+  return prisma.liquidacionLeche.update({
+    where: { id },
+    data,
+    include: liquidacionLecheInclude,
   });
 }

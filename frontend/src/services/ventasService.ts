@@ -132,3 +132,12 @@ export async function createLiquidacionLeche(token: string, values: LiquidacionF
   });
   return response.liquidacion;
 }
+
+export async function updateLiquidacionLeche(token: string, id: number, values: LiquidacionFormValues) {
+  const response = await apiRequest<LiquidacionResponse>(`/api/ventas/liquidaciones/${id}`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify(buildLiquidacionPayload(values)),
+  });
+  return response.liquidacion;
+}
