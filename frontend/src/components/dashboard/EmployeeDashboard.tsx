@@ -226,9 +226,9 @@ export function EmployeeDashboard({
       url: buildUrl(paths.feed, { section: 'historial', ...periodParams }),
     },
     {
-      title: 'Lotes de leche vencidos',
+      title: 'Alertas de producción',
       value: formatNumber(resumen.lotesVencidos),
-      subtitle: 'Lotes de leche vencidos.',
+      subtitle: 'Registros vencidos del período.',
       tone: 'amber' as MetricTone,
       icon: Droplets,
       url: buildUrl(paths.production, { section: 'lotesLeche', estado: 'VENCIDO', ...periodParams }),

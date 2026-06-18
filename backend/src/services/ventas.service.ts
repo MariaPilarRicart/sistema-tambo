@@ -122,6 +122,8 @@ function parseLiquidacionFilters(input: Record<string, unknown>): LiquidacionLec
     clienteId: parseOptionalId(input.clienteId, 'clienteId'),
     mes: parseOptionalNumber(input.mes, 'mes'),
     anio: parseOptionalNumber(input.anio, 'anio'),
+    fechaDesde: parseDateFilter(input.fechaDesde),
+    fechaHasta: parseDateFilter(input.fechaHasta, true),
   };
 }
 

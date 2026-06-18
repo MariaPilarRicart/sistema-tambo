@@ -77,30 +77,29 @@ export interface DashboardResumenProduccion {
 }
 
 export interface DashboardResumenVentas {
-  litrosVendidos: number;
-  facturacion: number;
+  litrosEntregados: number;
+  importeLiquidado: number;
   precioPromedioLitro: number | null;
-  cantidadVentas: number;
-  porcentajeProduccionVendida: number;
+  cantidadRetiros: number;
+  pendientesDeLiquidar: number;
+  porcentajeProduccionEntregada: number;
   series: Array<{
     etiqueta: string;
-    litrosVendidos: number;
-    facturacion: number;
+    litrosEntregados: number;
+    importeLiquidado: number;
   }>;
-  ultimaVenta: {
+  ultimaEntrega: {
     id: number;
     fecha: string;
     cliente: string;
     litros: number;
-    total: number;
   } | null;
-  ultimasVentas: Array<{
+  ultimasEntregas: Array<{
     id: number;
     fecha: string;
-    factura: string;
+    estado: string;
     cliente: string;
     litros: number;
-    total: number;
   }>;
 }
 

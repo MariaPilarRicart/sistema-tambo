@@ -68,6 +68,8 @@ export interface LiquidacionFilters {
   clienteId: string;
   mes: string;
   anio: string;
+  fechaDesde: string;
+  fechaHasta: string;
 }
 
 export interface EntregaFormValues {

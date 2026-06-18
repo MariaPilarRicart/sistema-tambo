@@ -1,7 +1,9 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Building2, CalendarClock, CheckCircle2, Edit2, Eye, Plus, RefreshCcw, Save, Trash2, X } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
+import { useScrollToSection } from '../hooks/useScrollToSection';
 import { compareByStatusThenName, formatDate, statusClass } from '../utils/display';
 import { createCliente, getClientes, updateCliente, updateClienteEstado } from '../services/clientesService';
 import {
@@ -79,6 +81,8 @@ const emptyLiquidacionFilters: LiquidacionFilters = {
   clienteId: '',
   mes: '',
   anio: '',
+  fechaDesde: '',
+  fechaHasta: '',
 };
 
 const emptyClienteCreateForm: ClienteCreateValues = {
@@ -173,6 +177,7 @@ interface SalesPageProps {
 }
 
 export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageProps) {
+  const [searchParams] = useSearchParams();
   const [resumen, setResumen] = useState<VentasResumen | null>(null);
   const [entregas, setEntregas] = useState<EntregaLeche[]>([]);
   const [liquidaciones, setLiquidaciones] = useState<LiquidacionLeche[]>([]);
@@ -219,6 +224,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
       .sort((left, right) => new Date(right.fecha).getTime() - new Date(left.fecha).getTime());
   }, [editingEntrega, ordenesDisponibles]);
   const liquidacionImporte = Number(liquidacionForm.litrosLiquidados || 0) * Number(liquidacionForm.precioLitro || 0);
+  const urlSection = searchParams.get('section');
 
   function handleRequestError(requestError: unknown, fallback: string) {
     if (requestError instanceof ApiError && requestError.statusCode === 401) {
@@ -272,6 +278,40 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   }, [authToken, entregaFilters, liquidacionFilters, clientesSearch]);
 
   useDataChangedRefresh(loadData, [authToken, entregaFilters, liquidacionFilters, clientesSearch]);
+
+  useEffect(() => {
+    const fechaDesde = searchParams.get('fechaDesde') ?? '';
+    const fechaHasta = searchParams.get('fechaHasta') ?? '';
+    const estado = searchParams.get('estado') ?? '';
+    const section = searchParams.get('section');
+
+    if (section === 'retiros') {
+      setEntregaFilters((current) => ({
+        ...current,
+        fechaDesde,
+        fechaHasta,
+        estado,
+      }));
+    }
+    if (section === 'liquidaciones') {
+      setLiquidacionFilters((current) => ({
+        ...current,
+        fechaDesde,
+        fechaHasta,
+      }));
+    }
+  }, [searchParams]);
+
+  useScrollToSection(
+    urlSection === 'retiros'
+      ? 'retiros-leche-section'
+      : urlSection === 'liquidaciones'
+        ? 'liquidaciones-unicas-section'
+        : urlSection === 'empresas' || urlSection === 'clientes'
+          ? 'listado-clientes-section'
+          : null,
+    [urlSection, entregas.length, liquidaciones.length, clientes.length],
+  );
 
   useEffect(() => {
     if (!authToken || editingLiquidacion || !showLiquidacionModal || !liquidacionForm.clienteId || !liquidacionForm.mes || !liquidacionForm.anio) {
@@ -525,7 +565,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
         <article className="metric-card operative-card"><div className="metric-icon metric-icon-indigo"><Save size={20} /></div><p className="metric-title">Importe liquidado del mes</p><strong className="metric-value">{formatCurrency(resumen?.importeLiquidadoMes)}</strong></article>
       </div>
 
-      <section className="panel" id="historial-ventas-section">
+      <section className="panel" id="retiros-leche-section">
         <div className="panel-header">
           <div>
             <h2>Retiros de leche</h2>
@@ -572,7 +612,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
         )}
       </section>
 
-      <section className="panel">
+      <section className="panel" id="liquidaciones-unicas-section">
         <div className="panel-header">
           <div>
             <h2>Liquidaciones únicas</h2>

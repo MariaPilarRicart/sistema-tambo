@@ -1,4 +1,4 @@
-import { EstadoLoteLeche, EstadoTarea, Prisma, TipoEvento, TipoTarea } from '@prisma/client';
+import { EstadoEntregaLeche, EstadoLoteLeche, EstadoTarea, Prisma, TipoEvento, TipoTarea } from '@prisma/client';
 import { prisma } from '../config/prisma';
 
 export function countAnimales(where?: Prisma.AnimalWhereInput) {
@@ -38,6 +38,7 @@ export async function countRodeoGeneralForDashboard() {
 export function groupAnimalesByEstadoAnimal() {
   return prisma.animal.groupBy({
     by: ['estadoAnimal'],
+    where: { activo: true, estadoAnimal: 'ACTIVO' },
     _count: { _all: true },
     orderBy: { estadoAnimal: 'asc' },
   });
@@ -46,6 +47,7 @@ export function groupAnimalesByEstadoAnimal() {
 export function groupAnimalesByEstadoReproductivo() {
   return prisma.animal.groupBy({
     by: ['estadoReproductivo'],
+    where: { activo: true, estadoAnimal: 'ACTIVO' },
     _count: { _all: true },
     orderBy: { estadoReproductivo: 'asc' },
   });
@@ -54,6 +56,7 @@ export function groupAnimalesByEstadoReproductivo() {
 export function groupAnimalesByCategoria() {
   return prisma.animal.groupBy({
     by: ['categoriaAnimal'],
+    where: { activo: true, estadoAnimal: 'ACTIVO' },
     _count: { _all: true },
     orderBy: { categoriaAnimal: 'asc' },
   });
@@ -67,7 +70,7 @@ export function groupAnimalesByLote() {
       nombre: true,
       _count: {
         select: {
-          animales: true,
+          animales: { where: { activo: true, estadoAnimal: 'ACTIVO' } },
         },
       },
     },
@@ -208,6 +211,52 @@ export function findVentasByDateRange(fechaDesde: Date, fechaHasta: Date) {
       fechaVenta: true,
       totalLitros: true,
       precioTotal: true,
+      cliente: {
+        select: {
+          id: true,
+          razonSocial: true,
+        },
+      },
+    },
+  });
+}
+
+export function findEntregasLecheByDateRange(fechaDesde: Date, fechaHasta: Date) {
+  return prisma.entregaLeche.findMany({
+    where: {
+      fechaRetiro: { gte: fechaDesde, lte: fechaHasta },
+      estado: { in: [EstadoEntregaLeche.PENDIENTE, EstadoEntregaLeche.LIQUIDADA] },
+    },
+    orderBy: { fechaRetiro: 'desc' },
+    select: {
+      id: true,
+      fechaRetiro: true,
+      estado: true,
+      cliente: {
+        select: {
+          id: true,
+          razonSocial: true,
+        },
+      },
+      ordenes: {
+        select: {
+          litrosEntregados: true,
+        },
+      },
+    },
+  });
+}
+
+export function findLiquidacionesLecheByDateRange(fechaDesde: Date, fechaHasta: Date) {
+  return prisma.liquidacionLeche.findMany({
+    where: { fechaLiquidacion: { gte: fechaDesde, lte: fechaHasta } },
+    orderBy: { fechaLiquidacion: 'desc' },
+    select: {
+      id: true,
+      numero: true,
+      fechaLiquidacion: true,
+      importeTotal: true,
+      litrosLiquidados: true,
       cliente: {
         select: {
           id: true,

@@ -187,6 +187,8 @@ export interface LiquidacionLecheFilters {
   clienteId?: number;
   mes?: number;
   anio?: number;
+  fechaDesde?: Date;
+  fechaHasta?: Date;
 }
 
 function buildEntregaWhere(filters: EntregaLecheFilters): Prisma.EntregaLecheWhereInput {
@@ -208,6 +210,13 @@ function buildLiquidacionWhere(filters: LiquidacionLecheFilters): Prisma.Liquida
     clienteId: filters.clienteId,
     mes: filters.mes,
     anio: filters.anio,
+    fechaLiquidacion:
+      filters.fechaDesde || filters.fechaHasta
+        ? {
+            gte: filters.fechaDesde,
+            lte: filters.fechaHasta,
+          }
+        : undefined,
   };
 }
 

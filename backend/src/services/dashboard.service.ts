@@ -13,7 +13,9 @@ import {
   countTareas,
   findAgendaTasksForDashboard,
   findAvailableLotesLeche,
+  findEntregasLecheByDateRange,
   findInsumosForDashboard,
+  findLiquidacionesLecheByDateRange,
   findLotesLecheByDateRange,
   findProduccionesByDateRange,
   findSanitaryTasksForDashboard,
@@ -21,7 +23,6 @@ import {
   findUltimosEventos,
   findUltimosMovimientosStockForDashboard,
   findUltimosRegistrosAlimentacionForDashboard,
-  findVentasByDateRange,
   groupAnimalesByCategoria,
   groupAnimalesByEstadoAnimal,
   groupAnimalesByEstadoReproductivo,
@@ -317,52 +318,64 @@ export async function getDashboardEmpleadoResumen(periodo: DashboardPeriodoInput
 }
 
 function buildSalesSummary(
-  ventas: Awaited<ReturnType<typeof findVentasByDateRange>>,
+  entregas: Awaited<ReturnType<typeof findEntregasLecheByDateRange>>,
+  liquidaciones: Awaited<ReturnType<typeof findLiquidacionesLecheByDateRange>>,
   litrosProducidos: number,
   periodo: DashboardPeriodoInput,
 ) {
-  const litrosVendidos = ventas.reduce((total, venta) => total + toNumber(venta.totalLitros), 0);
-  const facturacion = ventas.reduce((total, venta) => total + toNumber(venta.precioTotal), 0);
-  const ultimaVenta = ventas[0] ?? null;
-  const seriesMap = new Map<string, { etiqueta: string; litrosVendidos: number; facturacion: number }>();
+  const litrosEntregados = entregas.reduce(
+    (total, entrega) => total + entrega.ordenes.reduce((subtotal, detalle) => subtotal + toNumber(detalle.litrosEntregados), 0),
+    0,
+  );
+  const importeLiquidado = liquidaciones.reduce((total, liquidacion) => total + toNumber(liquidacion.importeTotal), 0);
+  const ultimaEntrega = entregas[0] ?? null;
+  const pendientesDeLiquidar = entregas.filter((entrega) => entrega.estado === 'PENDIENTE').length;
+  const seriesMap = new Map<string, { etiqueta: string; litrosEntregados: number; importeLiquidado: number }>();
 
-  for (const venta of ventas) {
+  for (const entrega of entregas) {
     const etiqueta = periodo === 'anio'
-      ? venta.fechaVenta.toLocaleString('es-AR', { month: 'short' })
-      : formatDateLabel(venta.fechaVenta);
-    const current = seriesMap.get(etiqueta) ?? { etiqueta, litrosVendidos: 0, facturacion: 0 };
-    current.litrosVendidos += toNumber(venta.totalLitros);
-    current.facturacion += toNumber(venta.precioTotal);
+      ? entrega.fechaRetiro.toLocaleString('es-AR', { month: 'short' })
+      : formatDateLabel(entrega.fechaRetiro);
+    const current = seriesMap.get(etiqueta) ?? { etiqueta, litrosEntregados: 0, importeLiquidado: 0 };
+    current.litrosEntregados += entrega.ordenes.reduce((subtotal, detalle) => subtotal + toNumber(detalle.litrosEntregados), 0);
+    seriesMap.set(etiqueta, current);
+  }
+
+  for (const liquidacion of liquidaciones) {
+    const etiqueta = periodo === 'anio'
+      ? liquidacion.fechaLiquidacion.toLocaleString('es-AR', { month: 'short' })
+      : formatDateLabel(liquidacion.fechaLiquidacion);
+    const current = seriesMap.get(etiqueta) ?? { etiqueta, litrosEntregados: 0, importeLiquidado: 0 };
+    current.importeLiquidado += toNumber(liquidacion.importeTotal);
     seriesMap.set(etiqueta, current);
   }
 
   return {
-    litrosVendidos: round(litrosVendidos),
-    facturacion: round(facturacion),
-    precioPromedioLitro: litrosVendidos > 0 ? round(facturacion / litrosVendidos) : null,
-    cantidadVentas: ventas.length,
-    porcentajeProduccionVendida: litrosProducidos > 0 ? round((litrosVendidos / litrosProducidos) * 100) : 0,
+    litrosEntregados: round(litrosEntregados),
+    importeLiquidado: round(importeLiquidado),
+    precioPromedioLitro: litrosEntregados > 0 ? round(importeLiquidado / litrosEntregados) : null,
+    cantidadRetiros: entregas.length,
+    pendientesDeLiquidar,
+    porcentajeProduccionEntregada: litrosProducidos > 0 ? round((litrosEntregados / litrosProducidos) * 100) : 0,
     series: Array.from(seriesMap.values()).map((item) => ({
       etiqueta: item.etiqueta,
-      litrosVendidos: round(item.litrosVendidos),
-      facturacion: round(item.facturacion),
+      litrosEntregados: round(item.litrosEntregados),
+      importeLiquidado: round(item.importeLiquidado),
     })),
-    ultimaVenta: ultimaVenta
+    ultimaEntrega: ultimaEntrega
       ? {
-          id: ultimaVenta.id,
-          fecha: ultimaVenta.fechaVenta,
-          cliente: ultimaVenta.cliente.razonSocial,
-          litros: round(toNumber(ultimaVenta.totalLitros)),
-          total: round(toNumber(ultimaVenta.precioTotal)),
+          id: ultimaEntrega.id,
+          fecha: ultimaEntrega.fechaRetiro,
+          cliente: ultimaEntrega.cliente.razonSocial,
+          litros: round(ultimaEntrega.ordenes.reduce((subtotal, detalle) => subtotal + toNumber(detalle.litrosEntregados), 0)),
         }
       : null,
-    ultimasVentas: ventas.slice(0, 5).map((venta) => ({
-      id: venta.id,
-      fecha: venta.fechaVenta,
-      factura: venta.numeroFactura,
-      cliente: venta.cliente.razonSocial,
-      litros: round(toNumber(venta.totalLitros)),
-      total: round(toNumber(venta.precioTotal)),
+    ultimasEntregas: entregas.slice(0, 5).map((entrega) => ({
+      id: entrega.id,
+      fecha: entrega.fechaRetiro,
+      estado: entrega.estado,
+      cliente: entrega.cliente.razonSocial,
+      litros: round(entrega.ordenes.reduce((subtotal, detalle) => subtotal + toNumber(detalle.litrosEntregados), 0)),
     })),
   };
 }
@@ -425,7 +438,7 @@ function buildMilkSummary(lotes: Awaited<ReturnType<typeof findAvailableLotesLec
           codigo: lote.codigo,
           fechaVencimiento: lote.fechaVencimiento,
           litrosDisponibles: lote.litrosDisponibles,
-          accionSugerida: 'Priorizar venta si tiene litros disponibles',
+          accionSugerida: 'Priorizar retiro o control de calidad.',
         })),
     },
     lotes: lotesDisponibles.slice(0, 8),
@@ -533,7 +546,7 @@ function buildManagementAlerts(input: {
   controlesSanitariosVencidos: number;
   controlesSanitariosProximos: number;
   litrosProducidos: number;
-  cantidadVentas: number;
+  cantidadRetiros: number;
 }) {
   const alerts = [];
 
@@ -581,21 +594,21 @@ function buildManagementAlerts(input: {
   if (input.litrosDisponibles > 0) {
     alerts.push({
       codigo: 'LECHE_DISPONIBLE',
-      titulo: 'Leche disponible para venta',
-      detalle: `Hay ${round(input.litrosDisponibles)} litros disponibles para vender.`,
+      titulo: 'Leche disponible para retiro',
+      detalle: `Hay ${round(input.litrosDisponibles)} litros disponibles para retiro.`,
       severidad: 'INFO',
-      accionSugerida: 'Evaluar venta o seguimiento de vencimientos.',
-      accionLabel: 'Registrar venta',
+      accionSugerida: 'Evaluar retiro o seguimiento de producción.',
+      accionLabel: 'Ver retiros',
       accionRuta: '/ventas',
     });
   }
   if (input.lotesProximosAVencer > 0) {
     alerts.push({
       codigo: 'LOTES_POR_VENCER',
-      titulo: 'Lotes proximos a vencer',
-      detalle: `${input.lotesProximosAVencer} lotes de leche vencen en los proximos 7 dias.`,
+      titulo: 'Producción próxima a vencer',
+      detalle: `${input.lotesProximosAVencer} registros de producción vencen en los próximos 7 días.`,
       severidad: 'MEDIA',
-      accionSugerida: 'Priorizar venta o control de calidad.',
+      accionSugerida: 'Priorizar retiro o control de calidad.',
       accionLabel: 'Ver producción',
       accionRuta: '/produccion',
     });
@@ -622,13 +635,13 @@ function buildManagementAlerts(input: {
       accionRuta: '/produccion',
     });
   }
-  if (input.cantidadVentas === 0) {
+  if (input.cantidadRetiros === 0) {
     alerts.push({
-      codigo: 'SIN_VENTAS',
-      titulo: 'Sin ventas registradas',
-      detalle: 'No hubo ventas registradas en el periodo.',
+      codigo: 'SIN_RETIROS_LECHE',
+      titulo: 'Sin retiros registrados',
+      detalle: 'No hubo retiros de leche registrados en el periodo.',
       severidad: 'INFO',
-      accionSugerida: 'Revisar leche disponible y oportunidades de venta.',
+      accionSugerida: 'Revisar producción y retiros pendientes de liquidar.',
       accionLabel: 'Ver ventas',
       accionRuta: '/ventas',
     });
@@ -761,6 +774,31 @@ function mapGroup<T extends string>(items: Array<Record<string, unknown>>, key: 
   }));
 }
 
+function normalizeDashboardCategoria(value: string) {
+  if (value === CategoriaAnimal.VACA || value === CategoriaAnimal.VACA_PRODUCCION || value === CategoriaAnimal.VACA_SECA || value === CategoriaAnimal.PREPARTO) {
+    return CategoriaAnimal.VACA;
+  }
+  const allowed = [
+    CategoriaAnimal.TERNERO,
+    CategoriaAnimal.TERNERA,
+    CategoriaAnimal.VAQUILLONA,
+    CategoriaAnimal.VACA,
+    CategoriaAnimal.TORITO,
+    CategoriaAnimal.TORO,
+  ] as string[];
+  return allowed.includes(value) ? value : null;
+}
+
+function mapAnimalCategoryGroups(items: Array<Record<string, unknown>>) {
+  const grouped = new Map<string, number>();
+  for (const item of items) {
+    const categoria = normalizeDashboardCategoria(String(item.categoriaAnimal));
+    if (!categoria) continue;
+    grouped.set(categoria, (grouped.get(categoria) ?? 0) + Number((item._count as { _all: number })._all));
+  }
+  return Array.from(grouped.entries()).map(([nombre, total]) => ({ nombre, total }));
+}
+
 function effectiveTaskDateBetween(fechaDesde: Date, fechaHasta: Date): Prisma.AgendaTareaWhereInput {
   return {
     OR: [
@@ -812,7 +850,8 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     rodeoGeneral,
     produccionesPeriodo,
     lotesPeriodo,
-    ventasPeriodo,
+    entregasLechePeriodo,
+    liquidacionesLechePeriodo,
     lotesDisponibles,
     insumos,
     ultimosMovimientosStock,
@@ -854,7 +893,8 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     countRodeoGeneralForDashboard(),
     findProduccionesByDateRange(fechaDesde, fechaHasta),
     findLotesLecheByDateRange(fechaDesde, fechaHasta),
-    findVentasByDateRange(fechaDesde, fechaHasta),
+    findEntregasLecheByDateRange(fechaDesde, fechaHasta),
+    findLiquidacionesLecheByDateRange(fechaDesde, fechaHasta),
     findAvailableLotesLeche(),
     findInsumosForDashboard(),
     findUltimosMovimientosStockForDashboard(),
@@ -882,7 +922,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     countDashboardAgendaTasks(openTaskWhere(effectiveTaskDateBetween(fechaDesde, fechaHasta), effectiveTaskDateBefore(todayStart))),
   ]);
   const resumenProduccion = buildProductionSummary(produccionesPeriodo, lotesPeriodo, periodo);
-  const resumenVentas = buildSalesSummary(ventasPeriodo, resumenProduccion.litrosProducidos, periodo);
+  const resumenVentas = buildSalesSummary(entregasLechePeriodo, liquidacionesLechePeriodo, resumenProduccion.litrosProducidos, periodo);
   const resumenLeche = buildMilkSummary(lotesDisponibles, todayStart);
   const resumenAlimentacion = buildFeedingSummary(insumos, ultimosMovimientosStock, ultimosRegistrosAlimentacion);
   const resumenSanidad = buildSanitarySummary(tareasSanitarias, ultimosEventosSanitarios, tareasSanitariasVencidas, tareasSanitariasProximas);
@@ -900,7 +940,7 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     controlesSanitariosVencidos: resumenSanidad.tareasSanitariasVencidas,
     controlesSanitariosProximos: resumenSanidad.tareasSanitariasProximas,
     litrosProducidos: resumenProduccion.litrosProducidos,
-    cantidadVentas: resumenVentas.cantidadVentas,
+    cantidadRetiros: resumenVentas.cantidadRetiros,
   });
   const tareasPrioritarias = [
     ...tareasVencidasDetalle,
@@ -928,12 +968,12 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     animalesInactivos,
     animalesPorEstadoAnimal: mapGroup(animalesPorEstadoAnimal, 'estadoAnimal'),
     animalesPorEstadoReproductivo: mapGroup(animalesPorEstadoReproductivo, 'estadoReproductivo'),
-    animalesPorCategoria: mapGroup(animalesPorCategoria, 'categoriaAnimal'),
+    animalesPorCategoria: mapAnimalCategoryGroups(animalesPorCategoria),
     animalesPorLote: animalesPorLote.map((lote) => ({
       id: lote.id,
       nombre: lote.nombre,
       total: lote._count.animales,
-    })),
+    })).filter((lote) => lote.total > 0),
     nuevosClientes,
     lotesVencidosPeriodo,
     tareasVencidas: tareasVencidasPeriodo,
