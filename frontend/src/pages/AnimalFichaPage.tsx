@@ -120,9 +120,8 @@ export function AnimalFichaPage({ authToken, onUnauthorized }: AnimalFichaPagePr
                   <p>Situacion operativa del animal.</p>
                 </div>
               </div>
-              <div className="info-grid">
+              <div className="info-grid animal-status-grid">
                 <InfoItem label="Activo" value={animal.activo ? 'Si' : 'No'} />
-                <InfoItem label="Raza" value={animal.raza} />
                 <InfoItem label="Alta en sistema" value={formatDate(animal.createdAt)} />
                 <InfoItem label="Ultima actualizacion" value={formatDate(animal.updatedAt)} />
               </div>

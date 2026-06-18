@@ -3410,6 +3410,10 @@ a {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.animal-status-grid .info-item:last-child {
+  grid-column: 1 / -1;
+}
+
 .info-item {
   background: var(--slate-50);
   border: 1px solid var(--slate-200);
