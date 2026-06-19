@@ -582,11 +582,11 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
-      <div className="operative-summary-grid sales-summary-grid">
-        <article className="metric-card operative-card sales-summary-card"><div className="metric-icon metric-icon-blue"><Building2 size={20} /></div><p className="metric-title">Litros entregados del mes</p><strong className="metric-value">{formatLiters(resumen?.litrosEntregadosMes)}</strong></article>
-        <article className="metric-card operative-card sales-summary-card"><div className="metric-icon metric-icon-amber"><CalendarClock size={20} /></div><p className="metric-title">Pendientes de liquidar</p><strong className="metric-value">{resumen?.retirosPendientes ?? 0}</strong></article>
-        <article className="metric-card operative-card sales-summary-card"><div className="metric-icon metric-icon-emerald"><CheckCircle2 size={20} /></div><p className="metric-title">Liquidaciones del mes</p><strong className="metric-value">{resumen?.liquidacionesMes ?? 0}</strong></article>
-        <article className="metric-card operative-card sales-summary-card"><div className="metric-icon metric-icon-indigo"><Save size={20} /></div><p className="metric-title">Importe liquidado del mes</p><strong className="metric-value">{formatCurrency(resumen?.importeLiquidadoMes)}</strong></article>
+      <div className="operative-summary-grid module-metrics-grid sales-summary-grid">
+        <article className="metric-card operative-card module-metric-card sales-summary-card"><div className="metric-icon metric-icon-blue"><Building2 size={20} /></div><p className="metric-title">Litros entregados del mes</p><strong className="metric-value">{formatLiters(resumen?.litrosEntregadosMes)}</strong></article>
+        <article className="metric-card operative-card module-metric-card sales-summary-card"><div className="metric-icon metric-icon-amber"><CalendarClock size={20} /></div><p className="metric-title">Pendientes de liquidar</p><strong className="metric-value">{resumen?.retirosPendientes ?? 0}</strong></article>
+        <article className="metric-card operative-card module-metric-card sales-summary-card"><div className="metric-icon metric-icon-emerald"><CheckCircle2 size={20} /></div><p className="metric-title">Liquidaciones del mes</p><strong className="metric-value">{resumen?.liquidacionesMes ?? 0}</strong></article>
+        <article className="metric-card operative-card module-metric-card sales-summary-card"><div className="metric-icon metric-icon-indigo"><Save size={20} /></div><p className="metric-title">Importe liquidado del mes</p><strong className="metric-value">{formatCurrency(resumen?.importeLiquidadoMes)}</strong></article>
       </div>
 
       <section className="panel" id="retiros-leche-section">

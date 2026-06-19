@@ -3293,7 +3293,6 @@ a {
 .vaccination-summary-card {
   border: 0;
   cursor: pointer;
-  text-align: left;
 }
 
 .vaccination-summary-card:hover,
@@ -3539,10 +3538,6 @@ a {
 
 .sales-summary-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.sales-summary-card {
-  min-height: 128px;
 }
 
 .sales-summary-card .metric-value {

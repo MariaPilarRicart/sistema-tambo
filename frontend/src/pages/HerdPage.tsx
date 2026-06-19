@@ -586,13 +586,13 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
       {error && !isAnimalModalOpen && !deactivateAnimalTarget && !eventAnimal && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
-      <div className="operative-summary-grid herd-summary-grid">
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-blue"><Users size={20} /></div><p className="metric-title">Total de animales</p><strong className="metric-value">{resumen?.totalAnimales ?? 0}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-emerald"><ShieldCheck size={20} /></div><p className="metric-title">Animales activos</p><strong className="metric-value">{resumen?.animalesActivos ?? 0}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-pink"><HeartPulse size={20} /></div><p className="metric-title">Preñadas</p><strong className="metric-value">{resumen?.prenadas ?? 0}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-indigo"><Activity size={20} /></div><p className="metric-title">Inseminadas</p><strong className="metric-value">{resumen?.inseminadas ?? 0}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-amber"><CircleDot size={20} /></div><p className="metric-title">Vacías</p><strong className="metric-value">{resumen?.vacias ?? 0}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-rose"><Baby size={20} /></div><p className="metric-title">Secas o recuperación</p><strong className="metric-value">{resumen?.secasRecuperacion ?? 0}</strong></article>
+      <div className="operative-summary-grid module-metrics-grid herd-summary-grid">
+        <article className="metric-card operative-card module-metric-card"><div className="metric-icon metric-icon-blue"><Users size={20} /></div><p className="metric-title">Total de animales</p><strong className="metric-value">{resumen?.totalAnimales ?? 0}</strong></article>
+        <article className="metric-card operative-card module-metric-card"><div className="metric-icon metric-icon-emerald"><ShieldCheck size={20} /></div><p className="metric-title">Animales activos</p><strong className="metric-value">{resumen?.animalesActivos ?? 0}</strong></article>
+        <article className="metric-card operative-card module-metric-card"><div className="metric-icon metric-icon-pink"><HeartPulse size={20} /></div><p className="metric-title">Preñadas</p><strong className="metric-value">{resumen?.prenadas ?? 0}</strong></article>
+        <article className="metric-card operative-card module-metric-card"><div className="metric-icon metric-icon-indigo"><Activity size={20} /></div><p className="metric-title">Inseminadas</p><strong className="metric-value">{resumen?.inseminadas ?? 0}</strong></article>
+        <article className="metric-card operative-card module-metric-card"><div className="metric-icon metric-icon-amber"><CircleDot size={20} /></div><p className="metric-title">Vacías</p><strong className="metric-value">{resumen?.vacias ?? 0}</strong></article>
+        <article className="metric-card operative-card module-metric-card"><div className="metric-icon metric-icon-rose"><Baby size={20} /></div><p className="metric-title">Secas o recuperación</p><strong className="metric-value">{resumen?.secasRecuperacion ?? 0}</strong></article>
       </div>
 
       <section className="panel users-list-panel herd-list-panel" id="animales-section">

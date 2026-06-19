@@ -432,20 +432,20 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
-      <div className="operative-summary-grid vaccination-summary-section">
-        <button type="button" className="metric-card operative-card vaccination-summary-card" onClick={() => applyStatusFilter('')}>
+      <div className="operative-summary-grid module-metrics-grid vaccination-summary-section">
+        <button type="button" className="metric-card operative-card module-metric-card vaccination-summary-card" onClick={() => applyStatusFilter('')}>
           <div className="metric-icon metric-icon-blue"><ListChecks size={20} /></div><p className="metric-title">Todas</p><strong className="metric-value">{summary.todas}</strong>
         </button>
-        <button type="button" className="metric-card operative-card vaccination-summary-card" onClick={() => applyStatusFilter('PENDIENTE')}>
+        <button type="button" className="metric-card operative-card module-metric-card vaccination-summary-card" onClick={() => applyStatusFilter('PENDIENTE')}>
           <div className="metric-icon metric-icon-emerald"><Syringe size={20} /></div><p className="metric-title">Pendientes</p><strong className="metric-value">{summary.pendientes}</strong>
         </button>
-        <button type="button" className="metric-card operative-card vaccination-summary-card" onClick={() => applyStatusFilter('VENCIDA')}>
+        <button type="button" className="metric-card operative-card module-metric-card vaccination-summary-card" onClick={() => applyStatusFilter('VENCIDA')}>
           <div className="metric-icon metric-icon-rose"><Clock3 size={20} /></div><p className="metric-title">Vencidas</p><strong className="metric-value">{summary.vencidas}</strong>
         </button>
-        <button type="button" className="metric-card operative-card vaccination-summary-card" onClick={() => applyStatusFilter('REALIZADA')}>
+        <button type="button" className="metric-card operative-card module-metric-card vaccination-summary-card" onClick={() => applyStatusFilter('REALIZADA')}>
           <div className="metric-icon metric-icon-blue"><CheckCircle2 size={20} /></div><p className="metric-title">Realizadas</p><strong className="metric-value">{summary.realizadas}</strong>
         </button>
-        <button type="button" className="metric-card operative-card vaccination-summary-card" onClick={() => applyStatusFilter('PROGRAMADA')}>
+        <button type="button" className="metric-card operative-card module-metric-card vaccination-summary-card" onClick={() => applyStatusFilter('PROGRAMADA')}>
           <div className="metric-icon metric-icon-indigo"><CalendarClock size={20} /></div><p className="metric-title">Programadas</p><strong className="metric-value">{summary.programadas}</strong>
         </button>
       </div>
