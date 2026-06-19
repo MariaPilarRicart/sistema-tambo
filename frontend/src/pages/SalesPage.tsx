@@ -617,7 +617,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                     <td>{formatDate(entrega.fechaRetiro)}</td>
                     <td>{entrega.cliente.razonSocial}</td>
                     <td><span className="table-soft-pill">{retiroCountLabel(entrega.ordenes.length)}</span></td>
-                    <td className="numeric-cell"><strong>{formatLiters(entregaLitros(entrega))}</strong></td>
+                    <td className="numeric-cell">{formatLiters(entregaLitros(entrega))}</td>
                     <td><span className={`status-pill ${statusClass(entrega.estado)}`}>{estadoEntregaLabels[entrega.estado]}</span></td>
                     <td>{entrega.observacion ?? '-'}</td>
                     <td>
@@ -661,11 +661,11 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                 <tr key={liquidacion.id}>
                   <td>{periodoLabel(liquidacion.mes, liquidacion.anio)}</td>
                   <td>{liquidacion.cliente.razonSocial}</td>
-                  <td><strong>{liquidacion.numero}</strong></td>
+                  <td>{liquidacion.numero}</td>
                   <td>{formatDate(liquidacion.fechaLiquidacion)}</td>
                   <td className="numeric-cell">{formatLiters(liquidacion.litrosLiquidados)}</td>
                   <td className="numeric-cell">{formatCurrency(liquidacion.precioLitro)}</td>
-                  <td className="numeric-cell"><strong>{formatCurrency(liquidacion.importeTotal)}</strong></td>
+                  <td className="numeric-cell">{formatCurrency(liquidacion.importeTotal)}</td>
                   <td>
                     <div className="table-actions">
                       <button type="button" className="icon-button" onClick={() => setSelectedLiquidacion(liquidacion)} aria-label="Ver liquidación"><Eye size={16} /></button>
@@ -838,10 +838,10 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
               <button type="button" className="icon-button" onClick={() => setSelectedEntrega(null)} aria-label="Cerrar detalle"><X size={18} /></button>
             </div>
             <div className="info-grid sale-detail-summary">
-              <div className="info-item"><span>Empresa</span><strong>{selectedEntrega.cliente.razonSocial}</strong></div>
-              <div className="info-item"><span>Fecha de retiro</span><strong>{formatDate(selectedEntrega.fechaRetiro)}</strong></div>
-              <div className="info-item"><span>Total entregado</span><strong>{formatLiters(entregaLitros(selectedEntrega))}</strong></div>
-              <div className="info-item"><span>Estado</span><strong>{estadoEntregaLabels[selectedEntrega.estado]}</strong></div>
+              <div className="info-item"><span>Empresa</span><span className="sale-detail-value">{selectedEntrega.cliente.razonSocial}</span></div>
+              <div className="info-item"><span>Fecha de retiro</span><span className="sale-detail-value">{formatDate(selectedEntrega.fechaRetiro)}</span></div>
+              <div className="info-item"><span>Total entregado</span><span className="sale-detail-value">{formatLiters(entregaLitros(selectedEntrega))}</span></div>
+              <div className="info-item"><span>Estado</span><span className="sale-detail-value">{estadoEntregaLabels[selectedEntrega.estado]}</span></div>
             </div>
             <div className="table-wrap">
               <table className="users-table">
@@ -851,7 +851,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                     <tr key={detalle.id}>
                       <td>{formatDate(detalle.ordene.fecha)}</td>
                       <td>{turnoLabel(detalle.ordene.turno)}</td>
-                      <td><strong>{formatLiters(detalle.litrosEntregados)}</strong></td>
+                      <td>{formatLiters(detalle.litrosEntregados)}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -3459,11 +3459,13 @@ a {
   border: 1px solid var(--slate-100);
   border-radius: 999px;
   color: var(--slate-600);
-  display: inline-flex;
-  font-size: 12px;
+  display: inline-flex !important;
+  font-size: 11px !important;
   font-weight: 900;
-  padding: 5px 9px;
+  line-height: 1;
+  padding: 4px 8px;
   white-space: nowrap;
+  width: fit-content;
 }
 
 .numeric-cell {
@@ -3802,6 +3804,15 @@ a {
 
 .sale-detail-summary {
   margin-bottom: 18px;
+}
+
+.info-item .sale-detail-value {
+  color: var(--slate-700);
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .section-subheader {
