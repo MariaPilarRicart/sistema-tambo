@@ -157,7 +157,7 @@ function entregaLitros(entrega: EntregaLeche) {
 }
 
 function retiroCountLabel(count: number) {
-  return `${count} ${count === 1 ? 'ordeñe' : 'ordeñes'}`;
+  return `${count} ${count === 1 ? 'Ordeñe' : 'Ordeñes'}`;
 }
 
 function periodoLabel(mes: number | string, anio: number | string) {
@@ -653,7 +653,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                     <td>{formatDate(entrega.fechaRetiro)}</td>
                     <td>{entrega.cliente.razonSocial}</td>
                     <td>{retiroCountLabel(entrega.ordenes.length)}</td>
-                    <td className="numeric-cell">{formatLiters(entregaLitros(entrega))}</td>
+                    <td className="numeric-cell sales-centered-cell">{formatLiters(entregaLitros(entrega))}</td>
                     <td><span className={`status-pill ${statusClass(entrega.estado)}`}>{estadoEntregaLabels[entrega.estado]}</span></td>
                     <td>{entrega.observacion ?? '-'}</td>
                     <td>
