@@ -297,28 +297,28 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
         </div>
       )}
 
-      <section className="operative-summary-grid production-summary-grid">
-        <article className="metric-card operative-card">
+      <section className="operative-summary-grid module-metrics-grid production-summary-grid">
+        <article className="metric-card operative-card module-metric-card">
           <div className="metric-icon metric-icon-emerald"><Droplets size={20} /></div>
           <p className="metric-title">Litros buenos hoy</p>
           <strong className="metric-value">{formatLiters(resumen?.totalLitrosBuenos)}</strong>
         </article>
-        <article className="metric-card operative-card">
+        <article className="metric-card operative-card module-metric-card">
           <div className="metric-icon metric-icon-amber"><AlertTriangle size={20} /></div>
           <p className="metric-title">Descartados hoy</p>
           <strong className="metric-value">{formatLiters(resumen?.totalLitrosDescartados)}</strong>
         </article>
-        <article className="metric-card operative-card">
+        <article className="metric-card operative-card module-metric-card">
           <div className="metric-icon metric-icon-blue"><Milk size={20} /></div>
           <p className="metric-title">Total ordeñado</p>
           <strong className="metric-value">{formatLiters(resumen?.totalLitros)}</strong>
         </article>
-        <article className="metric-card operative-card">
+        <article className="metric-card operative-card module-metric-card">
           <div className="metric-icon metric-icon-indigo"><ListChecks size={20} /></div>
           <p className="metric-title">Ordeñes hoy</p>
           <strong className="metric-value">{resumen?.cantidadOrdenes ?? 0}</strong>
         </article>
-        <article className="metric-card operative-card">
+        <article className="metric-card operative-card module-metric-card">
           <div className="metric-icon metric-icon-rose"><BarChart3 size={20} /></div>
           <p className="metric-title">Promedio por ordeñe</p>
           <strong className="metric-value">{formatLiters(resumen?.promedioPorOrdene)}</strong>
@@ -340,7 +340,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
             </button>
           </div>
         </div>
-        <form className="filters-form events-filters production-filters production-history-filters">
+        <form className="filters-form module-filters events-filters production-filters production-history-filters">
           <label className="filter-field">
             <span>Fecha desde</span>
             <input type="date" value={filters.fechaDesde} onChange={(event) => setFilters({ ...filters, fechaDesde: event.target.value })} />
@@ -368,7 +368,7 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
           <p className="table-empty">Cargando producción...</p>
         ) : (
           <div className="table-wrap">
-            <table className="users-table production-history-table">
+            <table className="users-table module-table production-history-table">
               <thead>
                 <tr>
                   <th>Fecha</th>

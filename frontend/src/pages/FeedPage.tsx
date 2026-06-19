@@ -280,11 +280,11 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
-      <div className="operative-summary-grid">
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-blue"><Wheat size={20} /></div><p className="metric-title">Alimentaciones hoy</p><strong className="metric-value">{resumen?.alimentacionesRegistradasHoy ?? 0}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-emerald"><Boxes size={20} /></div><p className="metric-title">Lotes alimentados</p><strong className="metric-value">{resumen?.lotesAlimentadosHoy ?? 0}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-amber"><AlertTriangle size={20} /></div><p className="metric-title">Stock bajo</p><strong className="metric-value">{resumen?.insumosStockBajo ?? 0}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-indigo"><Package size={20} /></div><p className="metric-title">Agotados</p><strong className="metric-value">{resumen?.insumosAgotados ?? 0}</strong></article>
+      <div className="operative-summary-grid module-metrics-grid">
+        <article className="metric-card operative-card module-metric-card"><div className="metric-icon metric-icon-blue"><Wheat size={20} /></div><p className="metric-title">Alimentaciones hoy</p><strong className="metric-value">{resumen?.alimentacionesRegistradasHoy ?? 0}</strong></article>
+        <article className="metric-card operative-card module-metric-card"><div className="metric-icon metric-icon-emerald"><Boxes size={20} /></div><p className="metric-title">Lotes alimentados</p><strong className="metric-value">{resumen?.lotesAlimentadosHoy ?? 0}</strong></article>
+        <article className="metric-card operative-card module-metric-card"><div className="metric-icon metric-icon-amber"><AlertTriangle size={20} /></div><p className="metric-title">Stock bajo</p><strong className="metric-value">{resumen?.insumosStockBajo ?? 0}</strong></article>
+        <article className="metric-card operative-card module-metric-card"><div className="metric-icon metric-icon-indigo"><Package size={20} /></div><p className="metric-title">Agotados</p><strong className="metric-value">{resumen?.insumosAgotados ?? 0}</strong></article>
       </div>
 
       <section className="panel" id="historial-alimentacion-section">
@@ -295,7 +295,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
             <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar historial de alimentación"><RefreshCcw size={18} /></button>
           </div>
         </div>
-        <div className="filters-grid">
+        <div className="filters-grid module-filters">
           <input type="date" value={histFilters.fechaDesde} onChange={(event) => setHistFilters({ ...histFilters, fechaDesde: event.target.value })} />
           <input type="date" value={histFilters.fechaHasta} onChange={(event) => setHistFilters({ ...histFilters, fechaHasta: event.target.value })} />
           <select value={histFilters.loteId} onChange={(event) => setHistFilters({ ...histFilters, loteId: event.target.value })}><option value="">Lote</option>{lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}</select>
@@ -305,7 +305,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
         </div>
         {isLoading ? <p className="table-empty">Cargando alimentación...</p> : (
           <div className="table-wrap">
-            <table className="users-table">
+            <table className="users-table module-table">
               <thead><tr><th>Fecha</th><th>Lote</th><th>Categoría</th><th>Animales</th><th>Usuario</th><th>Total</th><th>Acciones</th></tr></thead>
               <tbody>
                 {historial.map((registro) => <tr key={registro.id}><td>{formatDate(registro.fecha)}</td><td>{registro.lote?.nombre ?? '-'}</td><td>{registro.categoriaAnimal}</td><td>{registro.cantidadAnimales ?? '-'}</td><td>{registro.usuario?.nombre ?? '-'}</td><td>{registro.detalles.length} insumos</td><td><button type="button" className="icon-button" onClick={() => setSelectedDetalle(registro)} aria-label="Ver detalle"><Eye size={16} /></button></td></tr>)}
@@ -340,7 +340,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
             <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar movimientos de stock"><RefreshCcw size={18} /></button>
           </div>
         </div>
-        <div className="filters-grid">
+        <div className="filters-grid module-filters">
           <input type="date" value={movFilters.fechaDesde} onChange={(event) => setMovFilters({ ...movFilters, fechaDesde: event.target.value })} />
           <input type="date" value={movFilters.fechaHasta} onChange={(event) => setMovFilters({ ...movFilters, fechaHasta: event.target.value })} />
           <select value={movFilters.alimentoId} onChange={(event) => setMovFilters({ ...movFilters, alimentoId: event.target.value })}><option value="">Alimento</option>{alimentos.map((alimento) => <option key={alimento.id} value={alimento.id}>{alimento.nombre}</option>)}</select>
@@ -349,7 +349,7 @@ export function FeedPage({ authToken, currentUser, onUnauthorized }: FeedPagePro
           <button type="button" className="secondary-button" onClick={clearMovFilters}>Limpiar</button>
         </div>
         <div className="table-wrap">
-          <table className="users-table">
+          <table className="users-table module-table">
             <thead><tr><th>Fecha</th><th>Insumo</th><th>Tipo</th><th>Cantidad</th><th>Unidad</th><th>Usuario</th><th>Observaciones</th></tr></thead>
             <tbody>
               {movimientos.map((movimiento) => <tr key={movimiento.id}><td>{formatDate(movimiento.fecha)}</td><td>{movimiento.insumo.nombre}</td><td>{movimiento.tipoMovimiento}</td><td>{formatNumber(movimiento.cantidad)}</td><td>{movimiento.insumo.unidadMedida}</td><td>{movimiento.usuario?.nombre ?? '-'}</td><td>{movimiento.observaciones || '-'}</td></tr>)}
