@@ -2391,8 +2391,54 @@ a {
   width: 100%;
 }
 
+.sales-filter-grid {
+  align-items: end;
+  gap: 12px;
+}
+
+.sales-retire-filter-grid {
+  grid-template-columns: minmax(220px, 1.3fr) repeat(3, minmax(150px, 1fr)) max-content;
+}
+
+.sales-liquidation-filter-grid {
+  grid-template-columns: minmax(220px, 1.4fr) minmax(150px, 0.8fr) minmax(130px, 0.7fr) max-content;
+}
+
+.sales-client-search-filter {
+  grid-template-columns: minmax(260px, 1fr);
+}
+
+.sales-filter-grid .filter-field {
+  min-width: 0;
+}
+
+.sales-filter-grid input,
+.sales-filter-grid select {
+  box-sizing: border-box;
+  font-size: 14px;
+  font-weight: 700;
+  height: 42px;
+  min-height: 42px;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.sales-filter-grid .secondary-button {
+  align-self: end;
+  font-size: 13px;
+  height: 42px;
+  min-height: 42px;
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+
 @media (max-width: 1180px) {
   .production-history-filters {
+    grid-template-columns: repeat(2, minmax(170px, 1fr)) max-content;
+  }
+
+  .sales-retire-filter-grid,
+  .sales-liquidation-filter-grid {
     grid-template-columns: repeat(2, minmax(170px, 1fr)) max-content;
   }
 }

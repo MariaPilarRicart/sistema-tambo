@@ -600,7 +600,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar retiros"><RefreshCcw size={18} /></button>
           </div>
         </div>
-        <form className="filters-form events-filters production-filters">
+        <form className="filters-form sales-filter-grid sales-retire-filter-grid">
           <label className="filter-field"><span>Empresa</span><select value={entregaFilters.clienteId} onChange={(event) => setEntregaFilters({ ...entregaFilters, clienteId: event.target.value })}><option value="">Todas</option>{clientes.map((cliente) => <option key={cliente.id} value={cliente.id}>{cliente.razonSocial}</option>)}</select></label>
           <label className="filter-field"><span>Fecha desde</span><input type="date" value={entregaFilters.fechaDesde} onChange={(event) => setEntregaFilters({ ...entregaFilters, fechaDesde: event.target.value })} /></label>
           <label className="filter-field"><span>Fecha hasta</span><input type="date" value={entregaFilters.fechaHasta} onChange={(event) => setEntregaFilters({ ...entregaFilters, fechaHasta: event.target.value })} /></label>
@@ -647,7 +647,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar liquidaciones"><RefreshCcw size={18} /></button>
           </div>
         </div>
-        <form className="filters-form events-filters production-filters">
+        <form className="filters-form sales-filter-grid sales-liquidation-filter-grid">
           <label className="filter-field"><span>Empresa</span><select value={liquidacionFilters.clienteId} onChange={(event) => setLiquidacionFilters({ ...liquidacionFilters, clienteId: event.target.value })}><option value="">Todas</option>{clientes.map((cliente) => <option key={cliente.id} value={cliente.id}>{cliente.razonSocial}</option>)}</select></label>
           <label className="filter-field"><span>Mes</span><select value={liquidacionFilters.mes} onChange={(event) => setLiquidacionFilters({ ...liquidacionFilters, mes: event.target.value })}><option value="">Todos</option>{monthOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label className="filter-field"><span>Año</span><input value={liquidacionFilters.anio} onChange={(event) => setLiquidacionFilters({ ...liquidacionFilters, anio: event.target.value })} placeholder={currentYear()} /></label>
@@ -691,7 +691,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar empresas"><RefreshCcw size={18} /></button>
           </div>
         </div>
-        <form className="filters-form events-filters production-filters">
+        <form className="filters-form sales-filter-grid sales-client-search-filter">
           <label className="filter-field production-selector">
             <span>Buscar</span>
             <input list="clientes-sugeridos" placeholder="Buscar por CUIT o razón social..." value={clientesSearch} onChange={(event) => setClientesSearch(event.target.value)} />
