@@ -1,7 +1,9 @@
 import { Prisma } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 import {
+  countClienteMovimientos,
   createCliente,
+  deleteCliente,
   findClienteByCuit,
   findClienteById,
   findClientes,
@@ -62,13 +64,26 @@ function resumenCliente(ventas: NonNullable<Awaited<ReturnType<typeof findClient
   );
 }
 
+function withDeleteAvailability<T extends { _count?: { ventas: number; entregasLeche: number; liquidacionesLeche: number } }>(cliente: T) {
+  const movimientosAsociados = cliente._count
+    ? cliente._count.ventas + cliente._count.entregasLeche + cliente._count.liquidacionesLeche
+    : 0;
+  const { _count, ...data } = cliente;
+  void _count;
+  return {
+    ...data,
+    movimientosAsociados,
+    puedeEliminar: movimientosAsociados === 0,
+  };
+}
+
 export function listClientes(query: Record<string, unknown> = {}) {
   const search = typeof query.search === 'string' && query.search.trim() ? query.search.trim() : undefined;
   const activo = parseOptionalBoolean(query.activo, 'Filtro activo');
   const fechaDesde = parseOptionalDate(query.fechaDesde, 'Fecha desde');
   const fechaHasta = parseOptionalDate(query.fechaHasta, 'Fecha hasta', true);
   if (fechaDesde && fechaHasta && fechaDesde > fechaHasta) throw new AppError('La fecha desde no puede ser mayor a la fecha hasta.', 400);
-  return findClientes(search, activo, fechaDesde, fechaHasta);
+  return findClientes(search, activo, fechaDesde, fechaHasta).then((clientes) => clientes.map(withDeleteAvailability));
 }
 
 export async function getCliente(idParam: string) {
@@ -102,11 +117,17 @@ export async function updateExistingCliente(idParam: string, input: Record<strin
   const id = parseId(idParam, 'Id de cliente');
   const existing = await findClienteById(id);
   if (!existing) throw new AppError('Cliente no encontrado.', 404);
-  if (input.cuit !== undefined || input.razonSocial !== undefined || input.fechaAlta !== undefined) {
-    throw new AppError('CUIT, razón social y fecha de alta no pueden modificarse.', 400);
+  if (input.fechaAlta !== undefined) throw new AppError('La fecha de alta no puede modificarse.', 400);
+
+  const cuit = input.cuit !== undefined ? normalizeRequiredString(input.cuit, 'CUIT') : undefined;
+  if (cuit && cuit !== existing.cuit) {
+    const cuitOwner = await findClienteByCuit(cuit);
+    if (cuitOwner && cuitOwner.id !== id) throw new AppError('Ya existe un cliente con ese CUIT.', 409);
   }
 
   return updateCliente(id, {
+    cuit,
+    razonSocial: input.razonSocial !== undefined ? normalizeRequiredString(input.razonSocial, 'Razón social') : undefined,
     direccion: input.direccion !== undefined ? normalizeOptionalString(input.direccion, 'Dirección') : undefined,
     telefono: input.telefono !== undefined ? normalizeOptionalString(input.telefono, 'Teléfono') : undefined,
     email: input.email !== undefined ? normalizeOptionalString(input.email, 'Email') : undefined,
@@ -120,4 +141,20 @@ export async function updateClienteEstado(idParam: string, input: Record<string,
   if (!existing) throw new AppError('Cliente no encontrado.', 404);
   if (typeof input.activo !== 'boolean') throw new AppError('Estado activo es obligatorio.', 400);
   return updateCliente(id, { activo: input.activo });
+}
+
+export async function deleteExistingCliente(idParam: string) {
+  const id = parseId(idParam, 'Id de cliente');
+  const existing = await findClienteById(id);
+  if (!existing) throw new AppError('Cliente no encontrado.', 404);
+
+  const usage = await countClienteMovimientos(id);
+  const movimientos = usage
+    ? usage._count.ventas + usage._count.entregasLeche + usage._count.liquidacionesLeche
+    : 0;
+  if (movimientos > 0) {
+    throw new AppError('No se puede eliminar porque tiene retiros o liquidaciones asociadas. Usá baja lógica.', 409);
+  }
+
+  return deleteCliente(id);
 }

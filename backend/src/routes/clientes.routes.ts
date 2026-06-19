@@ -2,6 +2,7 @@ import { RolUsuario } from '@prisma/client';
 import { Router } from 'express';
 import {
   createClienteController,
+  deleteClienteController,
   getClienteController,
   listClientesController,
   updateClienteController,
@@ -23,4 +24,5 @@ clientesRouter.patch(
   '/api/clientes/:id/estado',
   asyncHandler(updateClienteEstadoController),
 );
+clientesRouter.delete('/api/clientes/:id', asyncHandler(deleteClienteController));
 

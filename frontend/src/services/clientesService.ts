@@ -25,6 +25,8 @@ function buildCreatePayload(values: ClienteCreateValues) {
 
 function buildEditPayload(values: ClienteEditValues) {
   return {
+    ...(values.cuit !== undefined ? { cuit: values.cuit.trim() } : {}),
+    ...(values.razonSocial !== undefined ? { razonSocial: values.razonSocial.trim() } : {}),
     direccion: values.direccion.trim() || null,
     telefono: values.telefono.trim() || null,
     email: values.email.trim() || null,
@@ -76,6 +78,14 @@ export async function updateClienteEstado(token: string, id: number, activo: boo
     method: 'PATCH',
     token,
     body: JSON.stringify({ activo }),
+  });
+  return response.cliente;
+}
+
+export async function deleteCliente(token: string, id: number) {
+  const response = await apiRequest<ClienteSimpleResponse>(`/api/clientes/${id}`, {
+    method: 'DELETE',
+    token,
   });
   return response.cliente;
 }

@@ -7,6 +7,8 @@ export interface Cliente {
   email: string | null;
   fechaAlta: string;
   activo: boolean;
+  movimientosAsociados?: number;
+  puedeEliminar?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,6 +39,8 @@ export interface ClienteCreateValues {
 }
 
 export interface ClienteEditValues {
+  cuit?: string;
+  razonSocial?: string;
   direccion: string;
   telefono: string;
   email: string;

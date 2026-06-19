@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import {
   createNewCliente,
+  deleteExistingCliente,
   getCliente,
   listClientes,
   updateClienteEstado,
@@ -25,4 +26,8 @@ export async function updateClienteController(request: Request, response: Respon
 
 export async function updateClienteEstadoController(request: Request, response: Response) {
   response.status(200).json({ cliente: await updateClienteEstado(String(request.params.id), request.body ?? {}) });
+}
+
+export async function deleteClienteController(request: Request, response: Response) {
+  response.status(200).json({ cliente: await deleteExistingCliente(String(request.params.id)) });
 }

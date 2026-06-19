@@ -5,7 +5,7 @@ import { ApiError } from '../services/apiClient';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { useScrollToSection } from '../hooks/useScrollToSection';
 import { compareByStatusThenName, formatDate, statusClass } from '../utils/display';
-import { createCliente, getClientes, updateCliente, updateClienteEstado } from '../services/clientesService';
+import { createCliente, deleteCliente, getClientes, updateCliente, updateClienteEstado } from '../services/clientesService';
 import {
   createEntregaLeche,
   createLiquidacionLeche,
@@ -121,6 +121,8 @@ const estadoEntregaLabels: Record<EntregaLeche['estado'], string> = {
 
 function editValuesFromCliente(cliente: Cliente): ClienteEditValues {
   return {
+    cuit: cliente.cuit,
+    razonSocial: cliente.razonSocial,
     direccion: cliente.direccion ?? '',
     telefono: cliente.telefono ?? '',
     email: cliente.email ?? '',
@@ -548,7 +550,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
 
   async function handleClienteBaja(cliente: Cliente) {
     if (!authToken) return onUnauthorized();
-    if (!window.confirm('¿Deseás dar de baja esta empresa?')) return;
+    if (!window.confirm('La empresa se dará de baja y no podrá usarse para nuevos retiros o liquidaciones.')) return;
     setIsSaving(true);
     setError('');
     setSuccess('');
@@ -558,6 +560,40 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
       await loadData();
     } catch (saveError) {
       handleRequestError(saveError, 'No se pudo dar de baja la empresa.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleClienteReactivar(cliente: Cliente) {
+    if (!authToken) return onUnauthorized();
+    if (!window.confirm('La empresa volverá a estar disponible para nuevos retiros y liquidaciones.')) return;
+    setIsSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      await updateClienteEstado(authToken, cliente.id, true);
+      setSuccess('Empresa reactivada correctamente.');
+      await loadData();
+    } catch (saveError) {
+      handleRequestError(saveError, 'No se pudo reactivar la empresa.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleClienteDelete(cliente: Cliente) {
+    if (!authToken) return onUnauthorized();
+    if (!window.confirm('Esta acción eliminará definitivamente la empresa. No se puede deshacer.')) return;
+    setIsSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      await deleteCliente(authToken, cliente.id);
+      setSuccess('Empresa eliminada definitivamente.');
+      await loadData();
+    } catch (saveError) {
+      handleRequestError(saveError, 'No se pudo eliminar la empresa.');
     } finally {
       setIsSaving(false);
     }
@@ -717,6 +753,8 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                     <div className="table-actions">
                       {isAdmin && <button type="button" onClick={() => startEditingCliente(cliente)} aria-label={`Editar ${cliente.razonSocial}`}><Edit2 size={16} /></button>}
                       {isAdmin && cliente.activo && <button type="button" onClick={() => void handleClienteBaja(cliente)} aria-label={`Dar de baja ${cliente.razonSocial}`}><Trash2 size={16} /></button>}
+                      {isAdmin && !cliente.activo && <button type="button" onClick={() => void handleClienteReactivar(cliente)} aria-label={`Reactivar ${cliente.razonSocial}`}><RefreshCcw size={16} /></button>}
+                      {isAdmin && cliente.puedeEliminar && <button type="button" className="danger-action-button" onClick={() => void handleClienteDelete(cliente)} aria-label={`Eliminar definitivamente ${cliente.razonSocial}`}><X size={16} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -918,8 +956,8 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
               <button type="button" className="icon-button" onClick={() => setEditingCliente(null)} aria-label="Cerrar edición"><X size={18} /></button>
             </div>
             <form className="user-form animal-modal-form" onSubmit={handleClienteEdit}>
-              <label><span>CUIT</span><input value={editingCliente.cuit} readOnly /></label>
-              <label><span>Razón social</span><input value={editingCliente.razonSocial} readOnly /></label>
+              <label><span>CUIT</span><input value={clienteEditForm.cuit} onChange={(event) => setClienteEditForm({ ...clienteEditForm, cuit: event.target.value })} required /></label>
+              <label><span>Razón social</span><input value={clienteEditForm.razonSocial} onChange={(event) => setClienteEditForm({ ...clienteEditForm, razonSocial: event.target.value })} required /></label>
               <label><span>Fecha alta</span><input value={formatDate(editingCliente.fechaAlta)} readOnly /></label>
               <label><span>Estado</span><select value={String(clienteEditForm.activo)} onChange={(event) => setClienteEditForm({ ...clienteEditForm, activo: event.target.value === 'true' })}><option value="true">Activo</option><option value="false">Inactivo</option></select></label>
               <label><span>Dirección</span><input value={clienteEditForm.direccion} onChange={(event) => setClienteEditForm({ ...clienteEditForm, direccion: event.target.value })} /></label>

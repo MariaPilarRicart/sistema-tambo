@@ -14,6 +14,17 @@ const clienteSelect = {
   updatedAt: true,
 } satisfies Prisma.ClienteSelect;
 
+const clienteListSelect = {
+  ...clienteSelect,
+  _count: {
+    select: {
+      ventas: true,
+      entregasLeche: true,
+      liquidacionesLeche: true,
+    },
+  },
+} satisfies Prisma.ClienteSelect;
+
 export function findClientes(search?: string, activo?: boolean, fechaDesde?: Date, fechaHasta?: Date) {
   return prisma.cliente.findMany({
     where: {
@@ -30,7 +41,7 @@ export function findClientes(search?: string, activo?: boolean, fechaDesde?: Dat
         : undefined,
     },
     orderBy: [{ activo: 'desc' }, { razonSocial: 'asc' }],
-    select: clienteSelect,
+    select: clienteListSelect,
   });
 }
 
@@ -53,6 +64,21 @@ export function findClienteByCuit(cuit: string) {
   return prisma.cliente.findUnique({ where: { cuit } });
 }
 
+export function countClienteMovimientos(id: number) {
+  return prisma.cliente.findUnique({
+    where: { id },
+    select: {
+      _count: {
+        select: {
+          ventas: true,
+          entregasLeche: true,
+          liquidacionesLeche: true,
+        },
+      },
+    },
+  });
+}
+
 export function createCliente(data: Prisma.ClienteCreateInput) {
   return prisma.cliente.create({ data, select: clienteSelect });
 }
@@ -61,6 +87,13 @@ export function updateCliente(id: number, data: Prisma.ClienteUpdateInput) {
   return prisma.cliente.update({
     where: { id },
     data,
+    select: clienteSelect,
+  });
+}
+
+export function deleteCliente(id: number) {
+  return prisma.cliente.delete({
+    where: { id },
     select: clienteSelect,
   });
 }

@@ -3765,6 +3765,11 @@ a {
   color: var(--emerald);
 }
 
+.table-actions .danger-action-button:hover:not(:disabled) {
+  border-color: #fecdd3;
+  color: var(--rose);
+}
+
 .table-actions button:disabled {
   color: var(--slate-300);
 }
