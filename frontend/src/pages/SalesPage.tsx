@@ -52,6 +52,11 @@ function toDateInputValue(value: string) {
   return date.toISOString().slice(0, 10);
 }
 
+function isOrdeneAllowedForRetiro(ordene: Ordene, fechaRetiro: string) {
+  if (!fechaRetiro) return true;
+  return toDateInputValue(ordene.fecha) <= fechaRetiro;
+}
+
 const emptyEntregaForm: EntregaFormValues = {
   clienteId: '',
   fechaRetiro: localDateValue(),
@@ -221,8 +226,9 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   const ordenesParaSelector = useMemo(() => {
     const currentOrdenes = editingEntrega?.ordenes.map((detalle) => detalle.ordene) ?? [];
     return Array.from(new Map([...currentOrdenes, ...ordenesDisponibles].map((ordene) => [ordene.id, ordene])).values())
+      .filter((ordene) => isOrdeneAllowedForRetiro(ordene, entregaForm.fechaRetiro))
       .sort((left, right) => new Date(right.fecha).getTime() - new Date(left.fecha).getTime());
-  }, [editingEntrega, ordenesDisponibles]);
+  }, [editingEntrega, entregaForm.fechaRetiro, ordenesDisponibles]);
   const liquidacionImporte = Number(liquidacionForm.litrosLiquidados || 0) * Number(liquidacionForm.precioLitro || 0);
   const urlSection = searchParams.get('section');
 
@@ -329,6 +335,15 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
       .catch(() => setSugerenciaLiquidacion(null));
   }, [authToken, editingLiquidacion, showLiquidacionModal, liquidacionForm.clienteId, liquidacionForm.mes, liquidacionForm.anio]);
 
+  useEffect(() => {
+    if (!showEntregaModal) return;
+    const validIds = new Set(ordenesParaSelector.map((ordene) => String(ordene.id)));
+    const nextIds = entregaForm.ordeneIds.filter((id) => validIds.has(id));
+    if (nextIds.length === entregaForm.ordeneIds.length) return;
+    setEntregaForm((current) => ({ ...current, ordeneIds: current.ordeneIds.filter((id) => validIds.has(id)) }));
+    setRetiroFormError('Se quitaron ordeñes posteriores a la fecha de retiro.');
+  }, [entregaForm.ordeneIds, ordenesParaSelector, showEntregaModal]);
+
   function resetEntregaForm() {
     setEntregaForm({ ...emptyEntregaForm, fechaRetiro: localDateValue(), ordeneIds: [] });
     setEditingEntrega(null);
@@ -406,6 +421,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
 
   function toggleOrdene(ordeneId: number) {
     const value = String(ordeneId);
+    setRetiroFormError('');
     setEntregaForm((current) => ({
       ...current,
       ordeneIds: current.ordeneIds.includes(value)
@@ -417,6 +433,11 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
   async function handleEntregaSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!authToken) return onUnauthorized();
+    const selectedOrdenes = ordenesParaSelector.filter((ordene) => entregaForm.ordeneIds.includes(String(ordene.id)));
+    if (selectedOrdenes.length !== entregaForm.ordeneIds.length) {
+      setRetiroFormError('No se puede asociar un ordeñe posterior a la fecha de retiro.');
+      return;
+    }
     setIsSaving(true);
     setRetiroFormError('');
     setError('');
@@ -561,11 +582,11 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
-      <div className="operative-summary-grid">
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-blue"><Building2 size={20} /></div><p className="metric-title">Litros entregados del mes</p><strong className="metric-value">{formatLiters(resumen?.litrosEntregadosMes)}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-amber"><CalendarClock size={20} /></div><p className="metric-title">Pendientes de liquidar</p><strong className="metric-value">{resumen?.retirosPendientes ?? 0}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-emerald"><CheckCircle2 size={20} /></div><p className="metric-title">Liquidaciones del mes</p><strong className="metric-value">{resumen?.liquidacionesMes ?? 0}</strong></article>
-        <article className="metric-card operative-card"><div className="metric-icon metric-icon-indigo"><Save size={20} /></div><p className="metric-title">Importe liquidado del mes</p><strong className="metric-value">{formatCurrency(resumen?.importeLiquidadoMes)}</strong></article>
+      <div className="operative-summary-grid sales-summary-grid">
+        <article className="metric-card operative-card sales-summary-card"><div className="metric-icon metric-icon-blue"><Building2 size={20} /></div><p className="metric-title">Litros entregados del mes</p><strong className="metric-value">{formatLiters(resumen?.litrosEntregadosMes)}</strong></article>
+        <article className="metric-card operative-card sales-summary-card"><div className="metric-icon metric-icon-amber"><CalendarClock size={20} /></div><p className="metric-title">Pendientes de liquidar</p><strong className="metric-value">{resumen?.retirosPendientes ?? 0}</strong></article>
+        <article className="metric-card operative-card sales-summary-card"><div className="metric-icon metric-icon-emerald"><CheckCircle2 size={20} /></div><p className="metric-title">Liquidaciones del mes</p><strong className="metric-value">{resumen?.liquidacionesMes ?? 0}</strong></article>
+        <article className="metric-card operative-card sales-summary-card"><div className="metric-icon metric-icon-indigo"><Save size={20} /></div><p className="metric-title">Importe liquidado del mes</p><strong className="metric-value">{formatCurrency(resumen?.importeLiquidadoMes)}</strong></article>
       </div>
 
       <section className="panel" id="retiros-leche-section">
@@ -595,8 +616,8 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                   <tr key={entrega.id} className={entrega.estado === 'ANULADA' ? 'stock-inactive-row' : undefined}>
                     <td>{formatDate(entrega.fechaRetiro)}</td>
                     <td>{entrega.cliente.razonSocial}</td>
-                    <td>{entrega.ordenes.length} {entrega.ordenes.length === 1 ? 'ordeñe' : 'ordeñes'}</td>
-                    <td><strong>{formatLiters(entregaLitros(entrega))}</strong></td>
+                    <td><span className="table-soft-pill">{retiroCountLabel(entrega.ordenes.length)}</span></td>
+                    <td className="numeric-cell"><strong>{formatLiters(entregaLitros(entrega))}</strong></td>
                     <td><span className={`status-pill ${statusClass(entrega.estado)}`}>{estadoEntregaLabels[entrega.estado]}</span></td>
                     <td>{entrega.observacion ?? '-'}</td>
                     <td>
@@ -642,9 +663,9 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                   <td>{liquidacion.cliente.razonSocial}</td>
                   <td><strong>{liquidacion.numero}</strong></td>
                   <td>{formatDate(liquidacion.fechaLiquidacion)}</td>
-                  <td>{formatLiters(liquidacion.litrosLiquidados)}</td>
-                  <td>{formatCurrency(liquidacion.precioLitro)}</td>
-                  <td><strong>{formatCurrency(liquidacion.importeTotal)}</strong></td>
+                  <td className="numeric-cell">{formatLiters(liquidacion.litrosLiquidados)}</td>
+                  <td className="numeric-cell">{formatCurrency(liquidacion.precioLitro)}</td>
+                  <td className="numeric-cell"><strong>{formatCurrency(liquidacion.importeTotal)}</strong></td>
                   <td>
                     <div className="table-actions">
                       <button type="button" className="icon-button" onClick={() => setSelectedLiquidacion(liquidacion)} aria-label="Ver liquidación"><Eye size={16} /></button>
@@ -673,7 +694,10 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
         <form className="filters-form events-filters production-filters">
           <label className="filter-field production-selector">
             <span>Buscar</span>
-            <input placeholder="Buscar por CUIT o razón social..." value={clientesSearch} onChange={(event) => setClientesSearch(event.target.value)} />
+            <input list="clientes-sugeridos" placeholder="Buscar por CUIT o razón social..." value={clientesSearch} onChange={(event) => setClientesSearch(event.target.value)} />
+            <datalist id="clientes-sugeridos">
+              {clientes.slice(0, 12).map((cliente) => <option key={cliente.id} value={cliente.razonSocial}>{cliente.cuit}</option>)}
+            </datalist>
           </label>
         </form>
         <div className="table-wrap feed-table-wrap">
@@ -682,7 +706,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             <tbody>
               {sortedClientes.map((cliente) => (
                 <tr key={cliente.id}>
-                  <td><strong>{cliente.cuit}</strong></td>
+                  <td className="nowrap-cell"><strong>{cliente.cuit}</strong></td>
                   <td>{cliente.razonSocial}</td>
                   <td>{cliente.direccion || '-'}</td>
                   <td>{cliente.telefono || '-'}</td>
@@ -716,8 +740,9 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             <form className="user-form production-form sale-form" onSubmit={handleEntregaSubmit}>
               {retiroFormError && <div className="form-error production-wide-field">{retiroFormError}</div>}
               <label><span>Empresa</span><select value={entregaForm.clienteId} onChange={(event) => setEntregaForm({ ...entregaForm, clienteId: event.target.value })} required><option value="">Seleccionar empresa</option>{activeClientes.map((cliente) => <option key={cliente.id} value={cliente.id}>{clienteLabel(cliente)}</option>)}</select></label>
-              <label><span>Fecha de retiro</span><input type="date" value={entregaForm.fechaRetiro} onChange={(event) => setEntregaForm({ ...entregaForm, fechaRetiro: event.target.value })} required /></label>
+              <label><span>Fecha de retiro</span><input type="date" value={entregaForm.fechaRetiro} onChange={(event) => { setRetiroFormError(''); setEntregaForm({ ...entregaForm, fechaRetiro: event.target.value }); }} required /></label>
               <label className="production-wide-field"><span>Observación</span><textarea rows={2} value={entregaForm.observacion} onChange={(event) => setEntregaForm({ ...entregaForm, observacion: event.target.value })} /></label>
+              <p className="helper-text production-wide-field">Solo se muestran ordeñes con fecha igual o anterior a la fecha de retiro.</p>
               <div className="production-wide-field table-wrap">
                 <table className="users-table">
                   <thead><tr><th>Seleccionar</th><th>Fecha</th><th>Turno</th><th>Litros buenos</th></tr></thead>
@@ -730,7 +755,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                         <td><strong>{formatLiters(ordene.litrosBuenos)}</strong></td>
                       </tr>
                     ))}
-                    {ordenesParaSelector.length === 0 && <tr><td colSpan={4}>No hay ordeñes disponibles para entregar.</td></tr>}
+                    {ordenesParaSelector.length === 0 && <tr><td colSpan={4}>No hay ordeñes disponibles para esa fecha de retiro.</td></tr>}
                   </tbody>
                 </table>
               </div>
@@ -761,8 +786,8 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
               <label><span>Número de liquidación</span><input value={liquidacionForm.numero} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, numero: event.target.value })} required /></label>
               <label><span>Fecha de liquidación</span><input type="date" value={liquidacionForm.fechaLiquidacion} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, fechaLiquidacion: event.target.value })} required /></label>
               <label><span>Precio por litro</span><input type="number" min="0.01" step="0.01" value={liquidacionForm.precioLitro} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, precioLitro: event.target.value })} required /></label>
-              {!editingLiquidacion && <label><span>Litros sugeridos</span><input value={formatLiters(sugerenciaLiquidacion?.litrosSugeridos)} readOnly /></label>}
-              <label><span>Litros liquidados</span><input type="number" min="0" step="0.01" value={liquidacionForm.litrosLiquidados} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, litrosLiquidados: event.target.value })} required /></label>
+              {!editingLiquidacion && <label><span>Litros sugeridos</span><input value={formatLiters(sugerenciaLiquidacion?.litrosSugeridos)} readOnly /><small>Litros sugeridos: suma de retiros pendientes del período.</small></label>}
+              <label><span>Litros liquidados</span><input type="number" min="0" step="0.01" value={liquidacionForm.litrosLiquidados} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, litrosLiquidados: event.target.value })} required /><small>Litros liquidados: litros incluidos en esta liquidación.</small></label>
               <label><span>Importe total</span><input value={formatCurrency(liquidacionImporte)} readOnly /></label>
               <label className="production-wide-field"><span>Observación</span><textarea rows={2} value={liquidacionForm.observacion} onChange={(event) => setLiquidacionForm({ ...liquidacionForm, observacion: event.target.value })} /></label>
               {!editingLiquidacion && <p className="table-empty production-wide-field">

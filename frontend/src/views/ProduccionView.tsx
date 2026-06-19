@@ -87,9 +87,8 @@ function ordeneTotal(ordene: Ordene) {
   return Number(ordene.litrosBuenos ?? 0) + Number(ordene.litrosDescartados ?? 0);
 }
 
-function animalLabel(animal: Pick<Animal, 'caravana' | 'nombre' | 'categoriaAnimal' | 'estadoReproductivo' | 'lote'>) {
-  const name = animal.nombre ? ` - ${animal.nombre}` : '';
-  return `Caravana ${animal.caravana}${name} - ${categoriaLabels[animal.categoriaAnimal]} - ${estadoReproductivoLabels[animal.estadoReproductivo]} - ${animal.lote.nombre}`;
+function animalLabel(animal: Pick<Animal, 'caravana' | 'categoriaAnimal' | 'estadoReproductivo' | 'lote'>) {
+  return `#${animal.caravana} · ${categoriaLabels[animal.categoriaAnimal]} · ${estadoReproductivoLabels[animal.estadoReproductivo]} · ${animal.lote.nombre}`;
 }
 
 function isAnimalHabilitadoParaOrdene(animal: Animal) {
@@ -559,8 +558,8 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                   {detailOrdene.detalles.map((detalle) => (
                     <tr key={detalle.id}>
                       <td>
-                        <strong>{detalle.animal.caravana}</strong>
-                        <span>{detalle.animal.nombre ?? '-'}</span>
+                        <strong>#{detalle.animal.caravana}</strong>
+                        <span>{categoriaLabels[detalle.animal.categoriaAnimal]} · {estadoReproductivoLabels[detalle.animal.estadoReproductivo]}</span>
                       </td>
                       <td>{detalle.animal.lote.nombre}</td>
                       <td>{formatLiters(detalle.litros)}</td>

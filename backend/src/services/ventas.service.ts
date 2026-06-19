@@ -154,7 +154,15 @@ async function validateCliente(clienteId: number) {
   return cliente;
 }
 
-async function buildEntregaOrdenes(ordeneIds: number[], excludeEntregaId?: number) {
+function isAfterRetiroDate(ordeneFecha: Date, fechaRetiro: Date) {
+  const ordeneDay = new Date(ordeneFecha);
+  ordeneDay.setHours(0, 0, 0, 0);
+  const retiroDay = new Date(fechaRetiro);
+  retiroDay.setHours(23, 59, 59, 999);
+  return ordeneDay.getTime() > retiroDay.getTime();
+}
+
+async function buildEntregaOrdenes(ordeneIds: number[], fechaRetiro: Date, excludeEntregaId?: number) {
   const [ordenes, asignadas] = await Promise.all([findOrdenesByIds(ordeneIds), findOrdenesAsignadas(ordeneIds, excludeEntregaId)]);
   if (ordenes.length !== ordeneIds.length) throw new AppError('Uno o más ordeñes no existen o están inactivos.', 404);
   if (asignadas.length > 0) {
@@ -165,6 +173,9 @@ async function buildEntregaOrdenes(ordeneIds: number[], excludeEntregaId?: numbe
   return ordeneIds.map((ordeneId) => {
     const ordene = ordenes.find((item) => item.id === ordeneId);
     if (!ordene) throw new AppError('Uno o más ordeñes no existen o están inactivos.', 404);
+    if (isAfterRetiroDate(ordene.fecha, fechaRetiro)) {
+      throw new AppError('No se puede asociar un ordeñe posterior a la fecha de retiro.', 400);
+    }
     const litrosEntregados = new Prisma.Decimal(ordene.litrosBuenos).toDecimalPlaces(2);
     if (litrosEntregados.lte(0)) throw new AppError('Solo se pueden entregar ordeñes con litros buenos mayores a cero.', 400);
     return { ordeneId, litrosEntregados };
@@ -184,12 +195,13 @@ export async function listOrdenesDisponibles() {
 export async function createNewEntrega(input: Record<string, unknown>, usuarioId?: number) {
   const clienteId = parseId(input.clienteId, 'empresa');
   await validateCliente(clienteId);
-  const ordenes = await buildEntregaOrdenes(parseOrdeneIds(input.ordeneIds));
+  const fechaRetiro = parseDate(input.fechaRetiro, 'Fecha de retiro');
+  const ordenes = await buildEntregaOrdenes(parseOrdeneIds(input.ordeneIds), fechaRetiro);
 
   try {
     return await createEntregaLeche({
       clienteId,
-      fechaRetiro: parseDate(input.fechaRetiro, 'Fecha de retiro'),
+      fechaRetiro,
       observacion: normalizeOptionalString(input.observacion, 'Observación'),
       usuarioId,
       ordenes,
@@ -210,12 +222,13 @@ export async function updateExistingEntrega(idParam: string, input: Record<strin
 
   const clienteId = parseId(input.clienteId, 'empresa');
   await validateCliente(clienteId);
-  const ordenes = await buildEntregaOrdenes(parseOrdeneIds(input.ordeneIds), id);
+  const fechaRetiro = parseDate(input.fechaRetiro, 'Fecha de retiro');
+  const ordenes = await buildEntregaOrdenes(parseOrdeneIds(input.ordeneIds), fechaRetiro, id);
 
   try {
     return await updateEntregaLeche(id, {
       clienteId,
-      fechaRetiro: parseDate(input.fechaRetiro, 'Fecha de retiro'),
+      fechaRetiro,
       observacion: normalizeOptionalString(input.observacion, 'Observación'),
       ordenes,
     });

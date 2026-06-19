@@ -150,7 +150,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
     const query = animalSearch.trim().toLowerCase();
     if (query.length < 2) return [];
     return activeAnimals
-      .filter((animal) => animal.caravana.toLowerCase().includes(query) || (animal.nombre ?? '').toLowerCase().includes(query))
+      .filter((animal) => animal.caravana.toLowerCase().includes(query))
       .slice(0, 20);
   }, [activeAnimals, animalSearch]);
   const selectedAnimals = useMemo(() => activeAnimals.filter((animal) => formValues.animalIds.includes(animal.id)), [activeAnimals, formValues.animalIds]);
@@ -674,14 +674,14 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
                   )}
                   {scheduleMode === 'individual' && (
                     <div className="animal-selector">
-                      <label><span>Buscar animal activo</span><input value={animalSearch} onChange={(event) => setAnimalSearch(event.target.value)} placeholder="Ingrese caravana o nombre" /></label>
+                      <label><span>Buscar animal activo</span><input value={animalSearch} onChange={(event) => setAnimalSearch(event.target.value)} placeholder="Ingrese caravana" /></label>
                       <p className="field-help">Escribí al menos 2 caracteres para buscar animales activos.</p>
                       {shouldSearchAnimals && (
                         <div>
                           {filteredAnimals.map((animal) => (
                             <label key={animal.id} className="checkbox-row animal-selector-option">
                               <input type="checkbox" checked={formValues.animalIds.includes(animal.id)} onChange={() => toggleAnimalSelection(animal.id)} />
-                              <span>#{animal.caravana} {animal.nombre ? `- ${animal.nombre}` : ''}</span>
+                              <span>#{animal.caravana} · {formatCategoria(animal.categoriaAnimal)} · {animal.lote.nombre}</span>
                             </label>
                           ))}
                           {filteredAnimals.length === 0 && <p className="table-empty">No se encontraron animales activos con ese criterio.</p>}

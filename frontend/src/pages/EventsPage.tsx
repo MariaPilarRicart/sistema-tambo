@@ -76,6 +76,40 @@ function toFunctionalCategory(category: CategoriaAnimal): CategoriaAnimal {
   return legacyCowCategoryMap[category] ?? category;
 }
 
+function friendlyAnimalValue(value: string | null | undefined) {
+  if (!value) return '-';
+  const labels: Record<string, string> = {
+    VACA_PRODUCCION: 'Vaca',
+    VACA_SECA: 'Vaca',
+    PREPARTO: 'Vaca',
+    NO_APLICA: 'No aplica',
+    VACIA: 'Vacía',
+    PRENADA: 'Preñada',
+    INSEMINADA: 'Inseminada',
+    SECA: 'Seca',
+    RECUPERACION: 'Recuperación',
+    ACTIVO: 'Activo',
+    VENDIDO: 'Vendido',
+    MUERTO: 'Muerto',
+    ROBADO: 'Robado',
+    TRASLADADO: 'Trasladado',
+    OTRO: 'Otro',
+    GUACHERA: 'Guachera',
+    ESCUELITA: 'Escuelita',
+    TERNERO: 'Ternero',
+    TERNERA: 'Ternera',
+    VAQUILLONA: 'Vaquillona',
+    VACA: 'Vaca',
+    TORITO: 'Torito',
+    TORO: 'Toro',
+  };
+  return labels[value] ?? value;
+}
+
+function animalOptionLabel(animal: Animal) {
+  return `#${animal.caravana} · ${friendlyAnimalValue(toFunctionalCategory(animal.categoriaAnimal))} · ${friendlyAnimalValue(animal.estadoReproductivo)}`;
+}
+
 function getCompatibleLoteTypesForAnimal(animal: Animal | null): TipoFuncionalLote[] {
   if (!animal) return [];
   const ageMonths = calculateAgeMonths(localDateInput(animal.fechaNacimiento));
@@ -331,7 +365,13 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
                   <tr key={evento.id}>
                     <td>{formatDateTime(evento.fecha)}</td>
                     <td><span className="status-pill status-active">{evento.tipo}</span></td>
-                    <td><strong>#{evento.animal.caravana}</strong><span>{evento.animal.categoriaAnimal}</span></td>
+                    <td>
+                      <strong>#{evento.animal.caravana}</strong>
+                      <span>
+                        {friendlyAnimalValue(toFunctionalCategory(evento.animal.categoriaAnimal))} · {friendlyAnimalValue(evento.animal.estadoReproductivo)}
+                        {evento.animal.lote?.nombre ? ` · ${evento.animal.lote.nombre}` : ''}
+                      </span>
+                    </td>
                     <td>{evento.usuario?.nombre ?? 'Sin usuario'}</td>
                     <td>{renderEventoDetalle(evento)}</td>
                   </tr>
@@ -376,10 +416,22 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
                 >
                   <option value="">Seleccionar animal</option>
                   {animales.map((animal) => (
-                    <option key={animal.id} value={animal.id}>#{animal.caravana} {animal.nombre ? `- ${animal.nombre}` : ''}</option>
+                    <option key={animal.id} value={animal.id}>{animalOptionLabel(animal)}</option>
                   ))}
                 </select>
               </label>
+
+              {selectedAnimal ? (
+                <div className="animal-mini-card production-wide-field">
+                  <div><span>Caravana</span><strong>#{selectedAnimal.caravana}</strong></div>
+                  <div><span>Categoría</span><strong>{friendlyAnimalValue(toFunctionalCategory(selectedAnimal.categoriaAnimal))}</strong></div>
+                  <div><span>Lote</span><strong>{selectedAnimal.lote.nombre}</strong></div>
+                  <div><span>Estado reproductivo</span><strong>{friendlyAnimalValue(selectedAnimal.estadoReproductivo)}</strong></div>
+                  <div><span>Estado animal</span><strong>{friendlyAnimalValue(selectedAnimal.estadoAnimal)}</strong></div>
+                </div>
+              ) : (
+                <p className="table-empty production-wide-field">Seleccioná un animal para ver su estado actual.</p>
+              )}
 
               {selectedAnimal && !isReproductiveAnimal(selectedAnimal) && (
                 <div className="form-warning animal-form-message">
