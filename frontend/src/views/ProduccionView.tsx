@@ -387,14 +387,14 @@ export function ProduccionView({ authToken, currentUser, onUnauthorized }: Produ
                   <tr key={registro.id} className={!registro.activo ? 'stock-inactive-row' : undefined}>
                     <td>{formatDate(registro.fecha)}</td>
                     <td>{turnoLabels[registro.turno]}</td>
-                    <td>{formatLiters(registro.litrosBuenos)}</td>
-                    <td>{formatLiters(registro.litrosDescartados)}</td>
-                    <td>
-                      <strong>{formatLiters(ordeneTotal(registro))}</strong>
+                    <td className="production-number-cell">{formatLiters(registro.litrosBuenos)}</td>
+                    <td className="production-number-cell">{formatLiters(registro.litrosDescartados)}</td>
+                    <td className="production-number-cell production-total-cell">
+                      {formatLiters(ordeneTotal(registro))}
                     </td>
-                    <td>
+                    <td className="production-detail-cell">
                       {registro.detalles.length === 0 ? (
-                        <span>Sin detalle</span>
+                        <span className="production-detail-muted">Sin detalle</span>
                       ) : (
                         <button type="button" className="link-button production-detail-link" onClick={() => setDetailOrdene(registro)}>
                           {registro.detalles.length} {registro.detalles.length === 1 ? 'vaca cargada' : 'vacas cargadas'}

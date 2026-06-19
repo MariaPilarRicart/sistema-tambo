@@ -3271,7 +3271,24 @@ a {
 }
 
 .production-summary-grid .operative-card {
+  align-items: center;
   min-height: 138px;
+  text-align: center;
+}
+
+.production-summary-grid .metric-icon {
+  margin: 0 auto;
+}
+
+.production-summary-grid .metric-title {
+  line-height: 1.25;
+  margin: 2px 0 0;
+}
+
+.production-summary-grid .metric-value {
+  font-size: 26px;
+  line-height: 1.1;
+  margin-top: 0;
 }
 
 .production-stats-controls {
@@ -3344,8 +3361,19 @@ a {
 }
 
 .production-detail-link {
+  color: var(--slate-600);
+  font-size: 13px;
+  font-weight: 800;
   justify-content: flex-start;
   padding: 0;
+  text-decoration: underline;
+  text-decoration-color: var(--slate-300);
+  text-underline-offset: 3px;
+}
+
+.production-detail-link:hover {
+  color: var(--emerald-dark);
+  text-decoration-color: var(--emerald);
 }
 
 .table-soft-pill {
@@ -3625,7 +3653,41 @@ a {
 
 .production-history-table th,
 .production-history-table td {
+  color: var(--slate-700);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  padding-bottom: 12px;
+  padding-top: 12px;
   vertical-align: middle;
+}
+
+.production-history-table th {
+  color: var(--slate-500);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.production-number-cell,
+.production-total-cell {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.production-total-cell {
+  color: var(--slate-800);
+  font-weight: 800;
+}
+
+.production-detail-cell {
+  white-space: nowrap;
+}
+
+.production-detail-muted {
+  color: var(--slate-600);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .table-actions {
