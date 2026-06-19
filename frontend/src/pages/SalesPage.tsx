@@ -652,7 +652,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                   <tr key={entrega.id} className={entrega.estado === 'ANULADA' ? 'stock-inactive-row' : undefined}>
                     <td>{formatDate(entrega.fechaRetiro)}</td>
                     <td>{entrega.cliente.razonSocial}</td>
-                    <td><span className="table-soft-pill">{retiroCountLabel(entrega.ordenes.length)}</span></td>
+                    <td>{retiroCountLabel(entrega.ordenes.length)}</td>
                     <td className="numeric-cell">{formatLiters(entregaLitros(entrega))}</td>
                     <td><span className={`status-pill ${statusClass(entrega.estado)}`}>{estadoEntregaLabels[entrega.estado]}</span></td>
                     <td>{entrega.observacion ?? '-'}</td>
@@ -883,7 +883,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
             </div>
             <div className="table-wrap">
               <table className="users-table">
-                <thead><tr><th>Fecha</th><th>Turno</th><th>Litros entregados</th></tr></thead>
+                <thead><tr><th>Fecha de ordeñe</th><th>Turno</th><th>Litros entregados</th></tr></thead>
                 <tbody>
                   {selectedEntrega.ordenes.map((detalle) => (
                     <tr key={detalle.id}>
@@ -910,14 +910,14 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
               <button type="button" className="icon-button" onClick={() => setSelectedLiquidacion(null)} aria-label="Cerrar liquidación"><X size={18} /></button>
             </div>
             <div className="info-grid sale-detail-summary">
-              <div className="info-item"><span>Empresa</span><strong>{selectedLiquidacion.cliente.razonSocial}</strong></div>
-              <div className="info-item"><span>Período</span><strong>{periodoLabel(selectedLiquidacion.mes, selectedLiquidacion.anio)}</strong></div>
-              <div className="info-item"><span>Número de liquidación</span><strong>{selectedLiquidacion.numero}</strong></div>
-              <div className="info-item"><span>Fecha de liquidación</span><strong>{formatDate(selectedLiquidacion.fechaLiquidacion)}</strong></div>
-              <div className="info-item"><span>Litros liquidados</span><strong>{formatLiters(selectedLiquidacion.litrosLiquidados)}</strong></div>
-              <div className="info-item"><span>Precio por litro</span><strong>{formatCurrency(selectedLiquidacion.precioLitro)}</strong></div>
-              <div className="info-item sale-total-item"><span>Importe total</span><strong>{formatCurrency(selectedLiquidacion.importeTotal)}</strong></div>
-              {selectedLiquidacion.observacion && <div className="info-item"><span>Observación</span><strong>{selectedLiquidacion.observacion}</strong></div>}
+              <div className="info-item"><span>Empresa</span><span className="sale-detail-value">{selectedLiquidacion.cliente.razonSocial}</span></div>
+              <div className="info-item"><span>Período</span><span className="sale-detail-value">{periodoLabel(selectedLiquidacion.mes, selectedLiquidacion.anio)}</span></div>
+              <div className="info-item"><span>Número de liquidación</span><span className="sale-detail-value">{selectedLiquidacion.numero}</span></div>
+              <div className="info-item"><span>Fecha de liquidación</span><span className="sale-detail-value">{formatDate(selectedLiquidacion.fechaLiquidacion)}</span></div>
+              <div className="info-item"><span>Litros liquidados</span><span className="sale-detail-value">{formatLiters(selectedLiquidacion.litrosLiquidados)}</span></div>
+              <div className="info-item"><span>Precio por litro</span><span className="sale-detail-value">{formatCurrency(selectedLiquidacion.precioLitro)}</span></div>
+              <div className="info-item sale-total-item"><span>Importe total</span><span className="sale-detail-value">{formatCurrency(selectedLiquidacion.importeTotal)}</span></div>
+              {selectedLiquidacion.observacion && <div className="info-item"><span>Observación</span><span className="sale-detail-value">{selectedLiquidacion.observacion}</span></div>}
             </div>
             <div className="section-subheader">
               <div>
@@ -933,7 +933,7 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                     <tr key={entrega.id}>
                       <td>{formatDate(entrega.fechaRetiro)}</td>
                       <td>{retiroCountLabel(entrega.ordenes.length)}</td>
-                      <td><strong>{formatLiters(entregaLitros(entrega))}</strong></td>
+                      <td>{formatLiters(entregaLitros(entrega))}</td>
                       <td><span className={`status-pill ${statusClass(entrega.estado)}`}>{estadoEntregaLabels[entrega.estado]}</span></td>
                     </tr>
                   ))}
