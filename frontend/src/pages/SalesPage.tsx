@@ -754,7 +754,9 @@ export function SalesPage({ authToken, currentUser, onUnauthorized }: SalesPageP
                       {isAdmin && <button type="button" onClick={() => startEditingCliente(cliente)} aria-label={`Editar ${cliente.razonSocial}`}><Edit2 size={16} /></button>}
                       {isAdmin && cliente.activo && <button type="button" onClick={() => void handleClienteBaja(cliente)} aria-label={`Dar de baja ${cliente.razonSocial}`}><Trash2 size={16} /></button>}
                       {isAdmin && !cliente.activo && <button type="button" onClick={() => void handleClienteReactivar(cliente)} aria-label={`Reactivar ${cliente.razonSocial}`}><RefreshCcw size={16} /></button>}
-                      {isAdmin && cliente.puedeEliminar && <button type="button" className="danger-action-button" onClick={() => void handleClienteDelete(cliente)} aria-label={`Eliminar definitivamente ${cliente.razonSocial}`}><X size={16} /></button>}
+                      {isAdmin && (cliente.puedeEliminar
+                        ? <button type="button" className="danger-action-button" onClick={() => void handleClienteDelete(cliente)} aria-label={`Eliminar definitivamente ${cliente.razonSocial}`}><X size={16} /></button>
+                        : <button type="button" className="danger-action-button" disabled title="No se puede eliminar definitivamente porque la empresa tiene ventas, retiros o liquidaciones asociadas. Usá baja lógica para conservar el historial." aria-label={`No se puede eliminar definitivamente ${cliente.razonSocial} porque tiene historial`}><X size={16} /></button>)}
                     </div>
                   </td>
                 </tr>

@@ -79,14 +79,17 @@ const raciones = [
 ] as const;
 
 const clientes = [
-  ['30-70000001-1', 'Lacteos Rosario SA', 'Av. Pellegrini 1234, Rosario', '341-555-1001', 'compras@lacteosrosario.com'],
-  ['30-70000002-9', 'Cooperativa Lechera Sur', 'Ruta 18 Km 12, Perez', '341-555-1002', 'administracion@cooplsur.com'],
-  ['30-70000003-7', 'Distribuidora La Granja', 'San Martin 847, Funes', '341-555-1003', 'ventas@lagranja.com'],
-  ['30-70000004-5', 'Queseria Don Pedro', 'Belgrano 220, Roldan', '341-555-1004', 'pedidos@donpedro.com'],
-  ['30-70000005-3', 'Tambo Modelo Centro', 'Mitre 510, Rosario', '341-555-1005', 'compras@tambomodelo.com'],
   ['30-70000006-1', 'Alimentos del Litoral', 'Ruta 9 Km 321, Carcarana', '341-555-1006', 'ventas@litoral.com'],
   ['30-70000007-9', 'Lacteos San Martin', 'San Martin 1200, Casilda', '341-555-1007', 'admin@lacteossm.com'],
-  ['30-70000008-7', 'Quesos La Esperanza', 'Belgrano 760, Zavalla', '341-555-1008', 'pedidos@esperanza.com'],
+] as const;
+
+const demoClienteCuitsAEliminar = [
+  '30-70000001-1',
+  '30-70000002-9',
+  '30-70000003-7',
+  '30-70000004-5',
+  '30-70000005-3',
+  '30-70000008-7',
 ] as const;
 
 function daysFromToday(days: number, hour = 9) {
@@ -842,6 +845,20 @@ async function seedClientes() {
   }
 }
 
+async function deleteDemoClientesNoDeseados() {
+  for (const cuit of demoClienteCuitsAEliminar) {
+    const cliente = await prisma.cliente.findUnique({ where: { cuit }, select: { id: true } });
+    if (!cliente) continue;
+
+    await prisma.ventaDetalle.deleteMany({ where: { venta: { clienteId: cliente.id } } });
+    await prisma.venta.deleteMany({ where: { clienteId: cliente.id } });
+    await prisma.entregaLecheOrdene.deleteMany({ where: { entregaLeche: { clienteId: cliente.id } } });
+    await prisma.entregaLeche.deleteMany({ where: { clienteId: cliente.id } });
+    await prisma.liquidacionLeche.deleteMany({ where: { clienteId: cliente.id } });
+    await prisma.cliente.delete({ where: { id: cliente.id } });
+  }
+}
+
 async function seedVentas(usuarioId: number) {
   const clientesByCuit = new Map((await prisma.cliente.findMany()).map((cliente) => [cliente.cuit, cliente.id]));
   const lotesByCode = new Map((await prisma.loteLeche.findMany()).map((lote) => [lote.codigo, lote]));
@@ -942,6 +959,7 @@ async function main() {
   await seedLotes();
   await seedAnimals();
   await deleteSeededDemoData();
+  await deleteDemoClientesNoDeseados();
 
   const [admin, empleado] = await Promise.all([
     prisma.usuario.findUniqueOrThrow({ where: { username: 'admin' } }),

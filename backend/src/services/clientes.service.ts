@@ -153,7 +153,7 @@ export async function deleteExistingCliente(idParam: string) {
     ? usage._count.ventas + usage._count.entregasLeche + usage._count.liquidacionesLeche
     : 0;
   if (movimientos > 0) {
-    throw new AppError('No se puede eliminar porque tiene retiros o liquidaciones asociadas. Usá baja lógica.', 409);
+    throw new AppError('No se puede eliminar porque tiene ventas, retiros o liquidaciones asociadas. Usá baja lógica.', 409);
   }
 
   return deleteCliente(id);

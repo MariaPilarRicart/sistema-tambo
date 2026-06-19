@@ -3772,6 +3772,11 @@ a {
   color: var(--rose);
 }
 
+.table-actions .danger-action-button:disabled {
+  border-color: var(--slate-100);
+  color: var(--slate-300);
+}
+
 .table-actions button:disabled {
   color: var(--slate-300);
 }
