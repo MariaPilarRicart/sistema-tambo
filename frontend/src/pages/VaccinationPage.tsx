@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { CalendarClock, CheckCircle2, Clock3, ListChecks, Plus, RefreshCcw, Syringe, X } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Clock3, Download, ListChecks, Plus, RefreshCcw, Syringe, X } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { SanitaryRulesPanel } from '../components/ui/SanitaryRulesPanel';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { useScrollToSection } from '../hooks/useScrollToSection';
@@ -118,6 +120,22 @@ function animalLink(animal: VaccinationHistoryItem['animal']) {
       #{animal.caravana}
     </Link>
   );
+}
+
+function fileSlug(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function filterDateRangeLabel(from: string, to: string) {
+  if (!from && !to) return 'Todas';
+  if (from && to) return `${formatDate(from)} a ${formatDate(to)}`;
+  if (from) return `Desde ${formatDate(from)}`;
+  return `Hasta ${formatDate(to)}`;
 }
 
 export function VaccinationPage({ authToken, currentUser, onUnauthorized }: VaccinationPageProps) {
@@ -350,6 +368,108 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
     setPendingFilters(emptyPendingFilters);
   }
 
+  function exportHistoryPdf() {
+    if (history.length === 0) {
+      setError('No hay registros sanitarios para exportar con los filtros seleccionados.');
+      return;
+    }
+
+    setError('');
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const generatedDate = new Date().toLocaleDateString('es-AR');
+    const primaryColor: [number, number, number] = [5, 150, 105];
+    const mutedText: [number, number, number] = [75, 85, 99];
+    const lightPanel: [number, number, number] = [243, 244, 246];
+    const selectedLoteLabel = filters.loteId ? lotes.find((lote) => String(lote.id) === filters.loteId)?.nombre ?? 'Lote seleccionado' : 'Todos';
+    const selectedTipoLabel = filters.tipo ? activeSanitaryRules.find((regla) => regla.codigo === filters.tipo)?.nombre ?? formatTipoSanitario(filters.tipo) : 'Todos';
+    const selectedCategoriaLabel = filters.categoria ? formatCategoria(filters.categoria) : 'Todas';
+    const selectedEstadoLabel = filters.estado ? formatEstado(filters.estado) : 'Todos';
+    const filterRows = [
+      ['Fecha programada', filterDateRangeLabel(filters.fechaProgramadaDesde, filters.fechaProgramadaHasta)],
+      ['Fecha objetivo', filterDateRangeLabel(filters.fechaObjetivoDesde, filters.fechaObjetivoHasta)],
+      ['Fecha realizada', filterDateRangeLabel(filters.fechaRealizadaDesde, filters.fechaRealizadaHasta)],
+      ['Lote', selectedLoteLabel],
+      ['Categoría', selectedCategoriaLabel],
+      ['Tipo sanitario', selectedTipoLabel],
+      ['Estado', selectedEstadoLabel],
+      ['Generado el', generatedDate],
+    ];
+
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, pageWidth, 26, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('Historial sanitario', 14, 16);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text('Registros sanitarios del tambo según los filtros aplicados.', 14, 22);
+
+    doc.setFillColor(...lightPanel);
+    doc.roundedRect(14, 34, pageWidth - 28, 30, 2, 2, 'F');
+    doc.setTextColor(...mutedText);
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Filtros aplicados', 18, 41);
+    doc.setFont('helvetica', 'normal');
+    filterRows.forEach(([label, value], index) => {
+      const column = index % 4;
+      const row = Math.floor(index / 4);
+      doc.text(`${label}: ${value}`, 18 + column * 68, 49 + row * 8);
+    });
+
+    autoTable(doc, {
+      startY: 74,
+      head: [['Fecha programada', 'Fecha objetivo', 'Fecha realizada', 'Animal / Caravana', 'Categoría', 'Lote', 'Tipo sanitario', 'Estado', 'Usuario', 'Observaciones']],
+      body: history.map((item) => [
+        formatDate(item.fechaProgramada),
+        formatDate(item.fechaObjetivo),
+        formatDate(item.fechaRealizada),
+        item.animal?.caravana ? `#${item.animal.caravana}` : '-',
+        formatCategoria(item.animal?.categoriaAnimal),
+        item.animal?.lote?.nombre ?? '-',
+        formatTipoSanitario(item.tipoSanitario),
+        formatEstado(item.estado),
+        item.usuario?.nombre ?? '-',
+        item.observaciones || '-',
+      ]),
+      margin: { left: 14, right: 14 },
+      styles: {
+        font: 'helvetica',
+        fontSize: 7.4,
+        cellPadding: { top: 2.4, right: 2, bottom: 2.4, left: 2 },
+        textColor: [31, 41, 55],
+        lineColor: [229, 231, 235],
+        lineWidth: 0.1,
+        valign: 'middle',
+      },
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'left',
+      },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        0: { cellWidth: 24 },
+        1: { cellWidth: 24 },
+        2: { cellWidth: 24 },
+        3: { cellWidth: 28 },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 28 },
+        6: { cellWidth: 30 },
+        7: { cellWidth: 22 },
+        8: { cellWidth: 28 },
+      },
+    });
+
+    const typePart = filters.tipo ? `-${fileSlug(selectedTipoLabel)}` : '';
+    const statusPart = filters.estado ? `-${fileSlug(selectedEstadoLabel)}` : '';
+    const datePart = filters.fechaProgramadaDesde || filters.fechaObjetivoDesde || filters.fechaRealizadaDesde;
+    doc.save(`historial-sanitario${typePart}${statusPart}${datePart ? `-${datePart}` : ''}.pdf`);
+  }
+
   async function handleScheduleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!authToken) return onUnauthorized();
@@ -548,6 +668,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
           <div><h2>Historial sanitario</h2><p>{history.length} registros encontrados.</p></div>
           <div className="header-actions">
             {isAdmin && <button type="button" className="secondary-button" onClick={openScheduleModal}><Plus size={16} />Programar vacunación</button>}
+            <button type="button" className="secondary-button" onClick={exportHistoryPdf}><Download size={16} />Exportar PDF</button>
             <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar historial sanitario"><RefreshCcw size={18} /></button>
           </div>
         </div>
