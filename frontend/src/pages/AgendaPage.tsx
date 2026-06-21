@@ -81,6 +81,15 @@ function taskDate(task: AgendaTarea) {
   return task.fechaObjetivo ?? task.fechaProgramada;
 }
 
+function fileSlug(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
 interface AgendaPageProps {
   authToken: string | null;
   currentUser: AuthUser | null;
@@ -154,17 +163,36 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     const generatedDate = new Date().toLocaleDateString('es-AR');
     const selectedStatusLabel = selectedStatus ? statusLabels[selectedStatus] : 'Todos';
     const selectedTypeLabel = selectedType ? taskLabels[selectedType] : 'Todos';
+    const selectedDateLabel = selectedDate ? formatDate(selectedDate) : 'Todas';
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const primaryColor: [number, number, number] = [5, 150, 105];
+    const mutedText: [number, number, number] = [75, 85, 99];
+    const lightPanel: [number, number, number] = [243, 244, 246];
 
-    doc.setFontSize(16);
-    doc.text('Agenda de tareas', 14, 16);
-    doc.setFontSize(10);
-    doc.text(`Fecha: ${selectedDate ? formatDate(selectedDate) : 'Todas'}`, 14, 25);
-    doc.text(`Estado: ${selectedStatusLabel}`, 14, 31);
-    doc.text(`Tipo de tarea: ${selectedTypeLabel}`, 14, 37);
-    doc.text(`Generado el: ${generatedDate}`, 14, 43);
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, pageWidth, 26, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('Agenda operativa', 14, 16);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.text('Tareas operativas generadas por eventos y reglas del sistema.', 14, 22);
+
+    doc.setFillColor(...lightPanel);
+    doc.roundedRect(14, 34, pageWidth - 28, 24, 2, 2, 'F');
+    doc.setTextColor(...mutedText);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Filtros aplicados', 18, 41);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Fecha: ${selectedDateLabel}`, 18, 49);
+    doc.text(`Estado: ${selectedStatusLabel}`, 70, 49);
+    doc.text(`Tipo de tarea: ${selectedTypeLabel}`, 118, 49);
+    doc.text(`Generado el: ${generatedDate}`, 18, 55);
 
     autoTable(doc, {
-      startY: 52,
+      startY: 66,
       head: [['Fecha', 'Tipo de tarea', 'Animal / Caravana', 'Categoría', 'Lote', 'Estado']],
       body: filteredTasks.map((task) => [
         formatDate(taskDate(task)),
@@ -174,19 +202,43 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
         task.animal?.lote?.nombre ?? '-',
         statusLabels[task.estadoCalculado] ?? task.estadoCalculado,
       ]),
-      styles: { fontSize: 8, cellPadding: 2 },
-      headStyles: { fillColor: [5, 150, 105] },
+      margin: { left: 14, right: 14 },
+      styles: {
+        font: 'helvetica',
+        fontSize: 8.5,
+        cellPadding: { top: 3, right: 2.5, bottom: 3, left: 2.5 },
+        textColor: [31, 41, 55],
+        lineColor: [229, 231, 235],
+        lineWidth: 0.1,
+        valign: 'middle',
+      },
+      headStyles: {
+        fillColor: primaryColor,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'left',
+      },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        0: { cellWidth: 24 },
+        1: { cellWidth: 32 },
+        2: { cellWidth: 34 },
+        3: { cellWidth: 24 },
+        5: { cellWidth: 24 },
+      },
     });
 
-    doc.save(`agenda-tareas-${selectedDate || 'todas'}.pdf`);
+    const typePart = selectedType ? `-${fileSlug(selectedTypeLabel)}` : '';
+    const datePart = selectedDate || 'todos';
+    doc.save(`agenda-operativa${typePart}-${datePart}.pdf`);
   }
 
   return (
     <div className="settings-page">
       <section className="settings-header">
         <div>
-          <h2>Agenda pendiente</h2>
-          <p>Tareas generadas automaticamente por eventos.</p>
+          <h2>Agenda operativa</h2>
+          <p>Tareas operativas generadas automáticamente por eventos y reglas del sistema.</p>
         </div>
         <button type="button" className="icon-button" onClick={() => void loadAgenda()} aria-label="Actualizar agenda">
           <RefreshCcw size={18} />

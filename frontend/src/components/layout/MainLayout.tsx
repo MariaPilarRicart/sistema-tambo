@@ -8,7 +8,7 @@ const pageTitles: Record<string, string> = {
   [paths.dashboard]: 'Resumen General',
   [paths.herd]: 'Gestión del Rodeo',
   [paths.events]: 'Historial de Eventos',
-  [paths.agenda]: 'Agenda Pendiente',
+  [paths.agenda]: 'Agenda operativa',
   [paths.feed]: 'Alimentación',
   [paths.sales]: 'Ventas',
   [paths.vaccination]: 'Control de Vacunación',
