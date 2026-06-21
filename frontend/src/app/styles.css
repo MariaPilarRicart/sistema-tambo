@@ -2336,7 +2336,21 @@ a {
 }
 
 .agenda-date-form {
-  grid-template-columns: minmax(180px, 260px);
+  align-items: end;
+  grid-template-columns: minmax(180px, 240px) minmax(170px, 220px) max-content;
+}
+
+.agenda-date-form input,
+.agenda-date-form select {
+  box-sizing: border-box;
+  height: 42px;
+  min-width: 0;
+  width: 100%;
+}
+
+.agenda-date-form .secondary-button {
+  height: 42px;
+  min-height: 42px;
 }
 
 .secondary-button {

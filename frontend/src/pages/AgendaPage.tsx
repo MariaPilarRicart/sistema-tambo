@@ -2,15 +2,22 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { RefreshCcw } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
-import { getAgendaPendiente } from '../services/agendaService';
+import { getAgenda } from '../services/agendaService';
 import { AgendaTaskActions } from '../components/ui/AgendaTaskActions';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { useScrollToSection } from '../hooks/useScrollToSection';
 import { compareByDateStatusName, formatDate, statusClass } from '../utils/display';
-import type { AgendaTarea, TipoTarea } from '../types/agenda';
+import type { AgendaTarea, EstadoTareaCalculado, TipoTarea } from '../types/agenda';
 import type { AuthUser } from '../types/auth';
 
 const taskOrder: TipoTarea[] = ['TACTO', 'SECADO', 'PARTO', 'ALTA_POST_PARTO', 'VACUNACION', 'CONTROL_CLINICO'];
+const statusOptions: Array<{ value: '' | EstadoTareaCalculado; label: string }> = [
+  { value: '', label: 'Todos' },
+  { value: 'PENDIENTE', label: 'Pendiente' },
+  { value: 'REALIZADA', label: 'Realizada' },
+  { value: 'VENCIDA', label: 'Vencida' },
+  { value: 'CANCELADA', label: 'Cancelada' },
+];
 const today = new Date().toISOString().slice(0, 10);
 
 function dateOnly(value: string) {
@@ -45,12 +52,13 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
   const [searchParams] = useSearchParams();
   const [agenda, setAgenda] = useState<AgendaTarea[]>([]);
   const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedStatus, setSelectedStatus] = useState<'' | EstadoTareaCalculado>('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const agendaVisible = useMemo(() => {
     const tipoFilter = searchParams.get('tipo') as TipoTarea | null;
-    const estadoFilter = searchParams.get('estado');
+    const estadoFilter = selectedStatus || searchParams.get('estado');
     const fechaDesde = searchParams.get('fechaDesde');
     const fechaHasta = searchParams.get('fechaHasta');
     const excluirTipo = searchParams.get('excluirTipo') as TipoTarea | null;
@@ -72,7 +80,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
           (task) => `${task.tipo} ${task.animal.caravana}`,
         ),
       );
-  }, [agenda, searchParams]);
+  }, [agenda, searchParams, selectedStatus]);
 
   const agendaDelDia = useMemo(
     () => agendaVisible.filter((task) => taskMatchesRange(task, selectedDate, selectedDate)),
@@ -97,7 +105,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     setError('');
 
     try {
-      setAgenda(await getAgendaPendiente(authToken));
+      setAgenda(await getAgenda(authToken, { estado: selectedStatus }));
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.statusCode === 401) {
         onUnauthorized();
@@ -112,7 +120,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
   useEffect(() => {
     void loadAgenda();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken]);
+  }, [authToken, selectedStatus]);
 
   useEffect(() => {
     const fechaDesde = searchParams.get('fechaDesde');
@@ -120,7 +128,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     if (fechaDesde && fechaDesde === fechaHasta) setSelectedDate(fechaDesde);
   }, [searchParams]);
 
-  useDataChangedRefresh(() => loadAgenda(), [authToken]);
+  useDataChangedRefresh(() => loadAgenda(), [authToken, selectedStatus]);
   useScrollToSection(searchParams.get('tipo') || searchParams.get('estado') ? 'agenda-listado-section' : null, [searchParams, agendaVisible.length]);
 
   return (
@@ -144,7 +152,13 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
             <span>Seleccionar dia</span>
             <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
           </label>
-          <button type="button" className="secondary-button" onClick={() => setSelectedDate(today)}>Limpiar</button>
+          <label className="filter-field">
+            <span>Estado</span>
+            <select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value as '' | EstadoTareaCalculado)}>
+              {statusOptions.map((option) => <option key={option.value || 'todos'} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <button type="button" className="secondary-button" onClick={() => { setSelectedDate(today); setSelectedStatus(''); }}>Limpiar</button>
         </form>
       </section>
 
