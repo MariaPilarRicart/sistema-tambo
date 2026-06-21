@@ -727,6 +727,24 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                 <input type="date" value={formValues.fechaNacimiento} onChange={(event) => setFormValues({ ...formValues, fechaNacimiento: event.target.value })} required />
               </label>
               <label>
+                <span>Categoria</span>
+                <select
+                  value={formValues.categoriaAnimal}
+                  onChange={(event) => setFormValues({
+                    ...formValues,
+                    categoriaAnimal: event.target.value as CategoriaAnimal | '',
+                    estadoReproductivo: noAplicaCategories.includes(event.target.value as CategoriaAnimal)
+                      ? 'NO_APLICA'
+                      : formValues.estadoReproductivo === 'NO_APLICA'
+                        ? 'VACIA'
+                        : formValues.estadoReproductivo,
+                  })}
+                >
+                  <option value="">Seleccionar categoría</option>
+                  {categoriaOptions.map((option) => <option key={option} value={option}>{categoriaLabel(option)}</option>)}
+                </select>
+              </label>
+              <label>
                 <span>Lote</span>
                 <select value={formValues.loteId} onChange={(event) => setFormValues({ ...formValues, loteId: event.target.value })} required disabled={!canSelectLote}>
                   <option value="">{canSelectLote ? 'Seleccionar lote' : 'Primero seleccioná categoría y fecha de nacimiento'}</option>
@@ -747,24 +765,6 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
               <label>
                 <span>Padre</span>
                 <input value={formValues.padreNombre} onChange={(event) => setFormValues({ ...formValues, padreNombre: event.target.value })} placeholder="Identificación externa / toro" />
-              </label>
-              <label>
-                <span>Categoria</span>
-                <select
-                  value={formValues.categoriaAnimal}
-                  onChange={(event) => setFormValues({
-                    ...formValues,
-                    categoriaAnimal: event.target.value as CategoriaAnimal | '',
-                    estadoReproductivo: noAplicaCategories.includes(event.target.value as CategoriaAnimal)
-                      ? 'NO_APLICA'
-                      : formValues.estadoReproductivo === 'NO_APLICA'
-                        ? 'VACIA'
-                        : formValues.estadoReproductivo,
-                  })}
-                >
-                  <option value="">Seleccionar categoría</option>
-                  {categoriaOptions.map((option) => <option key={option} value={option}>{categoriaLabel(option)}</option>)}
-                </select>
               </label>
               <label>
                 <span>Estado reproductivo</span>
