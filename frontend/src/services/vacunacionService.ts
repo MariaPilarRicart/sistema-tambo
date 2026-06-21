@@ -3,6 +3,7 @@ import type { AgendaTarea, TipoSanitario } from '../types/agenda';
 import type { CategoriaAnimal } from '../types/animales';
 import type { UserRole } from '../types/auth';
 import type { Lote } from '../types/lotes';
+import type { TipoReglaSanitaria, PeriodicidadReglaSanitaria } from './reglasSanitariasService';
 
 export type EstadoSanitario = 'PROGRAMADA' | 'PENDIENTE' | 'REALIZADA' | 'VENCIDA';
 export type AlcanceSanitario = 'ANIMAL' | 'LOTE' | 'CATEGORIA';
@@ -40,6 +41,68 @@ export interface VaccinationSummary {
   todas: number;
 }
 
+export type EstadoSanitarioOperativo = 'PROGRAMADA' | 'PENDIENTE' | 'REALIZADA' | 'VENCIDA' | 'CANCELADA';
+
+export interface SanitaryPendingAnimal {
+  id: number;
+  caravana: string;
+  categoriaAnimal: CategoriaAnimal;
+}
+
+export interface SanitaryPendingLote {
+  id: number;
+  nombre: string;
+  tipoFuncional: string;
+  animales: SanitaryPendingAnimal[];
+}
+
+export interface SanitaryPending {
+  id: number;
+  reglaSanitariaId: number;
+  reglaNombre: string;
+  reglaCodigo: string;
+  tipo: TipoReglaSanitaria;
+  periodicidad: PeriodicidadReglaSanitaria;
+  tipoFuncional: string;
+  tipoFuncionalLabel: string;
+  fechaMaxima: string;
+  estado: EstadoSanitarioOperativo;
+  cantidadLotes: number;
+  cantidadAnimales: number;
+  lotes?: SanitaryPendingLote[];
+}
+
+export interface SanitaryApplicationAnimal {
+  id: number;
+  animalId: number | null;
+  caravanaSnapshot: string;
+  categoriaSnapshot: string;
+  loteSnapshot: string;
+  tipoFuncionalSnapshot: string;
+}
+
+export interface SanitaryApplication {
+  id: number;
+  reglaSanitariaId: number;
+  reglaNombre: string;
+  reglaCodigo: string;
+  tipo: TipoReglaSanitaria;
+  tipoFuncional: string;
+  tipoFuncionalLabel: string;
+  fechaRealizacion: string;
+  fechaMaximaCorrespondiente: string;
+  usuario: {
+    id: number;
+    nombre: string;
+    username: string;
+    rol: UserRole;
+  } | null;
+  observaciones: string | null;
+  lotesSnapshot: unknown;
+  cantidadAnimales: number;
+  animales: SanitaryApplicationAnimal[];
+}
+
 export interface VaccinationFilters {
   estado: EstadoSanitario | '';
   tipo: TipoSanitario | '';
@@ -68,6 +131,18 @@ interface VaccinationHistoryResponse {
 
 interface VaccinationSummaryResponse {
   resumen: VaccinationSummary;
+}
+
+interface SanitaryPendingsResponse {
+  pendientes: SanitaryPending[];
+}
+
+interface SanitaryPendingResponse {
+  pendiente: SanitaryPending;
+}
+
+interface SanitaryApplicationsResponse {
+  aplicaciones: SanitaryApplication[];
 }
 
 interface ScheduleVaccinationResponse {
@@ -126,6 +201,54 @@ export async function getVaccinationHistory(token: string, filters: Partial<Vacc
 export async function getVaccinationSummary(token: string) {
   const response = await apiRequest<VaccinationSummaryResponse>('/api/vacunacion/resumen', { token });
   return response.resumen;
+}
+
+export async function getSanitaryPendings(token: string, filters: {
+  reglaSanitariaId?: string;
+  tipo?: string;
+  tipoFuncional?: string;
+  estado?: string;
+  fechaMaximaDesde?: string;
+  fechaMaximaHasta?: string;
+} = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  const response = await apiRequest<SanitaryPendingsResponse>(`/api/vacunacion/pendientes-sanitarios${params.toString() ? `?${params}` : ''}`, { token });
+  return response.pendientes;
+}
+
+export async function getSanitaryPendingDetail(token: string, id: number) {
+  const response = await apiRequest<SanitaryPendingResponse>(`/api/vacunacion/pendientes-sanitarios/${id}`, { token });
+  return response.pendiente;
+}
+
+export async function markSanitaryPendingDone(token: string, id: number, values: { fechaRealizacion: string; observaciones: string }) {
+  return apiRequest<{ aplicacion: SanitaryApplication; proximaFechaMaxima: string }>(`/api/vacunacion/pendientes-sanitarios/${id}/realizar`, {
+    method: 'PATCH',
+    token,
+    body: JSON.stringify({
+      fechaRealizacion: values.fechaRealizacion,
+      observaciones: values.observaciones.trim() || null,
+    }),
+  });
+}
+
+export async function getSanitaryApplications(token: string, filters: {
+  reglaSanitariaId?: string;
+  tipo?: string;
+  tipoFuncional?: string;
+  lote?: string;
+  fechaRealizadaDesde?: string;
+  fechaRealizadaHasta?: string;
+} = {}) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  const response = await apiRequest<SanitaryApplicationsResponse>(`/api/vacunacion/aplicaciones-sanitarias${params.toString() ? `?${params}` : ''}`, { token });
+  return response.aplicaciones;
 }
 
 export async function scheduleVaccination(token: string, values: ScheduleVaccinationValues) {

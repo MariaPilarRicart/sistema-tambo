@@ -17,12 +17,27 @@ const emptyReglaForm: ReglaSanitariaFormValues = {
   nombre: '',
   codigo: '',
   tipo: 'VACUNA',
+  periodicidad: 'FIJA_MARZO',
   mesFijo: '',
   frecuenciaMeses: '12',
   anticipacionMeses: '1',
+  tiposFuncionales: [],
   activo: true,
   observaciones: '',
 };
+
+const tipoFuncionalOptions = [
+  ['GUACHERA', 'Guachera'],
+  ['ESCUELITA', 'Escuelita'],
+  ['TERNERA_1', 'Ternera 1'],
+  ['TERNERA_2', 'Ternera 2'],
+  ['TORITOS', 'Toritos'],
+  ['TOROS', 'Toros'],
+  ['PRODUCCION', 'Producción'],
+  ['SECAS', 'Secas'],
+  ['PREPARTO', 'Preparto'],
+  ['RECUPERACION', 'Recuperación'],
+] as const;
 
 interface SanitaryRulesPanelProps {
   authToken: string | null;
@@ -129,9 +144,11 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
       nombre: regla.nombre,
       codigo: regla.codigo,
       tipo: regla.tipo,
+      periodicidad: regla.periodicidad,
       mesFijo: regla.mesFijo ? String(regla.mesFijo) : '',
       frecuenciaMeses: String(regla.frecuenciaMeses),
       anticipacionMeses: String(regla.anticipacionMeses),
+      tiposFuncionales: regla.tiposFuncionales.map((tipo) => tipo.tipoFuncional),
       activo: regla.activo,
       observaciones: regla.observaciones ?? '',
     });
@@ -176,9 +193,11 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
         nombre: regla.nombre,
         codigo: regla.codigo,
         tipo: regla.tipo,
+        periodicidad: regla.periodicidad,
         mesFijo: regla.mesFijo ? String(regla.mesFijo) : '',
         frecuenciaMeses: String(regla.frecuenciaMeses),
         anticipacionMeses: String(regla.anticipacionMeses),
+        tiposFuncionales: regla.tiposFuncionales.map((tipo) => tipo.tipoFuncional),
         activo,
         observaciones: regla.observaciones ?? '',
       });
@@ -193,9 +212,9 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
     <>
       <section className="panel users-list-panel">
         <div className="panel-header">
-          <div><h2>Vacunas / Reglas Sanitarias</h2><p>{visibleReglas.length} de {reglas.length} reglas registradas.</p></div>
+          <div><h2>Reglas sanitarias</h2><p>{visibleReglas.length} de {reglas.length} reglas registradas.</p></div>
           <div className="header-actions">
-            {isAdmin && <button type="button" className="secondary-button" onClick={openNewReglaModal}><Plus size={16} /> Nueva vacuna / regla sanitaria</button>}
+            {isAdmin && <button type="button" className="secondary-button" onClick={openNewReglaModal}><Plus size={16} /> Nueva regla sanitaria</button>}
             <button type="button" className="icon-button" onClick={() => void loadReglas()} aria-label="Actualizar reglas sanitarias"><RefreshCcw size={18} /></button>
           </div>
         </div>
@@ -211,8 +230,8 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
         {isLoading ? <p className="table-empty">Cargando reglas...</p> : (
           <div className="table-wrap">
             <table className="users-table">
-              <thead><tr><th>Regla</th><th>Tipo</th><th>Frecuencia</th><th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>
-              <tbody>{visibleReglas.map((regla) => <tr key={regla.id}><td><strong>{regla.nombre}</strong><span>{regla.codigo}</span></td><td>{regla.tipo}</td><td>{regla.mesFijo ? `Mes ${regla.mesFijo}` : `Cada ${regla.frecuenciaMeses} meses`} · anticipa {regla.anticipacionMeses}</td><td>{renderStatus(regla.activo)}</td>{isAdmin && <td><div className="table-actions"><button type="button" onClick={() => startEditingRegla(regla)} aria-label={`Editar ${regla.codigo}`}><Edit2 size={16} /></button>{regla.activo ? <button type="button" onClick={() => void setReglaActive(regla, false)} aria-label={`Dar de baja ${regla.codigo}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setReglaActive(regla, true)} aria-label={`Reactivar ${regla.codigo}`}><RotateCcw size={16} /></button>}</div></td>}</tr>)}</tbody>
+              <thead><tr><th>Regla</th><th>Tipo</th><th>Periodicidad</th><th>Tipos funcionales</th><th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>
+              <tbody>{visibleReglas.map((regla) => <tr key={regla.id}><td><strong>{regla.nombre}</strong><span>{regla.codigo}</span></td><td>{regla.tipo === 'VACUNA' ? 'Vacuna' : 'Análisis'}</td><td>{regla.periodicidad === 'FIJA_MARZO' ? 'Fija en marzo' : 'Dinámica anual'}</td><td>{regla.tiposFuncionales.map((tipo) => tipoFuncionalOptions.find(([value]) => value === tipo.tipoFuncional)?.[1] ?? tipo.tipoFuncional).join(', ')}</td><td>{renderStatus(regla.activo)}</td>{isAdmin && <td><div className="table-actions"><button type="button" onClick={() => startEditingRegla(regla)} aria-label={`Editar ${regla.codigo}`}><Edit2 size={16} /></button>{regla.activo ? <button type="button" onClick={() => void setReglaActive(regla, false)} aria-label={`Dar de baja ${regla.codigo}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setReglaActive(regla, true)} aria-label={`Reactivar ${regla.codigo}`}><RotateCcw size={16} /></button>}</div></td>}</tr>)}</tbody>
             </table>
           </div>
         )}
@@ -222,16 +241,36 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
         <div className="modal-backdrop">
           <section className="panel modal-panel animal-form-modal">
             <div className="panel-header">
-              <div><h2>{editingRegla ? 'Editar vacuna / regla sanitaria' : 'Nueva vacuna / regla sanitaria'}</h2><p>{editingRegla ? 'Datos sanitarios y estado.' : 'La regla se crea activa automáticamente.'}</p></div>
+              <div><h2>{editingRegla ? 'Editar regla sanitaria' : 'Nueva regla sanitaria'}</h2><p>{editingRegla ? 'Datos sanitarios y estado.' : 'La regla se crea activa automáticamente.'}</p></div>
               <button type="button" className="icon-button" onClick={resetReglaForm} aria-label="Cerrar"><X size={18} /></button>
             </div>
             <form className="user-form animal-modal-form" onSubmit={handleReglaSubmit}>
               <label><span>Nombre</span><input value={reglaFormValues.nombre} onChange={(event) => setReglaFormValues({ ...reglaFormValues, nombre: event.target.value })} required /></label>
               <label><span>Código</span><input value={reglaFormValues.codigo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, codigo: event.target.value })} required /></label>
-              <label><span>Tipo</span><select value={reglaFormValues.tipo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, tipo: event.target.value as TipoReglaSanitaria })}><option value="VACUNA">VACUNA</option><option value="ANALISIS">ANALISIS</option></select></label>
-              <label><span>Mes fijo</span><input type="number" min="1" max="12" value={reglaFormValues.mesFijo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, mesFijo: event.target.value })} placeholder="Opcional" /></label>
-              <label><span>Frecuencia meses</span><input type="number" min="1" value={reglaFormValues.frecuenciaMeses} onChange={(event) => setReglaFormValues({ ...reglaFormValues, frecuenciaMeses: event.target.value })} required /></label>
+              <label><span>Tipo sanitario</span><select value={reglaFormValues.tipo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, tipo: event.target.value as TipoReglaSanitaria })}><option value="VACUNA">Vacuna</option><option value="ANALISIS">Análisis</option></select></label>
+              <label><span>Periodicidad</span><select value={reglaFormValues.periodicidad} onChange={(event) => setReglaFormValues({ ...reglaFormValues, periodicidad: event.target.value as ReglaSanitariaFormValues['periodicidad'] })}><option value="FIJA_MARZO">Fija en marzo</option><option value="DINAMICA_ANUAL">Dinámica anual</option></select></label>
+              <label><span>Frecuencia meses</span><input type="number" min="1" value={reglaFormValues.frecuenciaMeses} onChange={(event) => setReglaFormValues({ ...reglaFormValues, frecuenciaMeses: event.target.value })} required disabled={reglaFormValues.periodicidad === 'FIJA_MARZO'} /></label>
               <label><span>Anticipación meses</span><input type="number" min="1" value={reglaFormValues.anticipacionMeses} onChange={(event) => setReglaFormValues({ ...reglaFormValues, anticipacionMeses: event.target.value })} required /></label>
+              <div className="animal-form-message">
+                <span>Tipos funcionales aplicables</span>
+                <div className="checkbox-grid">
+                  {tipoFuncionalOptions.map(([value, label]) => (
+                    <label key={value} className="checkbox-row">
+                      <input
+                        type="checkbox"
+                        checked={reglaFormValues.tiposFuncionales.includes(value)}
+                        onChange={(event) => setReglaFormValues({
+                          ...reglaFormValues,
+                          tiposFuncionales: event.target.checked
+                            ? [...reglaFormValues.tiposFuncionales, value]
+                            : reglaFormValues.tiposFuncionales.filter((tipo) => tipo !== value),
+                        })}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
               {editingRegla && <label><span>Estado</span><select value={reglaFormValues.activo ? 'true' : 'false'} onChange={(event) => setReglaFormValues({ ...reglaFormValues, activo: event.target.value === 'true' })}><option value="true">ACTIVA</option><option value="false">INACTIVA</option></select></label>}
               <label className="animal-form-message"><span>Observaciones</span><textarea rows={3} value={reglaFormValues.observaciones} onChange={(event) => setReglaFormValues({ ...reglaFormValues, observaciones: event.target.value })} /></label>
               <div className="modal-actions animal-form-actions"><button type="button" className="secondary-button" onClick={resetReglaForm}>Cancelar</button><button type="submit" className="primary-button" disabled={isSaving}><Plus size={18} />{isSaving ? 'Guardando...' : 'Guardar'}</button></div>

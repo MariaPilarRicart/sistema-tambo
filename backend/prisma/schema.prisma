@@ -92,6 +92,17 @@ enum TipoReglaSanitaria {
   ANALISIS
 }
 
+enum PeriodicidadReglaSanitaria {
+  FIJA_MARZO
+  DINAMICA_ANUAL
+}
+
+enum EstadoPendienteSanitario {
+  PENDIENTE
+  REALIZADA
+  CANCELADA
+}
+
 enum TipoMovimientoStockAlimentacion {
   ENTRADA
   CONSUMO
@@ -176,6 +187,7 @@ model Usuario {
   entregasLeche         EntregaLeche[]
   liquidacionesLeche    LiquidacionLeche[]
   tareasAgenda          AgendaTarea[]
+  aplicacionesSanitarias AplicacionSanitaria[]
   notificacionesAtendidas NotificacionUsuarioAtendida[]
 
   @@map("usuarios")
@@ -203,6 +215,7 @@ model ReglaSanitaria {
   nombre            String
   codigo            String            @unique
   tipo              TipoReglaSanitaria
+  periodicidad      PeriodicidadReglaSanitaria @default(DINAMICA_ANUAL)
   mesFijo           Int?
   frecuenciaMeses   Int               @default(12)
   anticipacionMeses Int               @default(1)
@@ -211,9 +224,88 @@ model ReglaSanitaria {
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
+  tiposFuncionales ReglaSanitariaTipoFuncional[]
+  pendientes       PendienteSanitario[]
+  aplicaciones     AplicacionSanitaria[]
+
   @@index([activo])
   @@index([tipo])
+  @@index([periodicidad])
   @@map("reglas_sanitarias")
+}
+
+model ReglaSanitariaTipoFuncional {
+  id                Int                @id @default(autoincrement())
+  reglaSanitariaId  Int
+  tipoFuncional     TipoFuncionalLote
+  createdAt         DateTime           @default(now())
+
+  reglaSanitaria ReglaSanitaria @relation(fields: [reglaSanitariaId], references: [id], onDelete: Cascade)
+
+  @@unique([reglaSanitariaId, tipoFuncional])
+  @@index([tipoFuncional])
+  @@map("reglas_sanitarias_tipos_funcionales")
+}
+
+model PendienteSanitario {
+  id                Int                     @id @default(autoincrement())
+  reglaSanitariaId  Int
+  tipoFuncional     TipoFuncionalLote
+  fechaMaxima       DateTime
+  estado            EstadoPendienteSanitario @default(PENDIENTE)
+  aplicacionId      Int?                    @unique
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  reglaSanitaria ReglaSanitaria @relation(fields: [reglaSanitariaId], references: [id], onDelete: Restrict)
+  aplicacion     AplicacionSanitaria? @relation(fields: [aplicacionId], references: [id], onDelete: SetNull)
+
+  @@unique([reglaSanitariaId, tipoFuncional, fechaMaxima])
+  @@index([estado])
+  @@index([tipoFuncional])
+  @@index([fechaMaxima])
+  @@map("pendientes_sanitarios")
+}
+
+model AplicacionSanitaria {
+  id                         Int                @id @default(autoincrement())
+  reglaSanitariaId           Int
+  tipoFuncional              TipoFuncionalLote
+  fechaRealizacion           DateTime
+  fechaMaximaCorrespondiente DateTime
+  usuarioId                  Int?
+  observaciones              String?
+  lotesSnapshot              Json
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+
+  reglaSanitaria ReglaSanitaria @relation(fields: [reglaSanitariaId], references: [id], onDelete: Restrict)
+  usuario        Usuario?       @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  animales       AplicacionSanitariaAnimal[]
+  pendiente      PendienteSanitario?
+
+  @@index([reglaSanitariaId])
+  @@index([tipoFuncional])
+  @@index([fechaRealizacion])
+  @@index([usuarioId])
+  @@map("aplicaciones_sanitarias")
+}
+
+model AplicacionSanitariaAnimal {
+  id                    Int      @id @default(autoincrement())
+  aplicacionSanitariaId Int
+  animalId              Int?
+  caravanaSnapshot      String
+  categoriaSnapshot     String
+  loteSnapshot          String
+  tipoFuncionalSnapshot String
+  createdAt             DateTime @default(now())
+
+  aplicacionSanitaria AplicacionSanitaria @relation(fields: [aplicacionSanitariaId], references: [id], onDelete: Cascade)
+
+  @@index([aplicacionSanitariaId])
+  @@index([animalId])
+  @@map("aplicaciones_sanitarias_animales")
 }
 
 model Lote {

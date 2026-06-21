@@ -1,5 +1,15 @@
-import { CategoriaAnimal, Prisma, TipoReglaSanitaria, type ReglaSanitaria } from '@prisma/client';
+import {
+  CategoriaAnimal,
+  EstadoPendienteSanitario,
+  PeriodicidadReglaSanitaria,
+  Prisma,
+  TipoFuncionalLote,
+  TipoReglaSanitaria,
+  type PendienteSanitario,
+  type ReglaSanitaria,
+} from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { prisma } from '../config/prisma';
 import { AppError } from '../errors/AppError';
 import {
   countAnimalsByIds,
@@ -119,6 +129,23 @@ function parseTipoRegla(value: unknown) {
   throw new AppError('Tipo de regla sanitaria inválido.', 400);
 }
 
+function parsePeriodicidadRegla(value: unknown) {
+  if (value === PeriodicidadReglaSanitaria.FIJA_MARZO || value === PeriodicidadReglaSanitaria.DINAMICA_ANUAL) return value;
+  throw new AppError('Periodicidad sanitaria inválida.', 400);
+}
+
+function parseTipoFuncional(value: unknown) {
+  if (Object.values(TipoFuncionalLote).includes(value as TipoFuncionalLote)) return value as TipoFuncionalLote;
+  throw new AppError('Tipo funcional inválido.', 400);
+}
+
+function parseTiposFuncionales(value: unknown) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new AppError('Debe seleccionar al menos un tipo funcional.', 400);
+  }
+  return Array.from(new Set(value.map(parseTipoFuncional)));
+}
+
 function parseEstadoSanitario(value: unknown) {
   if (!value || value === 'TODOS') return undefined;
   if (value === 'PROGRAMADA' || value === 'PENDIENTE' || value === 'REALIZADA' || value === 'VENCIDA') return value;
@@ -143,12 +170,66 @@ function addMonths(value: Date, months: number) {
   return date;
 }
 
+function addYears(value: Date, years: number) {
+  const date = new Date(value);
+  date.setFullYear(date.getFullYear() + years);
+  return date;
+}
+
 function subtractMonths(value: Date, months: number) {
   return addMonths(value, -months);
 }
 
 function normalizeRuleCode(value: string) {
   return value.trim().toUpperCase().replace(/\s+/g, '_');
+}
+
+function normalizeRuleName(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function endOfMarch(year: number) {
+  return new Date(year, 2, 31, 9, 0, 0, 0);
+}
+
+function calculateInitialPendingDate(rule: ReglaSanitaria) {
+  if (rule.periodicidad === 'FIJA_MARZO') {
+    return endOfMarch(new Date().getFullYear());
+  }
+  return startOfDay(new Date());
+}
+
+function calculateNextPendingDate(rule: ReglaSanitaria, fechaRealizada: Date) {
+  if (rule.periodicidad === 'FIJA_MARZO') {
+    return endOfMarch(fechaRealizada.getFullYear() + 1);
+  }
+  return addYears(fechaRealizada, 1);
+}
+
+function calculateEstadoPendienteSanitario(pending: Pick<PendienteSanitario, 'estado' | 'fechaMaxima'>): EstadoSanitario | 'CANCELADA' {
+  if (pending.estado === EstadoPendienteSanitario.REALIZADA) return 'REALIZADA';
+  if (pending.estado === EstadoPendienteSanitario.CANCELADA) return 'CANCELADA';
+  const today = startOfDay(new Date());
+  const fechaMaxima = startOfDay(pending.fechaMaxima);
+  if (fechaMaxima > today) return 'PROGRAMADA';
+  if (fechaMaxima < today) return 'VENCIDA';
+  return 'PENDIENTE';
+}
+
+function tipoFuncionalLabel(tipoFuncional: TipoFuncionalLote) {
+  const labels: Record<TipoFuncionalLote, string> = {
+    GUACHERA: 'Guachera',
+    ESCUELITA: 'Escuelita',
+    TERNERA_1: 'Ternera 1',
+    TERNERA_2: 'Ternera 2',
+    TORITOS: 'Toritos',
+    TOROS: 'Toros',
+    PRODUCCION: 'Producción',
+    SECAS: 'Secas',
+    PREPARTO: 'Preparto',
+    RECUPERACION: 'Recuperación',
+  };
+  return labels[tipoFuncional];
 }
 
 function getTaskTargetDate(task: Pick<VaccinationTaskWithRelations, 'fechaProgramada' | 'fechaObjetivo'>) {
@@ -469,23 +550,60 @@ export async function markVaccinationsAsPerformedBulk(input: Record<string, unkn
 }
 
 export async function listSanitaryRules() {
-  return findSanitaryRules();
+  return prisma.reglaSanitaria.findMany({
+    include: { tiposFuncionales: { orderBy: { tipoFuncional: 'asc' } } },
+    orderBy: [{ activo: 'desc' }, { nombre: 'asc' }],
+  });
 }
 
 export async function createNewSanitaryRule(input: Record<string, unknown>) {
-  const codigo = normalizeRuleCode(parseRequiredString(input.codigo, 'Código'));
-  const existingRule = await findSanitaryRuleByCode(codigo);
+  const nombre = parseRequiredString(input.nombre, 'Nombre');
+  const codigo = input.codigo ? normalizeRuleCode(parseRequiredString(input.codigo, 'Código')) : normalizeRuleCode(nombre);
+  const periodicidad = parsePeriodicidadRegla(input.periodicidad ?? (input.mesFijo ? 'FIJA_MARZO' : 'DINAMICA_ANUAL'));
+  const tiposFuncionales = parseTiposFuncionales(input.tiposFuncionales);
+  const [existingRule, activeNameDuplicate] = await Promise.all([
+    findSanitaryRuleByCode(codigo),
+    prisma.reglaSanitaria.findFirst({
+      where: { activo: true, nombre: { equals: nombre, mode: 'insensitive' } },
+    }),
+  ]);
   if (existingRule) throw new AppError('Ya existe una regla sanitaria con ese código.', 409);
+  if (activeNameDuplicate) throw new AppError('Ya existe una regla sanitaria activa con ese nombre.', 409);
+
   try {
-    return await createSanitaryRule({
-      nombre: parseRequiredString(input.nombre, 'Nombre'),
-      codigo,
-      tipo: parseTipoRegla(input.tipo),
-      mesFijo: parseOptionalMonth(input.mesFijo),
-      frecuenciaMeses: parsePositiveInteger(input.frecuenciaMeses ?? 12, 'Frecuencia en meses'),
-      anticipacionMeses: parsePositiveInteger(input.anticipacionMeses ?? 1, 'Anticipación en meses'),
-      activo: input.activo === undefined ? true : Boolean(input.activo),
-      observaciones: parseOptionalString(input.observaciones, 'Observaciones'),
+    return await prisma.$transaction(async (tx) => {
+      const regla = await tx.reglaSanitaria.create({
+        data: {
+          nombre,
+          codigo,
+          tipo: parseTipoRegla(input.tipo),
+          periodicidad,
+          mesFijo: periodicidad === 'FIJA_MARZO' ? 3 : null,
+          frecuenciaMeses: periodicidad === 'FIJA_MARZO' ? 12 : parsePositiveInteger(input.frecuenciaMeses ?? 12, 'Frecuencia en meses'),
+          anticipacionMeses: parsePositiveInteger(input.anticipacionMeses ?? 1, 'Anticipación en meses'),
+          activo: input.activo === undefined ? true : Boolean(input.activo),
+          observaciones: parseOptionalString(input.observaciones, 'Observaciones'),
+          tiposFuncionales: {
+            create: tiposFuncionales.map((tipoFuncional) => ({ tipoFuncional })),
+          },
+        },
+        include: { tiposFuncionales: { orderBy: { tipoFuncional: 'asc' } } },
+      });
+
+      for (const tipoFuncional of tiposFuncionales) {
+        await tx.pendienteSanitario.create({
+          data: {
+            reglaSanitariaId: regla.id,
+            tipoFuncional,
+            fechaMaxima: calculateInitialPendingDate(regla),
+          },
+        }).catch((error) => {
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
+          throw error;
+        });
+      }
+
+      return regla;
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -501,21 +619,335 @@ export async function updateExistingSanitaryRule(idParam: string, input: Record<
   if (!existingRule) throw new AppError('Regla sanitaria no encontrada.', 404);
 
   const data: Prisma.ReglaSanitariaUpdateInput = {};
-  if (input.nombre !== undefined) data.nombre = parseRequiredString(input.nombre, 'Nombre');
+  const nextNombre = input.nombre !== undefined ? parseRequiredString(input.nombre, 'Nombre') : undefined;
+  if (nextNombre !== undefined) {
+    const duplicate = await prisma.reglaSanitaria.findFirst({
+      where: { id: { not: id }, activo: true, nombre: { equals: nextNombre, mode: 'insensitive' } },
+    });
+    if (duplicate) throw new AppError('Ya existe una regla sanitaria activa con ese nombre.', 409);
+    data.nombre = nextNombre;
+  }
   if (input.codigo !== undefined) data.codigo = normalizeRuleCode(parseRequiredString(input.codigo, 'Código'));
   if (input.tipo !== undefined) data.tipo = parseTipoRegla(input.tipo);
-  if (input.mesFijo !== undefined) data.mesFijo = parseOptionalMonth(input.mesFijo);
+  const nextPeriodicidad = input.periodicidad !== undefined ? parsePeriodicidadRegla(input.periodicidad) : undefined;
+  if (nextPeriodicidad !== undefined) {
+    data.periodicidad = nextPeriodicidad;
+    data.mesFijo = nextPeriodicidad === 'FIJA_MARZO' ? 3 : null;
+  } else if (input.mesFijo !== undefined) {
+    data.mesFijo = parseOptionalMonth(input.mesFijo);
+  }
   if (input.frecuenciaMeses !== undefined) data.frecuenciaMeses = parsePositiveInteger(input.frecuenciaMeses, 'Frecuencia en meses');
   if (input.anticipacionMeses !== undefined) data.anticipacionMeses = parsePositiveInteger(input.anticipacionMeses, 'Anticipación en meses');
   if (input.activo !== undefined) data.activo = Boolean(input.activo);
   if (input.observaciones !== undefined) data.observaciones = parseOptionalString(input.observaciones, 'Observaciones');
+  const tiposFuncionales = input.tiposFuncionales !== undefined ? parseTiposFuncionales(input.tiposFuncionales) : undefined;
 
   try {
-    return await updateSanitaryRule(id, data);
+    return await prisma.$transaction(async (tx) => {
+      const regla = await tx.reglaSanitaria.update({
+        where: { id },
+        data,
+        include: { tiposFuncionales: { orderBy: { tipoFuncional: 'asc' } } },
+      });
+
+      if (tiposFuncionales) {
+        await tx.reglaSanitariaTipoFuncional.deleteMany({ where: { reglaSanitariaId: id } });
+        await tx.reglaSanitariaTipoFuncional.createMany({
+          data: tiposFuncionales.map((tipoFuncional) => ({ reglaSanitariaId: id, tipoFuncional })),
+          skipDuplicates: true,
+        });
+        for (const tipoFuncional of tiposFuncionales) {
+          await tx.pendienteSanitario.create({
+            data: {
+              reglaSanitariaId: id,
+              tipoFuncional,
+              fechaMaxima: calculateInitialPendingDate(regla),
+            },
+          }).catch((error) => {
+            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
+            throw error;
+          });
+        }
+      }
+
+      return tx.reglaSanitaria.findUniqueOrThrow({
+        where: { id },
+        include: { tiposFuncionales: { orderBy: { tipoFuncional: 'asc' } } },
+      });
+    });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       throw new AppError('Ya existe una regla sanitaria con ese código.', 409);
     }
     throw error;
   }
+}
+
+async function ensurePendientesSanitarios() {
+  const rules = await prisma.reglaSanitaria.findMany({
+    where: { activo: true },
+    include: { tiposFuncionales: true },
+  });
+
+  for (const rule of rules) {
+    for (const scope of rule.tiposFuncionales) {
+      const existingOpen = await prisma.pendienteSanitario.findFirst({
+        where: {
+          reglaSanitariaId: rule.id,
+          tipoFuncional: scope.tipoFuncional,
+          estado: EstadoPendienteSanitario.PENDIENTE,
+        },
+      });
+      if (existingOpen) continue;
+
+      const latestApplication = await prisma.aplicacionSanitaria.findFirst({
+        where: { reglaSanitariaId: rule.id, tipoFuncional: scope.tipoFuncional },
+        orderBy: { fechaRealizacion: 'desc' },
+      });
+      const fechaMaxima = latestApplication
+        ? calculateNextPendingDate(rule, latestApplication.fechaRealizacion)
+        : calculateInitialPendingDate(rule);
+
+      await prisma.pendienteSanitario.create({
+        data: {
+          reglaSanitariaId: rule.id,
+          tipoFuncional: scope.tipoFuncional,
+          fechaMaxima,
+        },
+      }).catch((error) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
+        throw error;
+      });
+    }
+  }
+}
+
+async function getAnimalsByTipoFuncional(tipoFuncional: TipoFuncionalLote) {
+  return prisma.animal.findMany({
+    where: {
+      activo: true,
+      estadoAnimal: 'ACTIVO',
+      lote: { activo: true, tipoFuncional },
+    },
+    orderBy: [{ lote: { nombre: 'asc' } }, { caravana: 'asc' }],
+    select: {
+      id: true,
+      caravana: true,
+      categoriaAnimal: true,
+      lote: {
+        select: {
+          id: true,
+          nombre: true,
+          tipoFuncional: true,
+        },
+      },
+    },
+  });
+}
+
+function groupAnimalsByLote(animales: Awaited<ReturnType<typeof getAnimalsByTipoFuncional>>) {
+  const lotes = new Map<number, {
+    id: number;
+    nombre: string;
+    tipoFuncional: TipoFuncionalLote;
+    animales: Array<{ id: number; caravana: string; categoriaAnimal: CategoriaAnimal }>;
+  }>();
+  for (const animal of animales) {
+    const current = lotes.get(animal.lote.id) ?? {
+      id: animal.lote.id,
+      nombre: animal.lote.nombre,
+      tipoFuncional: animal.lote.tipoFuncional,
+      animales: [],
+    };
+    current.animales.push({
+      id: animal.id,
+      caravana: animal.caravana,
+      categoriaAnimal: animal.categoriaAnimal,
+    });
+    lotes.set(animal.lote.id, current);
+  }
+  return Array.from(lotes.values());
+}
+
+async function mapPendienteSanitario(pendiente: Prisma.PendienteSanitarioGetPayload<{ include: { reglaSanitaria: true } }>, includeDetail = false) {
+  const animales = await getAnimalsByTipoFuncional(pendiente.tipoFuncional);
+  const lotes = groupAnimalsByLote(animales);
+  return {
+    id: pendiente.id,
+    reglaSanitariaId: pendiente.reglaSanitariaId,
+    reglaNombre: pendiente.reglaSanitaria.nombre,
+    reglaCodigo: pendiente.reglaSanitaria.codigo,
+    tipo: pendiente.reglaSanitaria.tipo,
+    periodicidad: pendiente.reglaSanitaria.periodicidad,
+    tipoFuncional: pendiente.tipoFuncional,
+    tipoFuncionalLabel: tipoFuncionalLabel(pendiente.tipoFuncional),
+    fechaMaxima: pendiente.fechaMaxima,
+    estado: calculateEstadoPendienteSanitario(pendiente),
+    cantidadLotes: lotes.length,
+    cantidadAnimales: animales.length,
+    lotes: includeDetail ? lotes : undefined,
+  };
+}
+
+export async function listPendientesSanitarios(query: Record<string, unknown>) {
+  await ensurePendientesSanitarios();
+  const estado = parseEstadoSanitario(query.estado);
+  const reglaSanitariaId = parseOptionalId(query.reglaSanitariaId, 'reglaSanitariaId');
+  const tipo = query.tipo ? parseTipoRegla(query.tipo) : undefined;
+  const tipoFuncional = query.tipoFuncional ? parseTipoFuncional(query.tipoFuncional) : undefined;
+  const fechaDesde = parseOptionalDateStart(query.fechaDesde ?? query.fechaMaximaDesde, 'Fecha máxima desde');
+  const fechaHasta = parseOptionalDateEnd(query.fechaHasta ?? query.fechaMaximaHasta, 'Fecha máxima hasta');
+
+  const pendientes = await prisma.pendienteSanitario.findMany({
+    where: {
+      reglaSanitariaId,
+      tipoFuncional,
+      estado: { not: EstadoPendienteSanitario.CANCELADA },
+      fechaMaxima: fechaDesde || fechaHasta ? { gte: fechaDesde, lte: fechaHasta } : undefined,
+      reglaSanitaria: {
+        tipo,
+        activo: true,
+      },
+    },
+    include: { reglaSanitaria: true },
+    orderBy: [{ fechaMaxima: 'asc' }, { id: 'asc' }],
+  });
+  const mapped = await Promise.all(pendientes.map((pendiente) => mapPendienteSanitario(pendiente)));
+  return { pendientes: mapped.filter((pendiente) => !estado || pendiente.estado === estado) };
+}
+
+export async function getPendienteSanitarioDetalle(idParam: string) {
+  await ensurePendientesSanitarios();
+  const id = parseId(idParam, 'id');
+  const pendiente = await prisma.pendienteSanitario.findUnique({
+    where: { id },
+    include: { reglaSanitaria: true },
+  });
+  if (!pendiente) throw new AppError('Pendiente sanitario no encontrado.', 404);
+  return mapPendienteSanitario(pendiente, true);
+}
+
+export async function marcarPendienteSanitarioRealizado(idParam: string, input: Record<string, unknown>, usuarioId?: number) {
+  if (!usuarioId) throw new AppError('Usuario no autenticado.', 401);
+  const id = parseId(idParam, 'id');
+  const pendiente = await prisma.pendienteSanitario.findUnique({
+    where: { id },
+    include: { reglaSanitaria: true },
+  });
+  if (!pendiente) throw new AppError('Pendiente sanitario no encontrado.', 404);
+  if (pendiente.estado === EstadoPendienteSanitario.REALIZADA) throw new AppError('El pendiente sanitario ya fue marcado como realizado.', 409);
+
+  const fechaRealizacion = parseDate(input.fechaRealizacion ?? new Date().toISOString().slice(0, 10), 'Fecha realizada');
+  const observaciones = parseOptionalString(input.observaciones, 'Observaciones');
+  const animales = await getAnimalsByTipoFuncional(pendiente.tipoFuncional);
+  const lotes = groupAnimalsByLote(animales);
+  const proximaFechaMaxima = calculateNextPendingDate(pendiente.reglaSanitaria, fechaRealizacion);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const aplicacion = await tx.aplicacionSanitaria.create({
+      data: {
+        reglaSanitariaId: pendiente.reglaSanitariaId,
+        tipoFuncional: pendiente.tipoFuncional,
+        fechaRealizacion,
+        fechaMaximaCorrespondiente: pendiente.fechaMaxima,
+        usuarioId,
+        observaciones,
+        lotesSnapshot: lotes.map((lote) => ({
+          id: lote.id,
+          nombre: lote.nombre,
+          tipoFuncional: lote.tipoFuncional,
+          animales: lote.animales.map((animal) => ({
+            id: animal.id,
+            caravana: animal.caravana,
+            categoriaAnimal: animal.categoriaAnimal,
+          })),
+        })) as Prisma.InputJsonValue,
+        animales: {
+          create: animales.map((animal) => ({
+            animalId: animal.id,
+            caravanaSnapshot: animal.caravana,
+            categoriaSnapshot: animal.categoriaAnimal,
+            loteSnapshot: animal.lote.nombre,
+            tipoFuncionalSnapshot: animal.lote.tipoFuncional,
+          })),
+        },
+      },
+      include: {
+        reglaSanitaria: true,
+        usuario: { select: { id: true, nombre: true, username: true, rol: true } },
+        animales: true,
+      },
+    });
+
+    await tx.pendienteSanitario.update({
+      where: { id: pendiente.id },
+      data: {
+        estado: EstadoPendienteSanitario.REALIZADA,
+        aplicacionId: aplicacion.id,
+      },
+    });
+
+    await tx.pendienteSanitario.create({
+      data: {
+        reglaSanitariaId: pendiente.reglaSanitariaId,
+        tipoFuncional: pendiente.tipoFuncional,
+        fechaMaxima: proximaFechaMaxima,
+      },
+    }).catch((error) => {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
+      throw error;
+    });
+
+    return aplicacion;
+  });
+
+  return { aplicacion: result, proximaFechaMaxima };
+}
+
+export async function listAplicacionesSanitarias(query: Record<string, unknown>) {
+  const reglaSanitariaId = parseOptionalId(query.reglaSanitariaId, 'reglaSanitariaId');
+  const tipo = query.tipo ? parseTipoRegla(query.tipo) : undefined;
+  const tipoFuncional = query.tipoFuncional ? parseTipoFuncional(query.tipoFuncional) : undefined;
+  const fechaDesde = parseOptionalDateStart(query.fechaRealizadaDesde ?? query.fechaDesde, 'Fecha realizada desde');
+  const fechaHasta = parseOptionalDateEnd(query.fechaRealizadaHasta ?? query.fechaHasta, 'Fecha realizada hasta');
+  const loteQuery = parseOptionalString(query.lote, 'Lote');
+
+  const aplicaciones = await prisma.aplicacionSanitaria.findMany({
+    where: {
+      reglaSanitariaId,
+      tipoFuncional,
+      fechaRealizacion: fechaDesde || fechaHasta ? { gte: fechaDesde, lte: fechaHasta } : undefined,
+      reglaSanitaria: { tipo },
+    },
+    include: {
+      reglaSanitaria: true,
+      usuario: { select: { id: true, nombre: true, username: true, rol: true } },
+      animales: true,
+    },
+    orderBy: [{ fechaRealizacion: 'desc' }, { id: 'desc' }],
+  });
+
+  return {
+    aplicaciones: aplicaciones
+      .filter((aplicacion) => {
+        if (!loteQuery) return true;
+        return aplicacion.animales.some((animal) => animal.loteSnapshot.toLowerCase().includes(loteQuery.toLowerCase()));
+      })
+      .map((aplicacion) => ({
+        id: aplicacion.id,
+        reglaSanitariaId: aplicacion.reglaSanitariaId,
+        reglaNombre: aplicacion.reglaSanitaria.nombre,
+        reglaCodigo: aplicacion.reglaSanitaria.codigo,
+        tipo: aplicacion.reglaSanitaria.tipo,
+        tipoFuncional: aplicacion.tipoFuncional,
+        tipoFuncionalLabel: tipoFuncionalLabel(aplicacion.tipoFuncional),
+        fechaRealizacion: aplicacion.fechaRealizacion,
+        fechaMaximaCorrespondiente: aplicacion.fechaMaximaCorrespondiente,
+        usuario: aplicacion.usuario,
+        observaciones: aplicacion.observaciones,
+        lotesSnapshot: aplicacion.lotesSnapshot,
+        cantidadAnimales: aplicacion.animales.length,
+        animales: aplicacion.animales,
+      })),
+  };
 }

@@ -1,71 +1,91 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { CalendarClock, CheckCircle2, Clock3, Download, ListChecks, Plus, RefreshCcw, Syringe, X } from 'lucide-react';
+import { Download, Eye, RefreshCcw, Syringe, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { ApiError } from '../services/apiClient';
 import { SanitaryRulesPanel } from '../components/ui/SanitaryRulesPanel';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
-import { useScrollToSection } from '../hooks/useScrollToSection';
-import { ApiError } from '../services/apiClient';
-import { getAnimales } from '../services/animalesService';
-import { getLotes } from '../services/lotesService';
-import { getReglasSanitarias, type ReglaSanitaria } from '../services/reglasSanitariasService';
-import { compareByDateStatusName, formatDate, statusClass } from '../utils/display';
+import { getReglasSanitarias, type ReglaSanitaria, type TipoReglaSanitaria } from '../services/reglasSanitariasService';
 import {
-  getVaccinationHistory,
-  getVaccinationSummary,
-  performVaccinationsBulk,
-  scheduleVaccination,
-  type EstadoSanitario,
-  type ScheduleVaccinationValues,
-  type VaccinationFilters,
-  type VaccinationHistoryItem,
-  type VaccinationSummary,
+  getSanitaryApplications,
+  getSanitaryPendingDetail,
+  getSanitaryPendings,
+  markSanitaryPendingDone,
+  type EstadoSanitarioOperativo,
+  type SanitaryApplication,
+  type SanitaryPending,
+  type SanitaryPendingLote,
 } from '../services/vacunacionService';
-import type { Animal, CategoriaAnimal } from '../types/animales';
+import { formatDate, statusClass } from '../utils/display';
 import type { AuthUser } from '../types/auth';
-import type { Lote } from '../types/lotes';
 
-const categoriaOptions: CategoriaAnimal[] = ['GUACHERA', 'ESCUELITA', 'TERNERA', 'VAQUILLONA', 'VACA_PRODUCCION', 'VACA_SECA', 'PREPARTO', 'TORO'];
-const estadoOptions: EstadoSanitario[] = ['PROGRAMADA', 'PENDIENTE', 'REALIZADA', 'VENCIDA'];
-type ScheduleMode = 'individual' | 'lote' | 'categoria';
+const tipoFuncionalOptions = [
+  ['GUACHERA', 'Guachera'],
+  ['ESCUELITA', 'Escuelita'],
+  ['TERNERA_1', 'Ternera 1'],
+  ['TERNERA_2', 'Ternera 2'],
+  ['TORITOS', 'Toritos'],
+  ['TOROS', 'Toros'],
+  ['PRODUCCION', 'Producción'],
+  ['SECAS', 'Secas'],
+  ['PREPARTO', 'Preparto'],
+  ['RECUPERACION', 'Recuperación'],
+] as const;
 
-const scheduleModes: Array<{ value: ScheduleMode; label: string; helper: string }> = [
-  { value: 'individual', label: 'Animales individuales', helper: 'Buscar y seleccionar animales activos puntuales.' },
-  { value: 'lote', label: 'Lote completo', helper: 'Se programará para todos los animales activos del lote seleccionado.' },
-  { value: 'categoria', label: 'Categoría', helper: 'Se programará para todos los animales activos de la categoría seleccionada.' },
+const estadoOptions: Array<[EstadoSanitarioOperativo, string]> = [
+  ['PROGRAMADA', 'Programada'],
+  ['PENDIENTE', 'Pendiente'],
+  ['VENCIDA', 'Vencida'],
+  ['REALIZADA', 'Realizada'],
+  ['CANCELADA', 'Cancelada'],
 ];
 
-const emptyScheduleForm: ScheduleVaccinationValues = {
-  fechaProgramada: '',
-  fechaObjetivo: '',
-  tipoSanitario: '',
-  descripcion: '',
-  animalIds: [],
-  loteId: '',
-  categoria: '',
+const tipoLabels: Record<TipoReglaSanitaria, string> = {
+  VACUNA: 'Vacuna',
+  ANALISIS: 'Análisis',
 };
 
-const emptyFilters: VaccinationFilters = {
-  estado: '',
-  tipo: '',
-  fechaProgramadaDesde: '',
-  fechaProgramadaHasta: '',
-  fechaObjetivoDesde: '',
-  fechaObjetivoHasta: '',
-  fechaRealizadaDesde: '',
-  fechaRealizadaHasta: '',
-  loteId: '',
-  categoria: '',
+const estadoLabels: Record<EstadoSanitarioOperativo, string> = {
+  PROGRAMADA: 'Programada',
+  PENDIENTE: 'Pendiente',
+  VENCIDA: 'Vencida',
+  REALIZADA: 'Realizada',
+  CANCELADA: 'Cancelada',
 };
 
-const emptyPendingFilters = {
-  loteId: '',
-  categoria: '',
-  tipo: '',
-};
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+function typeLabel(tipoFuncional: string) {
+  return tipoFuncionalOptions.find(([value]) => value === tipoFuncional)?.[1] ?? tipoFuncional;
+}
+
+function fileSlug(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function drawPdfHeader(doc: jsPDF, title: string, subtitle: string) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  doc.setFillColor(5, 150, 105);
+  doc.rect(0, 0, pageWidth, 26, 'F');
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.text(title, 14, 16);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text(subtitle, 14, 22);
+  doc.setTextColor(31, 41, 55);
+}
+
+function animalsByLoteRows(lotes: SanitaryPendingLote[]) {
+  return lotes.flatMap((lote) => (
+    lote.animales.length
+      ? lote.animales.map((animal, index) => [index === 0 ? lote.nombre : '', `#${animal.caravana}`])
+      : [[lote.nombre, 'Sin animales activos']]
+  ));
+}
 
 interface VaccinationPageProps {
   authToken: string | null;
@@ -73,174 +93,40 @@ interface VaccinationPageProps {
   onUnauthorized: () => void;
 }
 
-function formatTipoSanitario(value: string | null | undefined) {
-  if (!value) return '-';
-  const labels: Record<string, string> = {
-    AFTOSA: 'Aftosa',
-    BRUCELOSIS: 'Brucelosis',
-    ANALISIS_TUBERCULINA: 'Análisis de tuberculina',
-    ANALISIS_BRUCELOSIS: 'Análisis de brucelosis',
-    OTRA: 'Otra',
-  };
-  return labels[value] ?? value.replaceAll('_', ' ').toLowerCase().replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
-}
-
-function formatEstado(value: EstadoSanitario) {
-  const labels: Record<EstadoSanitario, string> = {
-    PROGRAMADA: 'Programada',
-    PENDIENTE: 'Pendiente',
-    REALIZADA: 'Realizada',
-    VENCIDA: 'Vencida',
-  };
-  return labels[value];
-}
-
-function formatCategoria(value: CategoriaAnimal | null | undefined) {
-  if (!value) return '-';
-  const labels: Record<CategoriaAnimal, string> = {
-    GUACHERA: 'Guachera',
-    ESCUELITA: 'Escuelita',
-    TERNERO: 'Ternero',
-    TERNERA: 'Ternera',
-    VAQUILLONA: 'Vaquillona',
-    VACA: 'Vaca',
-    VACA_PRODUCCION: 'Vaca Producción',
-    VACA_SECA: 'Vaca Seca',
-    PREPARTO: 'Preparto',
-    TORITO: 'Torito',
-    TORO: 'Toro',
-    BAJA: 'Baja',
-  };
-  return labels[value] ?? value.replaceAll('_', ' ');
-}
-
-function animalLink(animal: VaccinationHistoryItem['animal']) {
-  return (
-    <Link className="table-link" to={`/rodeos/${animal.id}`} state={{ from: '/vacunacion', label: 'Volver a Vacunación' }}>
-      #{animal.caravana}
-    </Link>
-  );
-}
-
-function fileSlug(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
-}
-
-function filterDateRangeLabel(from: string, to: string) {
-  if (!from && !to) return 'Todas';
-  if (from && to) return `${formatDate(from)} a ${formatDate(to)}`;
-  if (from) return `Desde ${formatDate(from)}`;
-  return `Hasta ${formatDate(to)}`;
-}
-
 export function VaccinationPage({ authToken, currentUser, onUnauthorized }: VaccinationPageProps) {
-  const [searchParams] = useSearchParams();
-  const [pendingHistory, setPendingHistory] = useState<VaccinationHistoryItem[]>([]);
-  const [history, setHistory] = useState<VaccinationHistoryItem[]>([]);
-  const [summary, setSummary] = useState<VaccinationSummary>({ pendientes: 0, vencidas: 0, realizadas: 0, programadas: 0, todas: 0 });
-  const [animals, setAnimals] = useState<Animal[]>([]);
-  const [lotes, setLotes] = useState<Lote[]>([]);
   const [reglas, setReglas] = useState<ReglaSanitaria[]>([]);
-  const [filters, setFilters] = useState<VaccinationFilters>(emptyFilters);
-  const [pendingFilters, setPendingFilters] = useState(emptyPendingFilters);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
-  const [formValues, setFormValues] = useState<ScheduleVaccinationValues>(emptyScheduleForm);
-  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('individual');
-  const [animalSearch, setAnimalSearch] = useState('');
-  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
-  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
-  const [bulkValues, setBulkValues] = useState({ fechaRealizada: todayIso(), observaciones: '' });
+  const [pendientes, setPendientes] = useState<SanitaryPending[]>([]);
+  const [aplicaciones, setAplicaciones] = useState<SanitaryApplication[]>([]);
+  const [pendingFilters, setPendingFilters] = useState({
+    reglaSanitariaId: '',
+    tipo: '',
+    tipoFuncional: '',
+    estado: '',
+    fechaMaximaDesde: '',
+    fechaMaximaHasta: '',
+  });
+  const [historyFilters, setHistoryFilters] = useState({
+    reglaSanitariaId: '',
+    tipo: '',
+    tipoFuncional: '',
+    lote: '',
+    fechaRealizadaDesde: '',
+    fechaRealizadaHasta: '',
+  });
+  const [selectedPending, setSelectedPending] = useState<SanitaryPending | null>(null);
+  const [selectedApplication, setSelectedApplication] = useState<SanitaryApplication | null>(null);
+  const [performTarget, setPerformTarget] = useState<SanitaryPending | null>(null);
+  const [performValues, setPerformValues] = useState({ fechaRealizacion: todayIso(), observaciones: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const isAdmin = currentUser?.role === 'ADMIN';
-  const canRegisterPerformedVaccinations = currentUser?.role === 'ADMIN' || currentUser?.role === 'EMPLEADO';
+  const canMarkDone = currentUser?.role === 'ADMIN' || currentUser?.role === 'EMPLEADO';
 
-  const activeAnimals = useMemo(() => animals.filter((animal) => animal.activo && animal.estadoAnimal === 'ACTIVO'), [animals]);
-  const activeSanitaryRules = useMemo(() => reglas.filter((regla) => regla.activo), [reglas]);
-  const filteredAnimals = useMemo(() => {
-    const query = animalSearch.trim().toLowerCase();
-    if (query.length < 2) return [];
-    return activeAnimals
-      .filter((animal) => animal.caravana.toLowerCase().includes(query))
-      .slice(0, 20);
-  }, [activeAnimals, animalSearch]);
-  const selectedAnimals = useMemo(() => activeAnimals.filter((animal) => formValues.animalIds.includes(animal.id)), [activeAnimals, formValues.animalIds]);
-  const pendingCategories = useMemo(
-    () => Array.from(new Set(pendingHistory.map((item) => item.animal.categoriaAnimal))).sort(),
-    [pendingHistory],
-  );
-  const historyCategories = useMemo(
-    () => Array.from(new Set(animals.map((animal) => animal.categoriaAnimal))).sort(),
-    [animals],
-  );
-  const visiblePendingHistory = useMemo(() => pendingHistory.filter((item) => {
-    const fechaDesde = searchParams.get('fechaDesde');
-    const fechaHasta = searchParams.get('fechaHasta');
-    const itemDate = item.fechaObjetivo.slice(0, 10);
-    if (pendingFilters.loteId && String(item.animal.lote.id) !== pendingFilters.loteId) return false;
-    if (pendingFilters.categoria && item.animal.categoriaAnimal !== pendingFilters.categoria) return false;
-    if (pendingFilters.tipo && item.tipoSanitario !== pendingFilters.tipo) return false;
-    if (fechaDesde && itemDate < fechaDesde) return false;
-    if (fechaHasta && itemDate > fechaHasta) return false;
-    return true;
-  }), [pendingFilters, pendingHistory, searchParams]);
-  const visibleTaskIds = useMemo(
-    () => visiblePendingHistory.flatMap((item) => item.tareaIds),
-    [visiblePendingHistory],
-  );
-  const selectedVisibleCount = visibleTaskIds.filter((id) => selectedTaskIds.includes(id)).length;
-  const allVisibleSelected = visibleTaskIds.length > 0 && selectedVisibleCount === visibleTaskIds.length;
-  const selectedPendingItems = useMemo(
-    () => pendingHistory.filter((item) => item.tareaIds.some((id) => selectedTaskIds.includes(id))),
-    [pendingHistory, selectedTaskIds],
-  );
-  const bulkModalSummary = useMemo(() => {
-    const lotesById = new Map(selectedPendingItems.map((item) => [item.animal.lote.id, item.animal.lote.nombre]));
-    const categorias = Array.from(new Set(selectedPendingItems.map((item) => item.animal.categoriaAnimal)));
-    const tiposSanitarios = Array.from(new Set(selectedPendingItems.map((item) => item.tipoSanitario)));
-    const tipoSanitarioNames = tiposSanitarios.map((tipoSanitario) => activeSanitaryRules.find((regla) => regla.codigo === tipoSanitario)?.nombre ?? formatTipoSanitario(tipoSanitario));
+  const activeRules = useMemo(() => reglas.filter((regla) => regla.activo), [reglas]);
 
-    const loteLabel = lotesById.size === 1 ? Array.from(lotesById.values())[0] : lotesById.size > 1 ? 'Varios lotes' : '-';
-    const categoriaLabel = categorias.length === 1 ? formatCategoria(categorias[0]) : categorias.length > 1 ? 'Varias categorías' : '-';
-    const tipoSanitarioLabel = tipoSanitarioNames.length === 1 ? tipoSanitarioNames[0] : tipoSanitarioNames.length > 1 ? 'Varios tipos sanitarios' : '-';
-
-    const count = selectedPendingItems.length;
-    const firstItem = selectedPendingItems[0];
-    const tipoSanitarioText = tipoSanitarioNames.length === 1 ? ` de ${tipoSanitarioNames[0]}` : '';
-
-    let confirmationMessage = `Se registrarán como realizadas ${count} vacunaciones.`;
-    if (count === 1 && firstItem) {
-      confirmationMessage = `Se registrará como realizada 1 vacunación de ${tipoSanitarioLabel} para el animal #${firstItem.animal.caravana}, lote ${firstItem.animal.lote.nombre}, categoría ${formatCategoria(firstItem.animal.categoriaAnimal)}.`;
-    } else if (count > 1 && lotesById.size === 1) {
-      confirmationMessage = `Se registrarán como realizadas ${count} vacunaciones${tipoSanitarioText} del lote ${loteLabel}.`;
-    } else if (count > 1 && lotesById.size > 1) {
-      confirmationMessage = `Se registrarán como realizadas ${count} vacunaciones${tipoSanitarioText} correspondientes a varios lotes.`;
-    }
-
-    return { loteLabel, categoriaLabel, tipoSanitarioLabel, confirmationMessage };
-  }, [activeSanitaryRules, selectedPendingItems]);
-  const matchingActiveAnimalsCount = useMemo(() => {
-    if (scheduleMode === 'individual') return selectedAnimals.length;
-    if (scheduleMode === 'lote' && !formValues.loteId) return 0;
-    if (scheduleMode === 'categoria' && !formValues.categoria) return 0;
-    return activeAnimals.filter((animal) => {
-      if (scheduleMode === 'lote') return formValues.loteId && String(animal.loteId) === formValues.loteId;
-      return formValues.categoria && animal.categoriaAnimal === formValues.categoria;
-    }).length;
-  }, [activeAnimals, formValues.categoria, formValues.loteId, scheduleMode, selectedAnimals.length]);
-  const selectedMode = scheduleModes.find((mode) => mode.value === scheduleMode)!;
-  const shouldSearchAnimals = animalSearch.trim().length >= 2;
-  const isScheduleSelectionValid = scheduleMode === 'individual' ? selectedAnimals.length > 0 : matchingActiveAnimalsCount > 0;
-  const canSubmitSchedule = Boolean(formValues.fechaProgramada) && Boolean(formValues.tipoSanitario) && isScheduleSelectionValid && !isSaving;
-
-  function handleRequestError(requestError: unknown, fallback: string) {
+  function handleRequestError(requestError: unknown, fallback = 'No se pudo completar la operación.') {
     if (requestError instanceof ApiError && requestError.statusCode === 401) {
       onUnauthorized();
       return;
@@ -248,25 +134,19 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
     setError(requestError instanceof Error ? requestError.message : fallback);
   }
 
-  async function loadData(nextFilters = filters) {
+  async function loadData() {
     if (!authToken) return;
     setIsLoading(true);
     setError('');
     try {
-      const [nextTasks, nextHistory, nextSummary, nextAnimals, nextLotes, nextReglas] = await Promise.all([
-        getVaccinationHistory(authToken, { estado: 'PENDIENTE' }),
-        getVaccinationHistory(authToken, nextFilters),
-        getVaccinationSummary(authToken),
-        getAnimales(authToken, { caravana: '', categoriaAnimal: '', loteId: '', estadoReproductivo: '', estadoAnimal: '', activo: 'true' }),
-        getLotes(authToken),
+      const [nextReglas, nextPendientes, nextAplicaciones] = await Promise.all([
         getReglasSanitarias(authToken),
+        getSanitaryPendings(authToken, pendingFilters),
+        getSanitaryApplications(authToken, historyFilters),
       ]);
-      setPendingHistory(nextTasks.registros);
-      setHistory(nextHistory.registros);
-      setSummary(nextSummary);
-      setAnimals(nextAnimals);
-      setLotes(nextLotes);
       setReglas(nextReglas);
+      setPendientes(nextPendientes);
+      setAplicaciones(nextAplicaciones);
     } catch (loadError) {
       handleRequestError(loadError, 'No se pudo cargar vacunación.');
     } finally {
@@ -275,263 +155,92 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
   }
 
   useEffect(() => {
-    void loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken]);
-
-  useEffect(() => {
-    const estado = searchParams.get('estado');
-    if (!estadoOptions.includes(estado as EstadoSanitario)) return;
-    const nextFilters = {
-      ...emptyFilters,
-      estado: estado as EstadoSanitario,
-      fechaObjetivoDesde: searchParams.get('fechaDesde') ?? '',
-      fechaObjetivoHasta: searchParams.get('fechaHasta') ?? '',
-    };
-    setFilters(nextFilters);
-    void loadData(nextFilters);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => void loadData(filters), 250);
+    const timer = window.setTimeout(() => void loadData(), 250);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken, filters]);
+  }, [authToken, pendingFilters, historyFilters]);
 
-  useDataChangedRefresh(() => loadData(filters), [authToken, filters]);
-  useScrollToSection(
-    searchParams.get('section') === 'pendientes'
-      ? 'vacunas-pendientes-section'
-      : searchParams.get('section') === 'historial'
-        ? 'historial-sanitario-section'
-        : null,
-    [searchParams, visiblePendingHistory.length, history.length],
-  );
+  useDataChangedRefresh(() => loadData(), [authToken, pendingFilters, historyFilters]);
 
-  useEffect(() => {
-    setSelectedTaskIds((current) => current.filter((id) => visibleTaskIds.includes(id)));
-  }, [visibleTaskIds]);
-
-  function toggleAnimalSelection(animalId: number) {
-    const exists = formValues.animalIds.includes(animalId);
-    setFormValues({
-      ...formValues,
-      animalIds: exists ? formValues.animalIds.filter((id) => id !== animalId) : [...formValues.animalIds, animalId],
-    });
-  }
-
-  function togglePendingSelection(taskId: number) {
-    const exists = selectedTaskIds.includes(taskId);
-    setSelectedTaskIds(exists ? selectedTaskIds.filter((id) => id !== taskId) : [...selectedTaskIds, taskId]);
-  }
-
-  function toggleAllVisiblePending(checked: boolean) {
-    setSelectedTaskIds((current) => {
-      const withoutVisible = current.filter((id) => !visibleTaskIds.includes(id));
-      return checked ? [...withoutVisible, ...visibleTaskIds] : withoutVisible;
-    });
-  }
-
-  function changeScheduleMode(nextMode: ScheduleMode) {
-    setScheduleMode(nextMode);
-    setAnimalSearch('');
-    setFormValues({ ...formValues, animalIds: [], loteId: '', categoria: '' });
+  async function openPendingDetail(pending: SanitaryPending) {
+    if (!authToken) return onUnauthorized();
     setError('');
+    try {
+      setSelectedPending(await getSanitaryPendingDetail(authToken, pending.id));
+    } catch (detailError) {
+      handleRequestError(detailError, 'No se pudo cargar el detalle del pendiente.');
+    }
   }
 
-  function openScheduleModal() {
-    setIsScheduleModalOpen(true);
-    setError('');
-    setSuccess('');
-  }
-
-  function closeScheduleModal() {
-    setIsScheduleModalOpen(false);
-    setFormValues(emptyScheduleForm);
-    setScheduleMode('individual');
-    setAnimalSearch('');
-  }
-
-  function applyStatusFilter(estado: EstadoSanitario | '') {
-    const nextFilters = estado ? { ...filters, estado } : emptyFilters;
-    setFilters(nextFilters);
-    void loadData(nextFilters);
-  }
-
-  function clearHistoryFilters() {
-    setFilters(emptyFilters);
-    void loadData(emptyFilters);
-  }
-
-  function clearPendingFilters() {
-    setPendingFilters(emptyPendingFilters);
+  function exportPendingPdf(pending: SanitaryPending) {
+    if (!pending.lotes) return;
+    const doc = new jsPDF();
+    drawPdfHeader(doc, pending.reglaNombre, 'Pendiente sanitario por lote y tipo funcional.');
+    doc.setFillColor(243, 244, 246);
+    doc.roundedRect(14, 34, 182, 30, 2, 2, 'F');
+    doc.setFontSize(9);
+    doc.text(`Tipo: ${tipoLabels[pending.tipo]}`, 18, 43);
+    doc.text(`Fecha máxima: ${formatDate(pending.fechaMaxima)}`, 18, 51);
+    doc.text(`Tipo funcional: ${pending.tipoFuncionalLabel}`, 92, 43);
+    doc.text(`Generado el: ${formatDate(new Date())}`, 92, 51);
+    autoTable(doc, {
+      startY: 74,
+      head: [['Lote', 'Animal / Caravana']],
+      body: animalsByLoteRows(pending.lotes),
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+    });
+    doc.save(`pendiente-sanitario-${fileSlug(pending.reglaNombre)}-${fileSlug(pending.tipoFuncionalLabel)}.pdf`);
   }
 
   function exportHistoryPdf() {
-    if (history.length === 0) {
+    if (aplicaciones.length === 0) {
       setError('No hay registros sanitarios para exportar con los filtros seleccionados.');
       return;
     }
-
-    setError('');
     const doc = new jsPDF({ orientation: 'landscape' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const generatedDate = new Date().toLocaleDateString('es-AR');
-    const primaryColor: [number, number, number] = [5, 150, 105];
-    const mutedText: [number, number, number] = [75, 85, 99];
-    const lightPanel: [number, number, number] = [243, 244, 246];
-    const selectedLoteLabel = filters.loteId ? lotes.find((lote) => String(lote.id) === filters.loteId)?.nombre ?? 'Lote seleccionado' : 'Todos';
-    const selectedTipoLabel = filters.tipo ? activeSanitaryRules.find((regla) => regla.codigo === filters.tipo)?.nombre ?? formatTipoSanitario(filters.tipo) : 'Todos';
-    const selectedCategoriaLabel = filters.categoria ? formatCategoria(filters.categoria) : 'Todas';
-    const selectedEstadoLabel = filters.estado ? formatEstado(filters.estado) : 'Todos';
-    const filterRows = [
-      ['Fecha programada', filterDateRangeLabel(filters.fechaProgramadaDesde, filters.fechaProgramadaHasta)],
-      ['Fecha objetivo', filterDateRangeLabel(filters.fechaObjetivoDesde, filters.fechaObjetivoHasta)],
-      ['Fecha realizada', filterDateRangeLabel(filters.fechaRealizadaDesde, filters.fechaRealizadaHasta)],
-      ['Lote', selectedLoteLabel],
-      ['Categoría', selectedCategoriaLabel],
-      ['Tipo sanitario', selectedTipoLabel],
-      ['Estado', selectedEstadoLabel],
-      ['Generado el', generatedDate],
-    ];
-
-    doc.setFillColor(...primaryColor);
-    doc.rect(0, 0, pageWidth, 26, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text('Historial sanitario', 14, 16);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
-    doc.text('Registros sanitarios del tambo según los filtros aplicados.', 14, 22);
-
-    doc.setFillColor(...lightPanel);
-    doc.roundedRect(14, 34, pageWidth - 28, 30, 2, 2, 'F');
-    doc.setTextColor(...mutedText);
-    doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Filtros aplicados', 18, 41);
-    doc.setFont('helvetica', 'normal');
-    filterRows.forEach(([label, value], index) => {
-      const column = index % 4;
-      const row = Math.floor(index / 4);
-      doc.text(`${label}: ${value}`, 18 + column * 68, 49 + row * 8);
-    });
-
+    drawPdfHeader(doc, 'Historial sanitario', 'Aplicaciones sanitarias realizadas según los filtros aplicados.');
     autoTable(doc, {
-      startY: 74,
-      head: [['Fecha programada', 'Fecha objetivo', 'Fecha realizada', 'Animal / Caravana', 'Categoría', 'Lote', 'Tipo sanitario', 'Estado', 'Usuario', 'Observaciones']],
-      body: history.map((item) => [
-        formatDate(item.fechaProgramada),
-        formatDate(item.fechaObjetivo),
-        formatDate(item.fechaRealizada),
-        item.animal?.caravana ? `#${item.animal.caravana}` : '-',
-        formatCategoria(item.animal?.categoriaAnimal),
-        item.animal?.lote?.nombre ?? '-',
-        formatTipoSanitario(item.tipoSanitario),
-        formatEstado(item.estado),
+      startY: 36,
+      head: [['Fecha realizada', 'Regla sanitaria', 'Tipo', 'Tipo funcional', 'Lotes', 'Animales', 'Usuario', 'Observaciones']],
+      body: aplicaciones.map((item) => [
+        formatDate(item.fechaRealizacion),
+        item.reglaNombre,
+        tipoLabels[item.tipo],
+        item.tipoFuncionalLabel,
+        Array.from(new Set(item.animales.map((animal) => animal.loteSnapshot))).join(', ') || '-',
+        `${item.cantidadAnimales} animales`,
         item.usuario?.nombre ?? '-',
-        item.observaciones || '-',
+        item.observaciones ?? '-',
       ]),
-      margin: { left: 14, right: 14 },
-      styles: {
-        font: 'helvetica',
-        fontSize: 7.4,
-        cellPadding: { top: 2.4, right: 2, bottom: 2.4, left: 2 },
-        textColor: [31, 41, 55],
-        lineColor: [229, 231, 235],
-        lineWidth: 0.1,
-        valign: 'middle',
-      },
-      headStyles: {
-        fillColor: primaryColor,
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        halign: 'left',
-      },
+      styles: { fontSize: 8, cellPadding: 2.5 },
+      headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: [249, 250, 251] },
-      columnStyles: {
-        0: { cellWidth: 24 },
-        1: { cellWidth: 24 },
-        2: { cellWidth: 24 },
-        3: { cellWidth: 28 },
-        4: { cellWidth: 22 },
-        5: { cellWidth: 28 },
-        6: { cellWidth: 30 },
-        7: { cellWidth: 22 },
-        8: { cellWidth: 28 },
-      },
     });
-
-    const typePart = filters.tipo ? `-${fileSlug(selectedTipoLabel)}` : '';
-    const statusPart = filters.estado ? `-${fileSlug(selectedEstadoLabel)}` : '';
-    const datePart = filters.fechaProgramadaDesde || filters.fechaObjetivoDesde || filters.fechaRealizadaDesde;
-    doc.save(`historial-sanitario${typePart}${statusPart}${datePart ? `-${datePart}` : ''}.pdf`);
+    doc.save('historial-sanitario.pdf');
   }
 
-  async function handleScheduleSubmit(event: FormEvent<HTMLFormElement>) {
+  function openPerformModal(pending: SanitaryPending) {
+    setPerformTarget(pending);
+    setPerformValues({ fechaRealizacion: todayIso(), observaciones: '' });
+    setError('');
+    setSuccess('');
+  }
+
+  async function handlePerformSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!authToken) return onUnauthorized();
+    if (!authToken || !performTarget) return onUnauthorized();
     setIsSaving(true);
     setError('');
     setSuccess('');
     try {
-      if (!formValues.fechaProgramada) throw new Error('Seleccioná una fecha programada.');
-      if (!formValues.tipoSanitario) throw new Error('Seleccioná un tipo sanitario.');
-      if (!isScheduleSelectionValid) throw new Error('No hay animales activos para la selección indicada.');
-      const payload: ScheduleVaccinationValues = {
-        fechaProgramada: formValues.fechaProgramada,
-        fechaObjetivo: formValues.fechaObjetivo || formValues.fechaProgramada,
-        tipoSanitario: formValues.tipoSanitario,
-        descripcion: formValues.descripcion,
-        animalIds: scheduleMode === 'individual' ? formValues.animalIds : [],
-        loteId: scheduleMode === 'lote' ? formValues.loteId : '',
-        categoria: scheduleMode === 'categoria' ? formValues.categoria : '',
-      };
-      const result = await scheduleVaccination(authToken, payload);
-      setFormValues(emptyScheduleForm);
-      setAnimalSearch('');
-      setIsScheduleModalOpen(false);
-      setSuccess(`Vacunación programada: ${result.tareasCreadas} tareas individuales creadas.`);
+      const result = await markSanitaryPendingDone(authToken, performTarget.id, performValues);
+      setSuccess(`Aplicación registrada. Próxima fecha máxima: ${formatDate(result.proximaFechaMaxima)}.`);
+      setPerformTarget(null);
       await loadData();
     } catch (saveError) {
-      handleRequestError(saveError, 'No se pudo programar la vacunación.');
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  function openBulkModal() {
-    setBulkValues({ fechaRealizada: todayIso(), observaciones: '' });
-    setIsBulkModalOpen(true);
-    setError('');
-    setSuccess('');
-  }
-
-  function closeBulkModal() {
-    setIsBulkModalOpen(false);
-    setBulkValues({ fechaRealizada: todayIso(), observaciones: '' });
-  }
-
-  async function handleBulkSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!authToken) return onUnauthorized();
-    setIsSaving(true);
-    setError('');
-    setSuccess('');
-    try {
-      const result = await performVaccinationsBulk(authToken, {
-        vacunacionIds: selectedTaskIds,
-        fechaRealizada: bulkValues.fechaRealizada,
-        observaciones: bulkValues.observaciones,
-      });
-      setSuccess(`${result.tareasActualizadas} vacunaciones registradas como realizadas.`);
-      setSelectedTaskIds([]);
-      closeBulkModal();
-      await loadData();
-    } catch (saveError) {
-      handleRequestError(saveError, 'No se pudieron registrar las vacunaciones seleccionadas.');
+      handleRequestError(saveError, 'No se pudo marcar el pendiente como realizado.');
     } finally {
       setIsSaving(false);
     }
@@ -542,7 +251,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
       <section className="settings-header">
         <div>
           <h2>Control de Vacunación</h2>
-          <p>Programación, seguimiento e historial sanitario.</p>
+          <p>Reglas sanitarias, pendientes por lote y aplicaciones realizadas.</p>
         </div>
         <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar vacunación">
           <RefreshCcw size={18} />
@@ -552,319 +261,119 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
       {error && <div className="form-error">{error}</div>}
       {success && <div className="form-success">{success}</div>}
 
-      <div className="operative-summary-grid module-metrics-grid vaccination-summary-section">
-        <button type="button" className="metric-card operative-card module-metric-card vaccination-summary-card" onClick={() => applyStatusFilter('')}>
-          <div className="metric-icon metric-icon-blue"><ListChecks size={20} /></div><p className="metric-title">Todas</p><strong className="metric-value">{summary.todas}</strong>
-        </button>
-        <button type="button" className="metric-card operative-card module-metric-card vaccination-summary-card" onClick={() => applyStatusFilter('PENDIENTE')}>
-          <div className="metric-icon metric-icon-emerald"><Syringe size={20} /></div><p className="metric-title">Pendientes</p><strong className="metric-value">{summary.pendientes}</strong>
-        </button>
-        <button type="button" className="metric-card operative-card module-metric-card vaccination-summary-card" onClick={() => applyStatusFilter('VENCIDA')}>
-          <div className="metric-icon metric-icon-rose"><Clock3 size={20} /></div><p className="metric-title">Vencidas</p><strong className="metric-value">{summary.vencidas}</strong>
-        </button>
-        <button type="button" className="metric-card operative-card module-metric-card vaccination-summary-card" onClick={() => applyStatusFilter('REALIZADA')}>
-          <div className="metric-icon metric-icon-blue"><CheckCircle2 size={20} /></div><p className="metric-title">Realizadas</p><strong className="metric-value">{summary.realizadas}</strong>
-        </button>
-        <button type="button" className="metric-card operative-card module-metric-card vaccination-summary-card" onClick={() => applyStatusFilter('PROGRAMADA')}>
-          <div className="metric-icon metric-icon-indigo"><CalendarClock size={20} /></div><p className="metric-title">Programadas</p><strong className="metric-value">{summary.programadas}</strong>
-        </button>
-      </div>
+      <SanitaryRulesPanel authToken={authToken} onUnauthorized={onUnauthorized} onRulesChanged={() => loadData()} isAdmin={isAdmin} />
 
-      <section className="panel vaccination-pending-section" id="vacunas-pendientes-section">
+      <section className="panel vaccination-pending-section">
         <div className="panel-header">
-          <div><h2>Vacunas pendientes</h2><p>{visiblePendingHistory.length} tareas sanitarias visibles.</p></div>
-          <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar vacunas pendientes"><RefreshCcw size={18} /></button>
+          <div><h2>Pendientes sanitarios</h2><p>{pendientes.length} pendientes por regla y tipo funcional.</p></div>
+          <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar pendientes"><RefreshCcw size={18} /></button>
         </div>
         <form className="filters-form events-filters production-filters">
-          <label className="filter-field">
-            <span>Lote</span>
-            <select value={pendingFilters.loteId} onChange={(event) => setPendingFilters({ ...pendingFilters, loteId: event.target.value })}>
-              <option value="">Todos</option>
-              {lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
-            </select>
-          </label>
-          <label className="filter-field">
-            <span>Categoría</span>
-            <select value={pendingFilters.categoria} onChange={(event) => setPendingFilters({ ...pendingFilters, categoria: event.target.value })}>
-              <option value="">Todas</option>
-              {pendingCategories.map((categoria) => <option key={categoria} value={categoria}>{formatCategoria(categoria)}</option>)}
-            </select>
-          </label>
-          <label className="filter-field">
-            <span>Tipo sanitario</span>
-            <select value={pendingFilters.tipo} onChange={(event) => setPendingFilters({ ...pendingFilters, tipo: event.target.value })}>
-              <option value="">Todos</option>
-              {activeSanitaryRules.map((regla) => <option key={regla.id} value={regla.codigo}>{regla.nombre}</option>)}
-            </select>
-          </label>
-          <button type="button" className="secondary-button" onClick={clearPendingFilters}>Limpiar</button>
+          <label className="filter-field"><span>Regla sanitaria</span><select value={pendingFilters.reglaSanitariaId} onChange={(event) => setPendingFilters({ ...pendingFilters, reglaSanitariaId: event.target.value })}><option value="">Todas</option>{activeRules.map((regla) => <option key={regla.id} value={regla.id}>{regla.nombre}</option>)}</select></label>
+          <label className="filter-field"><span>Tipo sanitario</span><select value={pendingFilters.tipo} onChange={(event) => setPendingFilters({ ...pendingFilters, tipo: event.target.value })}><option value="">Todos</option><option value="VACUNA">Vacuna</option><option value="ANALISIS">Análisis</option></select></label>
+          <label className="filter-field"><span>Tipo funcional</span><select value={pendingFilters.tipoFuncional} onChange={(event) => setPendingFilters({ ...pendingFilters, tipoFuncional: event.target.value })}><option value="">Todos</option>{tipoFuncionalOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label className="filter-field"><span>Estado</span><select value={pendingFilters.estado} onChange={(event) => setPendingFilters({ ...pendingFilters, estado: event.target.value })}><option value="">Todos</option>{estadoOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label className="filter-field"><span>Fecha máxima desde</span><input type="date" value={pendingFilters.fechaMaximaDesde} onChange={(event) => setPendingFilters({ ...pendingFilters, fechaMaximaDesde: event.target.value })} /></label>
+          <label className="filter-field"><span>Fecha máxima hasta</span><input type="date" value={pendingFilters.fechaMaximaHasta} onChange={(event) => setPendingFilters({ ...pendingFilters, fechaMaximaHasta: event.target.value })} /></label>
+          <button type="button" className="secondary-button" onClick={() => setPendingFilters({ reglaSanitariaId: '', tipo: '', tipoFuncional: '', estado: '', fechaMaximaDesde: '', fechaMaximaHasta: '' })}>Limpiar</button>
         </form>
-        {isLoading ? <p className="table-empty">Cargando vacunaciones...</p> : (
-          <>
-            <div className="table-wrap">
-              <table className="users-table">
-                <thead>
-                  <tr>
-                    <th>
-                      <label className="checkbox-row">
-                        <input type="checkbox" checked={allVisibleSelected} onChange={(event) => toggleAllVisiblePending(event.target.checked)} disabled={visibleTaskIds.length === 0} />
-                        <span>Seleccionar</span>
-                      </label>
-                    </th>
-                    <th>Fecha programada</th>
-                    <th>Fecha objetivo</th>
-                    <th>Animal / Caravana</th>
-                    <th>Categoría</th>
-                    <th>Lote</th>
-                    <th>Tipo sanitario</th>
-                    <th>Estado</th>
-                    <th>Usuario</th>
-                    <th>Observaciones</th>
+        {isLoading ? <p className="table-empty">Cargando pendientes...</p> : (
+          <div className="table-wrap">
+            <table className="users-table">
+              <thead><tr><th>Regla sanitaria</th><th>Tipo</th><th>Tipo funcional</th><th>Fecha máxima</th><th>Estado operativo</th><th>Lotes</th><th>Animales</th><th>Acciones</th></tr></thead>
+              <tbody>
+                {pendientes.map((pending) => (
+                  <tr key={pending.id}>
+                    <td>{pending.reglaNombre}</td>
+                    <td>{tipoLabels[pending.tipo]}</td>
+                    <td>{pending.tipoFuncionalLabel}</td>
+                    <td>{formatDate(pending.fechaMaxima)}</td>
+                    <td><span className={`status-pill ${statusClass(pending.estado)}`}>{estadoLabels[pending.estado]}</span></td>
+                    <td>{pending.cantidadLotes}</td>
+                    <td>{pending.cantidadAnimales}</td>
+                    <td><div className="table-actions"><button type="button" onClick={() => void openPendingDetail(pending)} aria-label="Ver detalle"><Eye size={16} /></button>{canMarkDone && pending.estado !== 'REALIZADA' && pending.estado !== 'CANCELADA' && <button type="button" onClick={() => openPerformModal(pending)} aria-label="Marcar realizado"><Syringe size={16} /></button>}</div></td>
                   </tr>
-                </thead>
-                <tbody>
-                  {visiblePendingHistory.map((item) => {
-                    const taskId = item.tareaIds[0];
-                    return (
-                      <tr key={item.id}>
-                        <td>
-                          <label className="checkbox-row">
-                            <input type="checkbox" checked={selectedTaskIds.includes(taskId)} onChange={() => togglePendingSelection(taskId)} disabled={!canRegisterPerformedVaccinations} />
-                            <span>#{item.animal.caravana}</span>
-                          </label>
-                        </td>
-                        <td>{formatDate(item.fechaProgramada)}</td>
-                        <td>{formatDate(item.fechaObjetivo)}</td>
-                        <td>{animalLink(item.animal)}</td>
-                        <td>{formatCategoria(item.animal.categoriaAnimal)}</td>
-                        <td>{item.animal.lote.nombre}</td>
-                        <td>{formatTipoSanitario(item.tipoSanitario)}</td>
-                        <td><span className="status-pill status-active">{formatEstado(item.estado)}</span></td>
-                        <td>{item.usuario?.nombre ?? '-'}</td>
-                        <td>{item.observaciones || '-'}</td>
-                      </tr>
-                    );
-                  })}
-                  {visiblePendingHistory.length === 0 && <tr><td colSpan={10}>Sin vacunaciones pendientes para los filtros seleccionados.</td></tr>}
-                </tbody>
-              </table>
-            </div>
-            {canRegisterPerformedVaccinations && <div className="modal-actions">
-              <button type="button" className="primary-button" onClick={openBulkModal} disabled={selectedTaskIds.length === 0}>
-                <CheckCircle2 size={18} />
-                Registrar seleccionadas como realizadas
-              </button>
-            </div>}
-          </>
+                ))}
+                {pendientes.length === 0 && <tr><td colSpan={8}>Sin pendientes sanitarios para los filtros seleccionados.</td></tr>}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 
-      <div className="vaccination-rules-section">
-        <SanitaryRulesPanel authToken={authToken} onUnauthorized={onUnauthorized} onRulesChanged={() => loadData(filters)} isAdmin={isAdmin} />
-      </div>
-
-      <section className="panel vaccination-history-section" id="historial-sanitario-section">
+      <section className="panel vaccination-history-section">
         <div className="panel-header">
-          <div><h2>Historial sanitario</h2><p>{history.length} registros encontrados.</p></div>
+          <div><h2>Historial sanitario</h2><p>{aplicaciones.length} aplicaciones realizadas.</p></div>
           <div className="header-actions">
-            {isAdmin && <button type="button" className="secondary-button" onClick={openScheduleModal}><Plus size={16} />Programar vacunación</button>}
             <button type="button" className="secondary-button" onClick={exportHistoryPdf}><Download size={16} />Exportar PDF</button>
-            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar historial sanitario"><RefreshCcw size={18} /></button>
+            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar historial"><RefreshCcw size={18} /></button>
           </div>
         </div>
         <form className="filters-form events-filters production-filters">
-          <label className="filter-field"><span>Fecha programada desde</span><input type="date" value={filters.fechaProgramadaDesde} onChange={(event) => setFilters({ ...filters, fechaProgramadaDesde: event.target.value })} /></label>
-          <label className="filter-field"><span>Fecha programada hasta</span><input type="date" value={filters.fechaProgramadaHasta} onChange={(event) => setFilters({ ...filters, fechaProgramadaHasta: event.target.value })} /></label>
-          <label className="filter-field"><span>Fecha objetivo desde</span><input type="date" value={filters.fechaObjetivoDesde} onChange={(event) => setFilters({ ...filters, fechaObjetivoDesde: event.target.value })} /></label>
-          <label className="filter-field"><span>Fecha objetivo hasta</span><input type="date" value={filters.fechaObjetivoHasta} onChange={(event) => setFilters({ ...filters, fechaObjetivoHasta: event.target.value })} /></label>
-          <label className="filter-field"><span>Fecha realizada desde</span><input type="date" value={filters.fechaRealizadaDesde} onChange={(event) => setFilters({ ...filters, fechaRealizadaDesde: event.target.value })} /></label>
-          <label className="filter-field"><span>Fecha realizada hasta</span><input type="date" value={filters.fechaRealizadaHasta} onChange={(event) => setFilters({ ...filters, fechaRealizadaHasta: event.target.value })} /></label>
-          <label className="filter-field">
-            <span>Lote</span>
-            <select value={filters.loteId} onChange={(event) => setFilters({ ...filters, loteId: event.target.value })}>
-              <option value="">Todos</option>
-              {lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
-            </select>
-          </label>
-          <label className="filter-field">
-            <span>Categoría</span>
-            <select value={filters.categoria} onChange={(event) => setFilters({ ...filters, categoria: event.target.value as VaccinationFilters['categoria'] })}>
-              <option value="">Todas</option>
-              {historyCategories.map((categoria) => <option key={categoria} value={categoria}>{formatCategoria(categoria)}</option>)}
-            </select>
-          </label>
-          <label className="filter-field">
-            <span>Tipo sanitario</span>
-            <select value={filters.tipo} onChange={(event) => setFilters({ ...filters, tipo: event.target.value })}>
-              <option value="">Todos</option>
-              {activeSanitaryRules.map((regla) => <option key={regla.id} value={regla.codigo}>{regla.nombre}</option>)}
-            </select>
-          </label>
-          <label className="filter-field">
-            <span>Estado</span>
-            <select value={filters.estado} onChange={(event) => setFilters({ ...filters, estado: event.target.value as VaccinationFilters['estado'] })}>
-              <option value="">Todos</option>
-              {estadoOptions.map((estado) => <option key={estado} value={estado}>{formatEstado(estado)}</option>)}
-            </select>
-          </label>
-          <button type="button" className="secondary-button" onClick={clearHistoryFilters}>Limpiar</button>
+          <label className="filter-field"><span>Fecha realizada desde</span><input type="date" value={historyFilters.fechaRealizadaDesde} onChange={(event) => setHistoryFilters({ ...historyFilters, fechaRealizadaDesde: event.target.value })} /></label>
+          <label className="filter-field"><span>Fecha realizada hasta</span><input type="date" value={historyFilters.fechaRealizadaHasta} onChange={(event) => setHistoryFilters({ ...historyFilters, fechaRealizadaHasta: event.target.value })} /></label>
+          <label className="filter-field"><span>Regla sanitaria</span><select value={historyFilters.reglaSanitariaId} onChange={(event) => setHistoryFilters({ ...historyFilters, reglaSanitariaId: event.target.value })}><option value="">Todas</option>{reglas.map((regla) => <option key={regla.id} value={regla.id}>{regla.nombre}</option>)}</select></label>
+          <label className="filter-field"><span>Tipo sanitario</span><select value={historyFilters.tipo} onChange={(event) => setHistoryFilters({ ...historyFilters, tipo: event.target.value })}><option value="">Todos</option><option value="VACUNA">Vacuna</option><option value="ANALISIS">Análisis</option></select></label>
+          <label className="filter-field"><span>Tipo funcional</span><select value={historyFilters.tipoFuncional} onChange={(event) => setHistoryFilters({ ...historyFilters, tipoFuncional: event.target.value })}><option value="">Todos</option>{tipoFuncionalOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label className="filter-field"><span>Lote</span><input value={historyFilters.lote} onChange={(event) => setHistoryFilters({ ...historyFilters, lote: event.target.value })} placeholder="Buscar lote" /></label>
+          <button type="button" className="secondary-button" onClick={() => setHistoryFilters({ reglaSanitariaId: '', tipo: '', tipoFuncional: '', lote: '', fechaRealizadaDesde: '', fechaRealizadaHasta: '' })}>Limpiar</button>
         </form>
         <div className="table-wrap">
           <table className="users-table">
-            <thead><tr><th>Fecha programada</th><th>Fecha objetivo</th><th>Fecha realizada</th><th>Animal / Caravana</th><th>Categoría</th><th>Lote</th><th>Tipo sanitario</th><th>Estado</th><th>Usuario</th><th>Observaciones</th></tr></thead>
+            <thead><tr><th>Fecha realización</th><th>Regla sanitaria</th><th>Tipo</th><th>Tipo funcional</th><th>Lotes</th><th>Animales</th><th>Usuario</th><th>Observaciones</th><th>Acciones</th></tr></thead>
             <tbody>
-              {history.map((item) => (
+              {aplicaciones.map((item) => (
                 <tr key={item.id}>
-                  <td>{formatDate(item.fechaProgramada)}</td>
-                  <td>{formatDate(item.fechaObjetivo)}</td>
-                  <td>{formatDate(item.fechaRealizada)}</td>
-                  <td>{animalLink(item.animal)}</td>
-                  <td>{formatCategoria(item.animal.categoriaAnimal)}</td>
-                  <td>{item.animal.lote.nombre}</td>
-                  <td>{formatTipoSanitario(item.tipoSanitario)}</td>
-                  <td><span className={`status-pill ${statusClass(item.estado)}`}>{formatEstado(item.estado)}</span></td>
+                  <td>{formatDate(item.fechaRealizacion)}</td>
+                  <td>{item.reglaNombre}</td>
+                  <td>{tipoLabels[item.tipo]}</td>
+                  <td>{item.tipoFuncionalLabel}</td>
+                  <td>{Array.from(new Set(item.animales.map((animal) => animal.loteSnapshot))).join(', ') || '-'}</td>
+                  <td>{item.cantidadAnimales} animales</td>
                   <td>{item.usuario?.nombre ?? '-'}</td>
-                  <td>{item.observaciones || '-'}</td>
+                  <td>{item.observaciones ?? '-'}</td>
+                  <td><div className="table-actions"><button type="button" onClick={() => setSelectedApplication(item)} aria-label="Ver detalle"><Eye size={16} /></button></div></td>
                 </tr>
               ))}
-              {history.length === 0 && <tr><td colSpan={10}>Sin vacunaciones para los filtros seleccionados.</td></tr>}
+              {aplicaciones.length === 0 && <tr><td colSpan={9}>Sin aplicaciones sanitarias para los filtros seleccionados.</td></tr>}
             </tbody>
           </table>
         </div>
       </section>
 
-      {isScheduleModalOpen && isAdmin && (
+      {selectedPending && (
         <div className="modal-backdrop">
-          <section className="modal-panel vaccination-schedule-modal">
-            <div className="panel-header">
-              <div>
-                <h2>Programar vacunación</h2>
-                <p>Crear campañas extraordinarias o controles especiales.</p>
-              </div>
-              <button type="button" className="icon-button" onClick={closeScheduleModal} aria-label="Cerrar modal">
-                <X size={18} />
-              </button>
+          <section className="modal-panel">
+            <div className="panel-header"><div><h2>{selectedPending.reglaNombre}</h2><p>Fecha máxima: {formatDate(selectedPending.fechaMaxima)} · {selectedPending.tipoFuncionalLabel}</p></div><button type="button" className="icon-button" onClick={() => setSelectedPending(null)} aria-label="Cerrar"><X size={18} /></button></div>
+            <div className="user-form">
+              {selectedPending.lotes?.map((lote) => <div key={lote.id} className="form-subsection"><h3>Lote: {lote.nombre}</h3>{lote.animales.length === 0 ? <p className="table-empty">Sin animales activos.</p> : lote.animales.map((animal) => <span key={animal.id}>#{animal.caravana}</span>)}</div>)}
+              <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => exportPendingPdf(selectedPending)}><Download size={16} />Exportar PDF</button>{canMarkDone && <button type="button" className="primary-button" onClick={() => openPerformModal(selectedPending)}><Syringe size={16} />Marcar como realizada</button>}</div>
             </div>
-            <form className="user-form vaccination-form vaccination-schedule-form" onSubmit={handleScheduleSubmit}>
-              <div className="vaccination-modal-section vaccination-campaign-fields">
-                <div className="vaccination-section-title">
-                  <h3>Datos de la campaña</h3>
-                </div>
-                <label><span>Fecha programada</span><input type="date" value={formValues.fechaProgramada} onChange={(event) => setFormValues({ ...formValues, fechaProgramada: event.target.value })} required /></label>
-                <label><span>Fecha objetivo</span><input type="date" value={formValues.fechaObjetivo} onChange={(event) => setFormValues({ ...formValues, fechaObjetivo: event.target.value })} /></label>
-                <label>
-                  <span>Tipo sanitario</span>
-                  <select value={formValues.tipoSanitario} onChange={(event) => setFormValues({ ...formValues, tipoSanitario: event.target.value })} required>
-                    <option value="">Seleccionar tipo</option>
-                    {activeSanitaryRules.map((regla) => <option key={regla.id} value={regla.codigo}>{regla.nombre}</option>)}
-                  </select>
-                </label>
-                <label><span>Observaciones</span><input value={formValues.descripcion} onChange={(event) => setFormValues({ ...formValues, descripcion: event.target.value })} placeholder="Ej. Campaña marzo" /></label>
-              </div>
-
-              <div className="vaccination-modal-section vaccination-scope-section">
-                <div className="vaccination-section-title">
-                  <h3>Alcance</h3>
-                </div>
-                <div className="vaccination-mode-selector">
-                  {scheduleModes.map((mode) => (
-                    <button type="button" key={mode.value} className={scheduleMode === mode.value ? 'vaccination-mode-active' : ''} onClick={() => changeScheduleMode(mode.value)}>
-                      {mode.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="vaccination-selection-panel">
-                  {scheduleMode !== 'individual' && <p className="selection-helper">{selectedMode.helper}</p>}
-                  {scheduleMode === 'lote' && (
-                    <label>
-                      <span>Lote</span>
-                      <select value={formValues.loteId} onChange={(event) => setFormValues({ ...formValues, loteId: event.target.value })} required>
-                        <option value="">Seleccionar lote</option>
-                        {lotes.map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
-                      </select>
-                    </label>
-                  )}
-                  {scheduleMode === 'categoria' && (
-                    <label>
-                      <span>Categoría</span>
-                      <select value={formValues.categoria} onChange={(event) => setFormValues({ ...formValues, categoria: event.target.value })} required>
-                        <option value="">Seleccionar categoría</option>
-                        {categoriaOptions.map((categoria) => <option key={categoria} value={categoria}>{formatCategoria(categoria)}</option>)}
-                      </select>
-                    </label>
-                  )}
-                  {scheduleMode === 'individual' && (
-                    <div className="animal-selector">
-                      <label><span>Buscar animal activo</span><input value={animalSearch} onChange={(event) => setAnimalSearch(event.target.value)} placeholder="Ingrese caravana" /></label>
-                      <p className="field-help">Escribí al menos 2 caracteres para buscar animales activos.</p>
-                      {shouldSearchAnimals && (
-                        <div>
-                          {filteredAnimals.map((animal) => (
-                            <label key={animal.id} className="checkbox-row animal-selector-option">
-                              <input type="checkbox" checked={formValues.animalIds.includes(animal.id)} onChange={() => toggleAnimalSelection(animal.id)} />
-                              <span>#{animal.caravana} · {formatCategoria(animal.categoriaAnimal)} · {animal.lote.nombre}</span>
-                            </label>
-                          ))}
-                          {filteredAnimals.length === 0 && <p className="table-empty">No se encontraron animales activos con ese criterio.</p>}
-                        </div>
-                      )}
-                      {selectedAnimals.length > 0 && <div className="selected-animals-summary">{selectedAnimals.map((animal) => <button type="button" key={animal.id} onClick={() => toggleAnimalSelection(animal.id)}>#{animal.caravana} x</button>)}</div>}
-                    </div>
-                  )}
-                  {(scheduleMode !== 'individual' || selectedAnimals.length > 0) && (
-                    <div className={`selection-count ${matchingActiveAnimalsCount > 0 ? 'selection-count-ok' : 'selection-count-empty'}`}>
-                      {matchingActiveAnimalsCount > 0 ? `${matchingActiveAnimalsCount} animales activos incluidos.` : 'No hay animales activos para la selección actual.'}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="vaccination-modal-section vaccination-actions-section">
-                <div className="vaccination-section-title">
-                  <h3>Acciones</h3>
-                </div>
-                <div className="modal-actions">
-                  <button type="button" className="secondary-button" onClick={closeScheduleModal} disabled={isSaving}>Cancelar</button>
-                  <button type="submit" className="primary-button vaccination-submit" disabled={!canSubmitSchedule}>
-                    <Syringe size={18} />
-                    {isSaving ? 'Programando...' : 'Programar vacunación'}
-                  </button>
-                </div>
-              </div>
-            </form>
           </section>
         </div>
       )}
 
-      {isBulkModalOpen && (
+      {selectedApplication && (
         <div className="modal-backdrop">
           <section className="modal-panel">
-            <div className="panel-header">
-              <div>
-                <h2>Registrar vacunaciones realizadas</h2>
-                <p>{selectedTaskIds.length} vacunaciones seleccionadas</p>
-              </div>
-              <button type="button" className="icon-button" onClick={closeBulkModal} aria-label="Cerrar modal">
-                <X size={18} />
-              </button>
+            <div className="panel-header"><div><h2>{selectedApplication.reglaNombre}</h2><p>Realizada el {formatDate(selectedApplication.fechaRealizacion)} · {selectedApplication.tipoFuncionalLabel}</p></div><button type="button" className="icon-button" onClick={() => setSelectedApplication(null)} aria-label="Cerrar"><X size={18} /></button></div>
+            <div className="user-form">
+              {Array.from(new Set(selectedApplication.animales.map((animal) => animal.loteSnapshot))).map((lote) => (
+                <div key={lote} className="form-subsection"><h3>Lote: {lote}</h3>{selectedApplication.animales.filter((animal) => animal.loteSnapshot === lote).map((animal) => <span key={animal.id}>#{animal.caravanaSnapshot}</span>)}</div>
+              ))}
             </div>
-            <form className="user-form" onSubmit={handleBulkSubmit}>
-              <div className="info-grid">
-                <div className="info-item"><span>Cantidad</span><strong>{selectedPendingItems.length}</strong></div>
-                <div className="info-item"><span>Lote</span><strong>{bulkModalSummary.loteLabel}</strong></div>
-                <div className="info-item"><span>Categoría</span><strong>{bulkModalSummary.categoriaLabel}</strong></div>
-                <div className="info-item"><span>Tipo sanitario</span><strong>{bulkModalSummary.tipoSanitarioLabel}</strong></div>
-              </div>
-              <div className="form-warning">
-                {bulkModalSummary.confirmationMessage}
-              </div>
-              <label><span>Fecha realizada</span><input type="date" value={bulkValues.fechaRealizada} onChange={(event) => setBulkValues({ ...bulkValues, fechaRealizada: event.target.value })} required /></label>
-              <label><span>Observaciones</span><textarea rows={4} value={bulkValues.observaciones} onChange={(event) => setBulkValues({ ...bulkValues, observaciones: event.target.value })} /></label>
-              {error && <div className="form-error">{error}</div>}
-              <div className="modal-actions">
-                <button type="button" className="secondary-button" onClick={closeBulkModal} disabled={isSaving}>Volver</button>
-                <button type="submit" className="primary-button" disabled={isSaving}><CheckCircle2 size={18} />{isSaving ? 'Guardando...' : 'Guardar'}</button>
-              </div>
+          </section>
+        </div>
+      )}
+
+      {performTarget && (
+        <div className="modal-backdrop">
+          <section className="modal-panel">
+            <div className="panel-header"><div><h2>Marcar como realizada</h2><p>{performTarget.reglaNombre} · {performTarget.tipoFuncionalLabel}</p></div><button type="button" className="icon-button" onClick={() => setPerformTarget(null)} aria-label="Cerrar"><X size={18} /></button></div>
+            <form className="user-form" onSubmit={handlePerformSubmit}>
+              <label><span>Fecha de realización</span><input type="date" value={performValues.fechaRealizacion} onChange={(event) => setPerformValues({ ...performValues, fechaRealizacion: event.target.value })} required /></label>
+              <label><span>Observaciones</span><textarea rows={4} value={performValues.observaciones} onChange={(event) => setPerformValues({ ...performValues, observaciones: event.target.value })} /></label>
+              <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => setPerformTarget(null)}>Cancelar</button><button type="submit" className="primary-button" disabled={isSaving}><Syringe size={18} />{isSaving ? 'Guardando...' : 'Guardar aplicación'}</button></div>
             </form>
           </section>
         </div>

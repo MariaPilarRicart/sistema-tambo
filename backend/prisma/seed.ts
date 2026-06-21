@@ -4,9 +4,11 @@ import {
   CategoriaAnimal,
   EstadoAnimal,
   EstadoLoteLeche,
+  EstadoPendienteSanitario,
   EstadoReproductivo,
   EstadoTarea,
   MotivoDescarteLeche,
+  PeriodicidadReglaSanitaria,
   Prisma,
   PrismaClient,
   RolUsuario,
@@ -20,7 +22,6 @@ import {
   TurnoOrdene,
   UnidadAlimento,
 } from '@prisma/client';
-import { randomUUID } from 'crypto';
 
 const prisma = new PrismaClient();
 
@@ -527,80 +528,45 @@ async function seedAgendaEventos(usuarioId: number) {
     });
   }
 
-  const vacunacionesPendientes = [
-    ['1001', -9, 'Aftosa vencida'],
-    ['1002', -7, 'Brucelosis vencida'],
-    ['1003', -5, 'Clostridial vencida'],
-    ['1004', -3, 'Carbunclo vencida'],
-    ['1005', -1, 'IBR/BVD vencida'],
-    ['1006', 5, 'Aftosa programada'],
-    ['1007', 7, 'Brucelosis programada'],
-    ['1008', 9, 'Clostridial programada'],
-    ['2001', 11, 'Carbunclo programada'],
-    ['2002', 13, 'IBR/BVD programada'],
-  ] as const;
-
-  for (const [caravana, days, descripcion] of vacunacionesPendientes) {
-    const animal = byCaravana.get(caravana);
-    if (!animal) continue;
-
-    await prisma.agendaTarea.create({
-      data: {
-        animalId: animal.id,
-        tipo: TipoTarea.VACUNACION,
-        fechaProgramada: daysFromToday(days),
-        estado: EstadoTarea.PENDIENTE,
-        descripcion: `${SEED_PREFIX}: ${descripcion}`,
-      },
-    });
-  }
-
-  const vacunacionesRealizadas = [
-    ['3001', -30, 'Aftosa realizada'],
-    ['3002', -28, 'Brucelosis realizada'],
-    ['4001', -25, 'Clostridial realizada'],
-    ['4002', -22, 'Carbunclo realizada'],
-    ['5001', -20, 'IBR/BVD realizada'],
-  ] as const;
-
-  for (const [caravana, days, observaciones] of vacunacionesRealizadas) {
-    const animal = byCaravana.get(caravana);
-    if (!animal) continue;
-
-    await prisma.evento.create({
-      data: {
-        animalId: animal.id,
-        usuarioId,
-        tipo: TipoEvento.VACUNACION,
-        fecha: daysFromToday(days),
-        observaciones: `${SEED_PREFIX}: ${observaciones}`,
-      },
-    });
-  }
 }
 
 async function seedReglasSanitarias() {
   const reglas = [
-    ['Aftosa', 'AFTOSA', TipoReglaSanitaria.VACUNA, 3, 12, 1, 'Campaña anual de marzo.'],
-    ['Brucelosis', 'BRUCELOSIS', TipoReglaSanitaria.VACUNA, 3, 12, 1, 'Campaña anual de marzo.'],
-    ['Análisis de tuberculina', 'ANALISIS_TUBERCULINA', TipoReglaSanitaria.ANALISIS, null, 12, 1, 'Control anual desde la última realización.'],
-    ['Análisis de brucelosis', 'ANALISIS_BRUCELOSIS', TipoReglaSanitaria.ANALISIS, null, 12, 1, 'Control anual desde la última realización.'],
+    ['Vacuna Aftosa', 'AFTOSA', TipoReglaSanitaria.VACUNA, PeriodicidadReglaSanitaria.FIJA_MARZO, 3, 12, 1, 'Campaña anual obligatoria de marzo.'],
+    ['Vacuna Brucelosis', 'BRUCELOSIS', TipoReglaSanitaria.VACUNA, PeriodicidadReglaSanitaria.FIJA_MARZO, 3, 12, 1, 'Campaña anual obligatoria de marzo.'],
+    ['Análisis de tuberculina', 'ANALISIS_TUBERCULINA', TipoReglaSanitaria.ANALISIS, PeriodicidadReglaSanitaria.DINAMICA_ANUAL, null, 12, 1, 'Control anual desde la última realización.'],
+    ['Análisis de brucelosis', 'ANALISIS_BRUCELOSIS', TipoReglaSanitaria.ANALISIS, PeriodicidadReglaSanitaria.DINAMICA_ANUAL, null, 12, 1, 'Control anual desde la última realización.'],
   ] as const;
+  const tiposFuncionales = [
+    TipoFuncionalLote.GUACHERA,
+    TipoFuncionalLote.ESCUELITA,
+    TipoFuncionalLote.TERNERA_1,
+    TipoFuncionalLote.TERNERA_2,
+    TipoFuncionalLote.TORITOS,
+    TipoFuncionalLote.TOROS,
+    TipoFuncionalLote.PRODUCCION,
+    TipoFuncionalLote.SECAS,
+    TipoFuncionalLote.PREPARTO,
+    TipoFuncionalLote.RECUPERACION,
+  ];
 
-  for (const [nombre, codigo, tipo, mesFijo, frecuenciaMeses, anticipacionMeses, observaciones] of reglas) {
-    await prisma.reglaSanitaria.upsert({
+  for (const [nombre, codigo, tipo, periodicidad, mesFijo, frecuenciaMeses, anticipacionMeses, observaciones] of reglas) {
+    const regla = await prisma.reglaSanitaria.upsert({
       where: { codigo },
-      update: { nombre, tipo, mesFijo, frecuenciaMeses, anticipacionMeses, activo: true, observaciones },
-      create: { nombre, codigo, tipo, mesFijo, frecuenciaMeses, anticipacionMeses, activo: true, observaciones },
+      update: { nombre, tipo, periodicidad, mesFijo, frecuenciaMeses, anticipacionMeses, activo: true, observaciones },
+      create: { nombre, codigo, tipo, periodicidad, mesFijo, frecuenciaMeses, anticipacionMeses, activo: true, observaciones },
+    });
+    await prisma.reglaSanitariaTipoFuncional.createMany({
+      data: tiposFuncionales.map((tipoFuncional) => ({ reglaSanitariaId: regla.id, tipoFuncional })),
+      skipDuplicates: true,
     });
   }
 }
 
-type SeedSanitaryStatus = 'PENDIENTE' | 'VENCIDA' | 'REALIZADA' | 'PROGRAMADA';
-type SeedSanitaryType = 'AFTOSA' | 'BRUCELOSIS' | 'ANALISIS_TUBERCULINA' | 'ANALISIS_BRUCELOSIS';
-type SeedSanitaryScope = 'ANIMAL' | 'LOTE' | 'CATEGORIA';
-
 async function seedVacunacionSanitaria(usuarioId: number) {
+  await prisma.aplicacionSanitariaAnimal.deleteMany();
+  await prisma.pendienteSanitario.deleteMany();
+  await prisma.aplicacionSanitaria.deleteMany();
   await prisma.agendaTarea.deleteMany({
     where: {
       tipo: TipoTarea.VACUNACION,
@@ -619,73 +585,70 @@ async function seedVacunacionSanitaria(usuarioId: number) {
 
   const activeAnimals = await prisma.animal.findMany({
     where: { activo: true, estadoAnimal: EstadoAnimal.ACTIVO },
-    orderBy: { id: 'asc' },
+    orderBy: [{ lote: { nombre: 'asc' } }, { caravana: 'asc' }],
     include: { lote: true },
   });
-  const lotes = await prisma.lote.findMany({ where: { activo: true }, orderBy: { id: 'asc' } });
   if (activeAnimals.length === 0) return;
 
-  const targetByStatus: Record<SeedSanitaryStatus, Date[]> = {
-    PENDIENTE: [daysFromToday(10), daysFromToday(12), daysFromToday(14), daysFromToday(16), daysFromToday(18)],
-    VENCIDA: [daysFromToday(-15), daysFromToday(-45), monthsFromToday(-3), monthsFromToday(-8), monthsFromToday(-13)],
-    REALIZADA: [daysFromToday(-7), daysFromToday(-30), monthsFromToday(-2), monthsFromToday(-6), monthsFromToday(-12)],
-    PROGRAMADA: [daysFromToday(45), daysFromToday(60), monthsFromToday(3), monthsFromToday(6), monthsFromToday(8)],
-  };
-  const types: SeedSanitaryType[] = ['AFTOSA', 'BRUCELOSIS', 'ANALISIS_TUBERCULINA', 'ANALISIS_BRUCELOSIS'];
-  const statuses: SeedSanitaryStatus[] = ['PENDIENTE', 'VENCIDA', 'REALIZADA'];
-  const scopes: SeedSanitaryScope[] = ['ANIMAL', 'LOTE', 'CATEGORIA'];
+  const reglas = await prisma.reglaSanitaria.findMany({
+    where: { activo: true },
+    include: { tiposFuncionales: true },
+  });
 
-  let cursor = 0;
-  for (const status of statuses) {
-    for (let index = 0; index < 5; index += 1) {
-      const tipoSanitario = types[index % types.length];
-      const scope = scopes[index % scopes.length];
-      const grupoSanitarioId = randomUUID();
-      const fechaObjetivo = targetByStatus[status][index];
-      const fechaProgramada = status === 'PROGRAMADA' ? daysFromToday(20 + index) : monthsFromToday(-1);
-      const categoria = activeAnimals[(cursor + index) % activeAnimals.length].categoriaAnimal;
-      const lote = lotes[(cursor + index) % Math.max(lotes.length, 1)];
-      const animalsForScope = [activeAnimals[(cursor + index) % activeAnimals.length]];
-      const selectedAnimals = animalsForScope.length > 0 ? animalsForScope : [activeAnimals[(cursor + index) % activeAnimals.length]];
-      const descripcion = `Seed sanitario ${status} ${tipoSanitario} ${index + 1}`;
+  for (const regla of reglas) {
+    for (const scope of regla.tiposFuncionales) {
+      const year = new Date().getFullYear();
+      const fechaMaxima = regla.periodicidad === PeriodicidadReglaSanitaria.FIJA_MARZO
+        ? new Date(year, 2, 31, 9, 0, 0, 0)
+        : monthsFromToday(6);
 
-      for (const animal of selectedAnimals) {
-        let eventoCierreId: number | null = null;
-        if (status === 'REALIZADA') {
-          const evento = await prisma.evento.create({
-            data: {
+      await prisma.pendienteSanitario.create({
+        data: {
+          reglaSanitariaId: regla.id,
+          tipoFuncional: scope.tipoFuncional,
+          fechaMaxima,
+          estado: EstadoPendienteSanitario.PENDIENTE,
+        },
+      }).catch((error) => {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
+        throw error;
+      });
+    }
+  }
+
+  const reglaTuberculina = reglas.find((regla) => regla.codigo === 'ANALISIS_TUBERCULINA');
+  if (reglaTuberculina) {
+    const tipoFuncional = TipoFuncionalLote.TOROS;
+    const animales = activeAnimals.filter((animal) => animal.lote.tipoFuncional === tipoFuncional);
+    const lotes = Array.from(new Map(animales.map((animal) => [animal.lote.id, animal.lote])).values());
+    if (animales.length > 0) {
+      await prisma.aplicacionSanitaria.create({
+        data: {
+          reglaSanitariaId: reglaTuberculina.id,
+          tipoFuncional,
+          fechaRealizacion: monthsFromToday(-2),
+          fechaMaximaCorrespondiente: monthsFromToday(-2),
+          usuarioId,
+          observaciones: `${SEED_PREFIX}: análisis anual realizado`,
+          lotesSnapshot: lotes.map((lote) => ({
+            id: lote.id,
+            nombre: lote.nombre,
+            tipoFuncional: lote.tipoFuncional,
+            animales: animales
+              .filter((animal) => animal.loteId === lote.id)
+              .map((animal) => ({ id: animal.id, caravana: animal.caravana, categoriaAnimal: animal.categoriaAnimal })),
+          })),
+          animales: {
+            create: animales.map((animal) => ({
               animalId: animal.id,
-              usuarioId,
-              tipo: TipoEvento.VACUNACION,
-              fecha: fechaProgramada,
-              observaciones: descripcion,
-              datosJson: { tipoSanitario },
-            },
-          });
-          eventoCierreId = evento.id;
-        }
-
-        await prisma.agendaTarea.create({
-          data: {
-            animalId: animal.id,
-            usuarioId,
-            tipo: TipoTarea.VACUNACION,
-            fechaProgramada,
-            fechaObjetivo,
-            fechaRealizacion: status === 'REALIZADA' ? fechaProgramada : null,
-            estado: status === 'REALIZADA' ? 'REALIZADA' : 'PENDIENTE',
-            descripcion,
-            tipoSanitario,
-            alcanceTipo: scope,
-            alcanceLoteId: scope === 'LOTE' ? animal.loteId : null,
-            alcanceCategoria: scope === 'CATEGORIA' ? categoria : null,
-            grupoSanitarioId,
-            cantidadAnimalesAlcanzados: selectedAnimals.length,
-            eventoCierreId,
+              caravanaSnapshot: animal.caravana,
+              categoriaSnapshot: animal.categoriaAnimal,
+              loteSnapshot: animal.lote.nombre,
+              tipoFuncionalSnapshot: animal.lote.tipoFuncional,
+            })),
           },
-        });
-      }
-      cursor += 1;
+        },
+      });
     }
   }
 }

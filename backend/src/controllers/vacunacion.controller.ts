@@ -1,9 +1,13 @@
 import type { Request, Response } from 'express';
 import {
   getVaccinationSummary,
+  getPendienteSanitarioDetalle,
+  listAplicacionesSanitarias,
+  listPendientesSanitarios,
   listPendingVaccinations,
   listVaccinationHistory,
   listVaccinationEvents,
+  marcarPendienteSanitarioRealizado,
   markVaccinationAsPerformed,
   markVaccinationsAsPerformedBulk,
   scheduleVaccination,
@@ -31,6 +35,30 @@ export async function getVaccinationSummaryController(_request: Request, respons
   const resumen = await getVaccinationSummary();
 
   response.status(200).json({ resumen });
+}
+
+export async function listPendientesSanitariosController(request: Request, response: Response) {
+  const result = await listPendientesSanitarios(request.query as Record<string, unknown>);
+
+  response.status(200).json(result);
+}
+
+export async function getPendienteSanitarioDetalleController(request: Request, response: Response) {
+  const pendiente = await getPendienteSanitarioDetalle(String(request.params.id));
+
+  response.status(200).json({ pendiente });
+}
+
+export async function marcarPendienteSanitarioRealizadoController(request: Request, response: Response) {
+  const result = await marcarPendienteSanitarioRealizado(String(request.params.id), request.body ?? {}, request.user?.id);
+
+  response.status(200).json(result);
+}
+
+export async function listAplicacionesSanitariasController(request: Request, response: Response) {
+  const result = await listAplicacionesSanitarias(request.query as Record<string, unknown>);
+
+  response.status(200).json(result);
 }
 
 export async function scheduleVaccinationController(request: Request, response: Response) {

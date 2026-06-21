@@ -1,17 +1,20 @@
 import { apiRequest } from './apiClient';
 
 export type TipoReglaSanitaria = 'VACUNA' | 'ANALISIS';
+export type PeriodicidadReglaSanitaria = 'FIJA_MARZO' | 'DINAMICA_ANUAL';
 
 export interface ReglaSanitaria {
   id: number;
   nombre: string;
   codigo: string;
   tipo: TipoReglaSanitaria;
+  periodicidad: PeriodicidadReglaSanitaria;
   mesFijo: number | null;
   frecuenciaMeses: number;
   anticipacionMeses: number;
   activo: boolean;
   observaciones: string | null;
+  tiposFuncionales: Array<{ id: number; tipoFuncional: string }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -20,9 +23,11 @@ export interface ReglaSanitariaFormValues {
   nombre: string;
   codigo: string;
   tipo: TipoReglaSanitaria;
+  periodicidad: PeriodicidadReglaSanitaria;
   mesFijo: string;
   frecuenciaMeses: string;
   anticipacionMeses: string;
+  tiposFuncionales: string[];
   activo: boolean;
   observaciones: string;
 }
@@ -40,9 +45,11 @@ function buildPayload(values: ReglaSanitariaFormValues) {
     nombre: values.nombre,
     codigo: values.codigo,
     tipo: values.tipo,
-    mesFijo: values.mesFijo ? Number(values.mesFijo) : null,
+    periodicidad: values.periodicidad,
+    mesFijo: values.periodicidad === 'FIJA_MARZO' ? 3 : values.mesFijo ? Number(values.mesFijo) : null,
     frecuenciaMeses: Number(values.frecuenciaMeses),
     anticipacionMeses: Number(values.anticipacionMeses),
+    tiposFuncionales: values.tiposFuncionales,
     activo: values.activo,
     observaciones: values.observaciones.trim() || null,
   };

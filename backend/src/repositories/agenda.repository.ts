@@ -44,7 +44,8 @@ export function findAgenda(filters: {
   return prisma.agendaTarea.findMany({
     where: {
       estado: filters.estado,
-      tipo: filters.tipo,
+      tipo: filters.tipo === 'VACUNACION' ? 'VACUNACION' : filters.tipo,
+      NOT: { tipo: 'VACUNACION' },
       animalId: filters.animalId,
       fechaProgramada: {
         gte: filters.fechaDesde,
@@ -58,7 +59,7 @@ export function findAgenda(filters: {
 
 export function findPendingAgenda() {
   return prisma.agendaTarea.findMany({
-    where: { estado: 'PENDIENTE' },
+    where: { estado: 'PENDIENTE', NOT: { tipo: 'VACUNACION' } },
     orderBy: { fechaProgramada: 'asc' },
     include: agendaInclude,
   });
