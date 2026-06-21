@@ -2337,7 +2337,7 @@ a {
 
 .agenda-date-form {
   align-items: end;
-  grid-template-columns: minmax(180px, 240px) minmax(170px, 220px) max-content;
+  grid-template-columns: minmax(180px, 220px) minmax(150px, 190px) minmax(180px, 220px) max-content max-content;
 }
 
 .agenda-date-form input,

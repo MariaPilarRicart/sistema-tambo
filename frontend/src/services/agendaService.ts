@@ -1,5 +1,5 @@
 import { apiRequest } from './apiClient';
-import type { AgendaTarea, CancelAgendaTaskValues, EstadoTareaCalculado } from '../types/agenda';
+import type { AgendaTarea, CancelAgendaTaskValues, EstadoTareaCalculado, TipoTarea } from '../types/agenda';
 
 interface AgendaResponse {
   agenda: AgendaTarea[];
@@ -14,9 +14,10 @@ export async function getAgendaPendiente(token: string) {
   return response.agenda;
 }
 
-export async function getAgenda(token: string, filters: { estado?: EstadoTareaCalculado | '' } = {}) {
+export async function getAgenda(token: string, filters: { estado?: EstadoTareaCalculado | ''; tipo?: TipoTarea | '' } = {}) {
   const params = new URLSearchParams();
   if (filters.estado) params.set('estado', filters.estado);
+  if (filters.tipo) params.set('tipo', filters.tipo);
   const query = params.toString();
   const response = await apiRequest<AgendaResponse>(`/agenda${query ? `?${query}` : ''}`, { token });
   return response.agenda;

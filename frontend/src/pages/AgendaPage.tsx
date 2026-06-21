@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { RefreshCcw } from 'lucide-react';
+import { Download, RefreshCcw } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { ApiError } from '../services/apiClient';
 import { getAgenda } from '../services/agendaService';
 import { AgendaTaskActions } from '../components/ui/AgendaTaskActions';
@@ -11,13 +13,33 @@ import type { AgendaTarea, EstadoTareaCalculado, TipoTarea } from '../types/agen
 import type { AuthUser } from '../types/auth';
 
 const taskOrder: TipoTarea[] = ['TACTO', 'SECADO', 'PARTO', 'ALTA_POST_PARTO', 'VACUNACION', 'CONTROL_CLINICO'];
+const taskLabels: Record<TipoTarea, string> = {
+  TACTO: 'Tacto',
+  SECADO: 'Secado',
+  PARTO: 'Parto',
+  ALTA_POST_PARTO: 'Alta post parto',
+  VACUNACION: 'Vacunación',
+  CONTROL_CLINICO: 'Control clínico',
+};
+const taskTypeOptions: Array<{ value: '' | TipoTarea; label: string }> = [
+  { value: '', label: 'Todos' },
+  ...taskOrder.map((tipo) => ({ value: tipo, label: taskLabels[tipo] })),
+];
 const statusOptions: Array<{ value: '' | EstadoTareaCalculado; label: string }> = [
   { value: '', label: 'Todos' },
   { value: 'PENDIENTE', label: 'Pendiente' },
+  { value: 'PROGRAMADA', label: 'Programada' },
   { value: 'REALIZADA', label: 'Realizada' },
   { value: 'VENCIDA', label: 'Vencida' },
   { value: 'CANCELADA', label: 'Cancelada' },
 ];
+const statusLabels: Record<EstadoTareaCalculado, string> = {
+  PENDIENTE: 'Pendiente',
+  PROGRAMADA: 'Programada',
+  REALIZADA: 'Realizada',
+  VENCIDA: 'Vencida',
+  CANCELADA: 'Cancelada',
+};
 const today = new Date().toISOString().slice(0, 10);
 
 function dateOnly(value: string) {
@@ -53,11 +75,12 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
   const [agenda, setAgenda] = useState<AgendaTarea[]>([]);
   const [selectedDate, setSelectedDate] = useState(today);
   const [selectedStatus, setSelectedStatus] = useState<'' | EstadoTareaCalculado>('');
+  const [selectedType, setSelectedType] = useState<'' | TipoTarea>('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const agendaVisible = useMemo(() => {
-    const tipoFilter = searchParams.get('tipo') as TipoTarea | null;
+    const tipoFilter = selectedType || searchParams.get('tipo') as TipoTarea | null;
     const estadoFilter = selectedStatus || searchParams.get('estado');
     const fechaDesde = searchParams.get('fechaDesde');
     const fechaHasta = searchParams.get('fechaHasta');
@@ -80,7 +103,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
           (task) => `${task.tipo} ${task.animal.caravana}`,
         ),
       );
-  }, [agenda, searchParams, selectedStatus]);
+  }, [agenda, searchParams, selectedStatus, selectedType]);
 
   const agendaDelDia = useMemo(
     () => agendaVisible.filter((task) => taskMatchesRange(task, selectedDate, selectedDate)),
@@ -105,7 +128,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     setError('');
 
     try {
-      setAgenda(await getAgenda(authToken, { estado: selectedStatus }));
+      setAgenda(await getAgenda(authToken, { estado: selectedStatus, tipo: selectedType }));
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.statusCode === 401) {
         onUnauthorized();
@@ -120,7 +143,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
   useEffect(() => {
     void loadAgenda();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken, selectedStatus]);
+  }, [authToken, selectedStatus, selectedType]);
 
   useEffect(() => {
     const fechaDesde = searchParams.get('fechaDesde');
@@ -128,8 +151,60 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     if (fechaDesde && fechaDesde === fechaHasta) setSelectedDate(fechaDesde);
   }, [searchParams]);
 
-  useDataChangedRefresh(() => loadAgenda(), [authToken, selectedStatus]);
+  useDataChangedRefresh(() => loadAgenda(), [authToken, selectedStatus, selectedType]);
   useScrollToSection(searchParams.get('tipo') || searchParams.get('estado') ? 'agenda-listado-section' : null, [searchParams, agendaVisible.length]);
+
+  function exportAgendaPdf() {
+    if (agendaDelDia.length === 0) {
+      setError('No hay tareas para exportar con los filtros seleccionados.');
+      return;
+    }
+
+    setError('');
+    const doc = new jsPDF();
+    const generatedDate = new Date().toLocaleDateString('es-AR');
+    const selectedStatusLabel = selectedStatus ? statusLabels[selectedStatus] : 'Todos';
+    const selectedTypeLabel = selectedType ? taskLabels[selectedType] : 'Todos';
+
+    doc.setFontSize(16);
+    doc.text('Agenda pendiente', 14, 16);
+    doc.setFontSize(10);
+    doc.text(`Fecha: ${formatDate(selectedDate)}`, 14, 25);
+    doc.text(`Estado: ${selectedStatusLabel}`, 14, 31);
+    doc.text(`Tipo de tarea: ${selectedTypeLabel}`, 14, 37);
+    doc.text(`Generado el: ${generatedDate}`, 14, 43);
+
+    let startY = 52;
+    const groups = selectedType
+      ? [{ tipo: selectedType, tasks: agendaDelDia.filter((task) => task.tipo === selectedType) }]
+      : taskOrder
+        .map((tipo) => ({ tipo, tasks: agendaDelDia.filter((task) => task.tipo === tipo) }))
+        .filter((group) => group.tasks.length > 0);
+
+    groups.forEach((group) => {
+      doc.setFontSize(12);
+      doc.text(taskLabels[group.tipo].toUpperCase(), 14, startY);
+      autoTable(doc, {
+        startY: startY + 4,
+        head: [['Fecha', 'Tarea', 'Animal / Caravana', 'Categoría', 'Lote', 'Estado']],
+        body: group.tasks.map((task) => [
+          formatDate(task.fechaObjetivo ?? task.fechaProgramada),
+          taskLabels[task.tipo],
+          task.animal?.caravana ? `#${task.animal.caravana}` : '-',
+          task.animal?.categoriaAnimal ?? '-',
+          task.animal?.lote?.nombre ?? '-',
+          statusLabels[task.estadoCalculado] ?? task.estadoCalculado,
+        ]),
+        styles: { fontSize: 8, cellPadding: 2 },
+        headStyles: { fillColor: [5, 150, 105] },
+      });
+      startY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY
+        ? (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+        : startY + 20;
+    });
+
+    doc.save(`agenda-${selectedDate}.pdf`);
+  }
 
   return (
     <div className="settings-page">
@@ -158,7 +233,14 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
               {statusOptions.map((option) => <option key={option.value || 'todos'} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          <button type="button" className="secondary-button" onClick={() => { setSelectedDate(today); setSelectedStatus(''); }}>Limpiar</button>
+          <label className="filter-field">
+            <span>Tipo de tarea</span>
+            <select value={selectedType} onChange={(event) => setSelectedType(event.target.value as '' | TipoTarea)}>
+              {taskTypeOptions.map((option) => <option key={option.value || 'todos'} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <button type="button" className="secondary-button" onClick={() => { setSelectedDate(today); setSelectedStatus(''); setSelectedType(''); }}>Limpiar</button>
+          <button type="button" className="secondary-button" onClick={exportAgendaPdf}><Download size={16} />Exportar PDF</button>
         </form>
       </section>
 
