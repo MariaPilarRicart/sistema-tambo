@@ -4,6 +4,7 @@ import { CalendarPlus, Eye, Trash2, X } from 'lucide-react';
 import { cancelAgendaTask } from '../../services/agendaService';
 import { ApiError } from '../../services/apiClient';
 import { createEvento } from '../../services/eventosService';
+import { getEstadoOperativoAgenda, isOpenAgendaStatus } from '../../utils/agendaStatus';
 import type { AgendaTarea, TipoTarea } from '../../types/agenda';
 import type { AuthUser } from '../../types/auth';
 import type { EventoFormValues, TipoEvento } from '../../types/eventos';
@@ -70,7 +71,9 @@ export function AgendaTaskActions({
   const [isSaving, setIsSaving] = useState(false);
 
   const isAdmin = currentUser?.role === 'ADMIN';
-  const canAct = task.estadoCalculado === 'PENDIENTE';
+  const estadoOperativo = getEstadoOperativoAgenda(task);
+  const canRegisterEvent = estadoOperativo === 'PENDIENTE';
+  const canCancelTask = isOpenAgendaStatus(estadoOperativo);
 
   function handleRequestError(requestError: unknown, fallback: string) {
     if (requestError instanceof ApiError && requestError.statusCode === 401) {
@@ -143,12 +146,12 @@ export function AgendaTaskActions({
         >
           <Eye size={16} />
         </Link>
-        {canAct && showEventAction && (
+        {canRegisterEvent && showEventAction && (
           <button type="button" onClick={openEventModal} aria-label={`Registrar evento ${task.tipo}`}>
             <CalendarPlus size={16} />
           </button>
         )}
-        {canAct && isAdmin && (
+        {canCancelTask && isAdmin && (
           <button type="button" onClick={() => setMode('cancel')} aria-label={`Cancelar tarea ${task.tipo}`}>
             <Trash2 size={16} />
           </button>
@@ -243,7 +246,7 @@ export function AgendaTaskActions({
           <section className="modal-panel">
             <div className="panel-header">
               <div>
-                <h2>Cancelar tarea</h2>
+                <h2>Quitar tarea de agenda</h2>
                 <p>#{task.animal.caravana} · {task.tipo}</p>
               </div>
               <button type="button" className="icon-button" onClick={closeModal} aria-label="Cerrar modal">
@@ -252,7 +255,9 @@ export function AgendaTaskActions({
             </div>
             <form className="user-form" onSubmit={handleCancelSubmit}>
               <div className="form-warning">
-                La tarea quedara CANCELADA. No se modificaran eventos existentes ni se borrara historial.
+                ¿Querés quitar esta tarea de la agenda operativa?
+                <br />
+                Esta acción no elimina eventos del animal, solo quita la tarea abierta de la agenda.
               </div>
               <label>
                 <span>Observacion opcional</span>

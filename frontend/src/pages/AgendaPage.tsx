@@ -7,6 +7,14 @@ import { getAgenda } from '../services/agendaService';
 import { AgendaTaskActions } from '../components/ui/AgendaTaskActions';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
 import { formatDate, statusClass } from '../utils/display';
+import {
+  agendaDateOnly,
+  agendaStatusLabels,
+  agendaStatusSortOrder,
+  getAgendaTaskDate,
+  getEstadoOperativoAgenda,
+  isOpenAgendaStatus,
+} from '../utils/agendaStatus';
 import type { AgendaTarea, EstadoTareaCalculado, TipoTarea } from '../types/agenda';
 import type { AuthUser } from '../types/auth';
 
@@ -27,43 +35,18 @@ const statusOptions: Array<{ value: '' | EstadoTareaCalculado; label: string }> 
   { value: '', label: 'Todos' },
   { value: 'PENDIENTE', label: 'Pendiente' },
   { value: 'PROGRAMADA', label: 'Programada' },
-  { value: 'REALIZADA', label: 'Realizada' },
   { value: 'VENCIDA', label: 'Vencida' },
+  { value: 'REALIZADA', label: 'Realizada' },
   { value: 'CANCELADA', label: 'Cancelada' },
 ];
-const statusLabels: Record<EstadoTareaCalculado, string> = {
-  PENDIENTE: 'Pendiente',
-  PROGRAMADA: 'Programada',
-  REALIZADA: 'Realizada',
-  VENCIDA: 'Vencida',
-  CANCELADA: 'Cancelada',
-};
-const openStatuses: EstadoTareaCalculado[] = ['PENDIENTE', 'PROGRAMADA', 'VENCIDA'];
-const statusSortOrder: Record<EstadoTareaCalculado, number> = {
-  VENCIDA: 0,
-  PENDIENTE: 1,
-  PROGRAMADA: 1,
-  REALIZADA: 2,
-  CANCELADA: 3,
-};
-
-function dateOnly(value: string) {
-  return value.slice(0, 10);
-}
-
 function taskMatchesRange(task: AgendaTarea, fechaDesde?: string | null, fechaHasta?: string | null) {
   if (!fechaDesde && !fechaHasta) return true;
-  const fechaProgramada = dateOnly(task.fechaProgramada);
-  const fechaObjetivo = dateOnly(task.fechaObjetivo ?? task.fechaProgramada);
-  const fechaRealizada = task.fechaRealizacion ? dateOnly(task.fechaRealizacion) : null;
+  const estadoOperativo = getEstadoOperativoAgenda(task);
+  const fechaRealizada = task.fechaRealizacion ? agendaDateOnly(task.fechaRealizacion) : null;
+  const referenceDate = estadoOperativo === 'REALIZADA' && fechaRealizada
+    ? fechaRealizada
+    : agendaDateOnly(getAgendaTaskDate(task));
 
-  if (task.estadoCalculado === 'PENDIENTE') {
-    if (fechaDesde && fechaObjetivo < fechaDesde) return false;
-    if (fechaHasta && fechaProgramada > fechaHasta) return false;
-    return true;
-  }
-
-  const referenceDate = task.estadoCalculado === 'REALIZADA' && fechaRealizada ? fechaRealizada : fechaObjetivo;
   if (fechaDesde && referenceDate < fechaDesde) return false;
   if (fechaHasta && referenceDate > fechaHasta) return false;
   return true;
@@ -75,10 +58,6 @@ function friendlyValue(value: string | null | undefined) {
     .toLowerCase()
     .replace(/_/g, ' ')
     .replace(/^\w/, (letter) => letter.toUpperCase());
-}
-
-function taskDate(task: AgendaTarea) {
-  return task.fechaObjetivo ?? task.fechaProgramada;
 }
 
 function fileSlug(value: string) {
@@ -107,19 +86,22 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
   const filteredTasks = useMemo(() => {
     return agenda
       .filter((task) => {
+        const estadoOperativo = getEstadoOperativoAgenda(task);
         if (selectedType && task.tipo !== selectedType) return false;
         if (selectedStatus) {
-          if (task.estadoCalculado !== selectedStatus) return false;
-        } else if (!openStatuses.includes(task.estadoCalculado)) {
+          if (estadoOperativo !== selectedStatus) return false;
+        } else if (!isOpenAgendaStatus(estadoOperativo)) {
           return false;
         }
         if (selectedDate && !taskMatchesRange(task, selectedDate, selectedDate)) return false;
         return true;
       })
       .sort((left, right) => {
-        const statusDiff = statusSortOrder[left.estadoCalculado] - statusSortOrder[right.estadoCalculado];
+        const leftStatus = getEstadoOperativoAgenda(left);
+        const rightStatus = getEstadoOperativoAgenda(right);
+        const statusDiff = agendaStatusSortOrder[leftStatus] - agendaStatusSortOrder[rightStatus];
         if (statusDiff !== 0) return statusDiff;
-        const dateDiff = new Date(taskDate(left)).getTime() - new Date(taskDate(right)).getTime();
+        const dateDiff = new Date(getAgendaTaskDate(left)).getTime() - new Date(getAgendaTaskDate(right)).getTime();
         if (dateDiff !== 0) return dateDiff;
         return `${left.tipo} ${left.animal?.caravana ?? ''}`.localeCompare(`${right.tipo} ${right.animal?.caravana ?? ''}`);
       });
@@ -133,7 +115,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     setError('');
 
     try {
-      setAgenda(await getAgenda(authToken, { estado: selectedStatus, tipo: selectedType }));
+      setAgenda(await getAgenda(authToken, { tipo: selectedType }));
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.statusCode === 401) {
         onUnauthorized();
@@ -148,9 +130,9 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
   useEffect(() => {
     void loadAgenda();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken, selectedStatus, selectedType]);
+  }, [authToken, selectedType]);
 
-  useDataChangedRefresh(() => loadAgenda(), [authToken, selectedStatus, selectedType]);
+  useDataChangedRefresh(() => loadAgenda(), [authToken, selectedType]);
 
   function exportAgendaPdf() {
     if (filteredTasks.length === 0) {
@@ -161,7 +143,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     setError('');
     const doc = new jsPDF();
     const generatedDate = new Date().toLocaleDateString('es-AR');
-    const selectedStatusLabel = selectedStatus ? statusLabels[selectedStatus] : 'Todos';
+    const selectedStatusLabel = selectedStatus ? agendaStatusLabels[selectedStatus] : 'Todos';
     const selectedTypeLabel = selectedType ? taskLabels[selectedType] : 'Todos';
     const selectedDateLabel = selectedDate ? formatDate(selectedDate) : 'Todas';
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -195,12 +177,12 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
       startY: 66,
       head: [['Fecha', 'Tipo de tarea', 'Animal / Caravana', 'Categoría', 'Lote', 'Estado']],
       body: filteredTasks.map((task) => [
-        formatDate(taskDate(task)),
+        formatDate(getAgendaTaskDate(task)),
         taskLabels[task.tipo],
         task.animal?.caravana ? `#${task.animal.caravana}` : '-',
         friendlyValue(task.animal?.categoriaAnimal),
         task.animal?.lote?.nombre ?? '-',
-        statusLabels[task.estadoCalculado] ?? task.estadoCalculado,
+        agendaStatusLabels[getEstadoOperativoAgenda(task)] ?? getEstadoOperativoAgenda(task),
       ]),
       margin: { left: 14, right: 14 },
       styles: {
@@ -298,12 +280,16 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
               <tbody>
                 {filteredTasks.map((task) => (
                   <tr key={task.id}>
-                    <td>{formatDate(taskDate(task))}</td>
+                    <td>{formatDate(getAgendaTaskDate(task))}</td>
                     <td>{taskLabels[task.tipo]}</td>
                     <td>{task.animal?.caravana ? `#${task.animal.caravana}` : '-'}</td>
                     <td>{friendlyValue(task.animal?.categoriaAnimal)}</td>
                     <td>{task.animal?.lote?.nombre ?? '-'}</td>
-                    <td><span className={`status-pill ${statusClass(task.estadoCalculado)}`}>{statusLabels[task.estadoCalculado] ?? task.estadoCalculado}</span></td>
+                    <td>
+                      <span className={`status-pill ${statusClass(getEstadoOperativoAgenda(task))}`}>
+                        {agendaStatusLabels[getEstadoOperativoAgenda(task)] ?? getEstadoOperativoAgenda(task)}
+                      </span>
+                    </td>
                     <td>
                       <AgendaTaskActions
                         authToken={authToken}
