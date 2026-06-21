@@ -86,7 +86,7 @@ const emptyEventoForm: EventoFormValues = {
   cambioLoteDestinoId: '',
   cantidadCrias: 1,
   guacheraLoteId: '',
-  crias: [{ categoria: 'TERNERA', estadoNacimiento: 'VIVA', caravana: '', observacion: '' }],
+  crias: [{ categoria: 'TERNERA', estadoNacimiento: 'VIVA', caravana: '', loteId: '', observacion: '' }],
 };
 
 const emptyDeactivateForm: AnimalDeactivateValues = {
@@ -234,9 +234,15 @@ function getCompatibleLoteTypesForAnimal(animal: Animal): TipoFuncionalLote[] {
   return [];
 }
 
-function buildCrias(cantidadCrias: 1 | 2 | 3, current: EventoFormValues['crias']) {
+function buildCrias(cantidadCrias: 1 | 2 | 3, current: EventoFormValues['crias'], defaultLoteId = '') {
   return Array.from({ length: cantidadCrias }, (_, index) => (
-    current[index] ?? { categoria: 'TERNERA', estadoNacimiento: 'VIVA', caravana: '', observacion: '' }
+    current[index] ?? { categoria: 'TERNERA', estadoNacimiento: 'VIVA', caravana: '', loteId: defaultLoteId, observacion: '' }
+  ));
+}
+
+function applyDefaultLoteToLiveCrias(crias: EventoFormValues['crias'], loteId: string) {
+  return crias.map((cria) => (
+    cria.estadoNacimiento === 'VIVA' ? { ...cria, loteId } : cria
   ));
 }
 
@@ -920,12 +926,16 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                   onChange={(event) => {
                     const nextTipo = event.target.value as TipoEvento | '';
                     const guacheraLotes = activeLotes.filter((lote) => lote.tipoFuncional === 'GUACHERA');
+                    const defaultGuacheraId = nextTipo === 'PARTO' && guacheraLotes.length === 1
+                      ? String(guacheraLotes[0].id)
+                      : eventFormValues.guacheraLoteId;
                     setEventFormValues({
                       ...eventFormValues,
                       tipo: nextTipo,
-                      guacheraLoteId: nextTipo === 'PARTO' && guacheraLotes.length === 1
-                        ? String(guacheraLotes[0].id)
-                        : eventFormValues.guacheraLoteId,
+                      guacheraLoteId: defaultGuacheraId,
+                      crias: nextTipo === 'PARTO'
+                        ? applyDefaultLoteToLiveCrias(eventFormValues.crias, defaultGuacheraId)
+                        : eventFormValues.crias,
                     });
                   }}
                   required
@@ -990,7 +1000,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                         setEventFormValues({
                           ...eventFormValues,
                           cantidadCrias,
-                          crias: buildCrias(cantidadCrias, eventFormValues.crias),
+                          crias: buildCrias(cantidadCrias, eventFormValues.crias, eventFormValues.guacheraLoteId),
                         });
                       }}
                     >
@@ -1003,8 +1013,14 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                     <span>Lote Guachera para crías vivas</span>
                     <select
                       value={eventFormValues.guacheraLoteId}
-                      onChange={(event) => setEventFormValues({ ...eventFormValues, guacheraLoteId: event.target.value })}
-                      required={eventFormValues.crias.some((cria) => cria.estadoNacimiento === 'VIVA')}
+                      onChange={(event) => {
+                        const loteId = event.target.value;
+                        setEventFormValues({
+                          ...eventFormValues,
+                          guacheraLoteId: loteId,
+                          crias: applyDefaultLoteToLiveCrias(eventFormValues.crias, loteId),
+                        });
+                      }}
                     >
                       <option value="">Seleccionar Guachera</option>
                       {activeLotes
@@ -1015,16 +1031,13 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                   {activeLotes.every((lote) => lote.tipoFuncional !== 'GUACHERA') && (
                     <div className="form-error">No existe un lote Guachera activo para registrar crías vivas.</div>
                   )}
-                  <div className="form-warning">
-                    La caravana es obligatoria para crías nacidas vivas.
-                  </div>
-                  <div className="form-warning">
+                  <p className="field-help">
                     Las crías nacidas muertas se registran en el parto, pero no se agregan al Rodeo.
-                  </div>
+                  </p>
                   {eventFormValues.crias.map((cria, index) => (
                     <div className="form-subsection" key={index}>
                       <label>
-                        <span>Cría {index + 1}</span>
+                        <span>Cría {index + 1} - Sexo / Categoría</span>
                         <select
                           value={cria.categoria}
                           onChange={(event) => {
@@ -1043,7 +1056,12 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                           value={cria.estadoNacimiento}
                           onChange={(event) => {
                             const crias = [...eventFormValues.crias];
-                            crias[index] = { ...cria, estadoNacimiento: event.target.value as 'VIVA' | 'MUERTA' };
+                            const estadoNacimiento = event.target.value as 'VIVA' | 'MUERTA';
+                            crias[index] = {
+                              ...cria,
+                              estadoNacimiento,
+                              loteId: estadoNacimiento === 'VIVA' ? cria.loteId || eventFormValues.guacheraLoteId : '',
+                            };
                             setEventFormValues({ ...eventFormValues, crias });
                           }}
                         >
@@ -1061,8 +1079,26 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                             setEventFormValues({ ...eventFormValues, crias });
                           }}
                           required={cria.estadoNacimiento === 'VIVA'}
-                          placeholder={cria.estadoNacimiento === 'VIVA' ? 'Obligatoria' : 'Opcional'}
+                          placeholder={cria.estadoNacimiento === 'VIVA' ? 'Ingresar caravana' : 'Opcional'}
                         />
+                      </label>
+                      <label>
+                        <span>Lote destino</span>
+                        <select
+                          value={cria.estadoNacimiento === 'VIVA' ? cria.loteId : ''}
+                          onChange={(event) => {
+                            const crias = [...eventFormValues.crias];
+                            crias[index] = { ...cria, loteId: event.target.value };
+                            setEventFormValues({ ...eventFormValues, crias });
+                          }}
+                          required={cria.estadoNacimiento === 'VIVA'}
+                          disabled={cria.estadoNacimiento === 'MUERTA'}
+                        >
+                          <option value="">{cria.estadoNacimiento === 'VIVA' ? 'Seleccionar lote destino' : 'No aplica'}</option>
+                          {activeLotes
+                            .filter((lote) => lote.tipoFuncional === 'GUACHERA')
+                            .map((lote) => <option key={lote.id} value={lote.id}>{lote.nombre}</option>)}
+                        </select>
                       </label>
                       <label>
                         <span>Observación</span>

@@ -60,6 +60,7 @@ export interface EventoFormValues {
     categoria: 'TERNERO' | 'TERNERA';
     estadoNacimiento: 'VIVA' | 'MUERTA';
     caravana: string;
+    loteId: string;
     observacion: string;
   }>;
 }

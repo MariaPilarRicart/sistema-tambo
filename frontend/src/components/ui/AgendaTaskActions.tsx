@@ -26,7 +26,7 @@ function buildEventForm(task: AgendaTarea): EventoFormValues {
     cambioLoteDestinoId: '',
     cantidadCrias: 1,
     guacheraLoteId: '',
-    crias: [{ categoria: 'TERNERA', estadoNacimiento: 'VIVA', caravana: '', observacion: '' }],
+    crias: [{ categoria: 'TERNERA', estadoNacimiento: 'VIVA', caravana: '', loteId: '', observacion: '' }],
   };
 }
 

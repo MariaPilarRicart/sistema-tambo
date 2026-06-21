@@ -144,11 +144,22 @@ function getPartoPayload(datosJson: unknown) {
       throw new AppError('La caravana es obligatoria para crias nacidas vivas.', 400);
     }
 
+    const loteId = estadoNacimiento === 'VIVA'
+      ? (cria?.loteId === undefined || cria.loteId === null || cria.loteId === ''
+        ? guacheraLoteId
+        : parseId(cria.loteId, `loteId de cria ${index + 1}`))
+      : null;
+
+    if (estadoNacimiento === 'VIVA' && !loteId) {
+      throw new AppError('Selecciona el lote destino para la cria viva.', 400);
+    }
+
     return {
       numero: index + 1,
       categoria,
       estadoNacimiento,
       caravana: caravana || null,
+      loteId,
       observacion: observacion || null,
     };
   });
@@ -339,14 +350,18 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
       partoPayload = getPartoPayload(datosJson);
       const vivas = partoPayload.crias.filter((cria) => cria.estadoNacimiento === 'VIVA');
 
-      if (vivas.length > 0 && !partoPayload.guacheraLoteId) {
-        throw new AppError('Debe seleccionar un lote Guachera activo para registrar crias vivas.', 400);
-      }
-
       if (partoPayload.guacheraLoteId) {
         const guachera = await findActiveLoteByIdOrThrow(tx, partoPayload.guacheraLoteId);
         if (guachera.tipoFuncional !== TipoFuncionalLote.GUACHERA) {
           throw new AppError('El lote de crias vivas debe ser de tipo funcional GUACHERA.', 400);
+        }
+      }
+
+      const loteIdsVivos = Array.from(new Set(vivas.map((cria) => cria.loteId!)));
+      for (const loteId of loteIdsVivos) {
+        const guachera = await findActiveLoteByIdOrThrow(tx, loteId);
+        if (guachera.tipoFuncional !== TipoFuncionalLote.GUACHERA) {
+          throw new AppError('El lote destino de cada cria viva debe ser de tipo funcional GUACHERA.', 400);
         }
       }
 
@@ -608,7 +623,7 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
                 estadoReproductivo: EstadoReproductivo.NO_APLICA,
                 estadoAnimal: EstadoAnimal.ACTIVO,
                 activo: true,
-                loteId: partoPayload.guacheraLoteId!,
+                loteId: cria.loteId!,
                 madreId: animalId,
                 padreNombre: null,
               },
