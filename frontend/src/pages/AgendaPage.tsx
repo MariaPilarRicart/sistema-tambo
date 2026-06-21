@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { Download, RefreshCcw } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -7,8 +6,7 @@ import { ApiError } from '../services/apiClient';
 import { getAgenda } from '../services/agendaService';
 import { AgendaTaskActions } from '../components/ui/AgendaTaskActions';
 import { useDataChangedRefresh } from '../hooks/useDataChangedRefresh';
-import { useScrollToSection } from '../hooks/useScrollToSection';
-import { compareByDateStatusName, formatDate, statusClass } from '../utils/display';
+import { formatDate, statusClass } from '../utils/display';
 import type { AgendaTarea, EstadoTareaCalculado, TipoTarea } from '../types/agenda';
 import type { AuthUser } from '../types/auth';
 
@@ -40,7 +38,14 @@ const statusLabels: Record<EstadoTareaCalculado, string> = {
   VENCIDA: 'Vencida',
   CANCELADA: 'Cancelada',
 };
-const today = new Date().toISOString().slice(0, 10);
+const openStatuses: EstadoTareaCalculado[] = ['PENDIENTE', 'PROGRAMADA', 'VENCIDA'];
+const statusSortOrder: Record<EstadoTareaCalculado, number> = {
+  VENCIDA: 0,
+  PENDIENTE: 1,
+  PROGRAMADA: 1,
+  REALIZADA: 2,
+  CANCELADA: 3,
+};
 
 function dateOnly(value: string) {
   return value.slice(0, 10);
@@ -64,6 +69,18 @@ function taskMatchesRange(task: AgendaTarea, fechaDesde?: string | null, fechaHa
   return true;
 }
 
+function friendlyValue(value: string | null | undefined) {
+  if (!value) return '-';
+  return value
+    .toLowerCase()
+    .replace(/_/g, ' ')
+    .replace(/^\w/, (letter) => letter.toUpperCase());
+}
+
+function taskDate(task: AgendaTarea) {
+  return task.fechaObjetivo ?? task.fechaProgramada;
+}
+
 interface AgendaPageProps {
   authToken: string | null;
   currentUser: AuthUser | null;
@@ -71,56 +88,35 @@ interface AgendaPageProps {
 }
 
 export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPageProps) {
-  const [searchParams] = useSearchParams();
   const [agenda, setAgenda] = useState<AgendaTarea[]>([]);
-  const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedDate, setSelectedDate] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<'' | EstadoTareaCalculado>('');
   const [selectedType, setSelectedType] = useState<'' | TipoTarea>('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const agendaVisible = useMemo(() => {
-    const tipoFilter = selectedType || searchParams.get('tipo') as TipoTarea | null;
-    const estadoFilter = selectedStatus || searchParams.get('estado');
-    const fechaDesde = searchParams.get('fechaDesde');
-    const fechaHasta = searchParams.get('fechaHasta');
-    const excluirTipo = searchParams.get('excluirTipo') as TipoTarea | null;
-
+  const filteredTasks = useMemo(() => {
     return agenda
       .filter((task) => {
-        if (tipoFilter && taskOrder.includes(tipoFilter) && task.tipo !== tipoFilter) return false;
-        if (excluirTipo && task.tipo === excluirTipo) return false;
-        if (estadoFilter && task.estadoCalculado !== estadoFilter) return false;
-        if (!taskMatchesRange(task, fechaDesde, fechaHasta)) return false;
+        if (selectedType && task.tipo !== selectedType) return false;
+        if (selectedStatus) {
+          if (task.estadoCalculado !== selectedStatus) return false;
+        } else if (!openStatuses.includes(task.estadoCalculado)) {
+          return false;
+        }
+        if (selectedDate && !taskMatchesRange(task, selectedDate, selectedDate)) return false;
         return true;
       })
-      .sort((left, right) =>
-        compareByDateStatusName(
-          left,
-          right,
-          (task) => task.fechaObjetivo ?? task.fechaProgramada,
-          (task) => task.estadoCalculado,
-          (task) => `${task.tipo} ${task.animal.caravana}`,
-        ),
-      );
-  }, [agenda, searchParams, selectedStatus, selectedType]);
+      .sort((left, right) => {
+        const statusDiff = statusSortOrder[left.estadoCalculado] - statusSortOrder[right.estadoCalculado];
+        if (statusDiff !== 0) return statusDiff;
+        const dateDiff = new Date(taskDate(left)).getTime() - new Date(taskDate(right)).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return `${left.tipo} ${left.animal?.caravana ?? ''}`.localeCompare(`${right.tipo} ${right.animal?.caravana ?? ''}`);
+      });
+  }, [agenda, selectedDate, selectedStatus, selectedType]);
 
-  const agendaDelDia = useMemo(
-    () => agendaVisible.filter((task) => taskMatchesRange(task, selectedDate, selectedDate)),
-    [agendaVisible, selectedDate],
-  );
-
-  const groupedAgenda = useMemo(
-    () => (
-      taskOrder
-        .map((tipo) => ({
-          tipo,
-          tasks: agendaVisible.filter((task) => task.tipo === tipo),
-        }))
-        .filter((group) => group.tasks.length > 0)
-    ),
-    [agendaVisible],
-  );
+  const hasFilters = Boolean(selectedDate || selectedStatus || selectedType);
 
   async function loadAgenda() {
     if (!authToken) return;
@@ -145,17 +141,10 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, selectedStatus, selectedType]);
 
-  useEffect(() => {
-    const fechaDesde = searchParams.get('fechaDesde');
-    const fechaHasta = searchParams.get('fechaHasta');
-    if (fechaDesde && fechaDesde === fechaHasta) setSelectedDate(fechaDesde);
-  }, [searchParams]);
-
   useDataChangedRefresh(() => loadAgenda(), [authToken, selectedStatus, selectedType]);
-  useScrollToSection(searchParams.get('tipo') || searchParams.get('estado') ? 'agenda-listado-section' : null, [searchParams, agendaVisible.length]);
 
   function exportAgendaPdf() {
-    if (agendaDelDia.length === 0) {
+    if (filteredTasks.length === 0) {
       setError('No hay tareas para exportar con los filtros seleccionados.');
       return;
     }
@@ -167,43 +156,29 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     const selectedTypeLabel = selectedType ? taskLabels[selectedType] : 'Todos';
 
     doc.setFontSize(16);
-    doc.text('Agenda pendiente', 14, 16);
+    doc.text('Agenda de tareas', 14, 16);
     doc.setFontSize(10);
-    doc.text(`Fecha: ${formatDate(selectedDate)}`, 14, 25);
+    doc.text(`Fecha: ${selectedDate ? formatDate(selectedDate) : 'Todas'}`, 14, 25);
     doc.text(`Estado: ${selectedStatusLabel}`, 14, 31);
     doc.text(`Tipo de tarea: ${selectedTypeLabel}`, 14, 37);
     doc.text(`Generado el: ${generatedDate}`, 14, 43);
 
-    let startY = 52;
-    const groups = selectedType
-      ? [{ tipo: selectedType, tasks: agendaDelDia.filter((task) => task.tipo === selectedType) }]
-      : taskOrder
-        .map((tipo) => ({ tipo, tasks: agendaDelDia.filter((task) => task.tipo === tipo) }))
-        .filter((group) => group.tasks.length > 0);
-
-    groups.forEach((group) => {
-      doc.setFontSize(12);
-      doc.text(taskLabels[group.tipo].toUpperCase(), 14, startY);
-      autoTable(doc, {
-        startY: startY + 4,
-        head: [['Fecha', 'Tarea', 'Animal / Caravana', 'Categoría', 'Lote', 'Estado']],
-        body: group.tasks.map((task) => [
-          formatDate(task.fechaObjetivo ?? task.fechaProgramada),
-          taskLabels[task.tipo],
-          task.animal?.caravana ? `#${task.animal.caravana}` : '-',
-          task.animal?.categoriaAnimal ?? '-',
-          task.animal?.lote?.nombre ?? '-',
-          statusLabels[task.estadoCalculado] ?? task.estadoCalculado,
-        ]),
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: [5, 150, 105] },
-      });
-      startY = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY
-        ? (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
-        : startY + 20;
+    autoTable(doc, {
+      startY: 52,
+      head: [['Fecha', 'Tipo de tarea', 'Animal / Caravana', 'Categoría', 'Lote', 'Estado']],
+      body: filteredTasks.map((task) => [
+        formatDate(taskDate(task)),
+        taskLabels[task.tipo],
+        task.animal?.caravana ? `#${task.animal.caravana}` : '-',
+        friendlyValue(task.animal?.categoriaAnimal),
+        task.animal?.lote?.nombre ?? '-',
+        statusLabels[task.estadoCalculado] ?? task.estadoCalculado,
+      ]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [5, 150, 105] },
     });
 
-    doc.save(`agenda-${selectedDate}.pdf`);
+    doc.save(`agenda-tareas-${selectedDate || 'todas'}.pdf`);
   }
 
   return (
@@ -224,7 +199,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
       <section className="panel herd-filters">
         <form className="filters-form agenda-date-form">
           <label className="filter-field">
-            <span>Seleccionar dia</span>
+            <span>Fecha</span>
             <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
           </label>
           <label className="filter-field">
@@ -239,42 +214,44 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
               {taskTypeOptions.map((option) => <option key={option.value || 'todos'} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          <button type="button" className="secondary-button" onClick={() => { setSelectedDate(today); setSelectedStatus(''); setSelectedType(''); }}>Limpiar</button>
+          <button type="button" className="secondary-button" onClick={() => { setSelectedDate(''); setSelectedStatus(''); setSelectedType(''); }}>Limpiar</button>
           <button type="button" className="secondary-button" onClick={exportAgendaPdf}><Download size={16} />Exportar PDF</button>
         </form>
       </section>
 
-      <section className="panel" id="eventos-section">
+      <section className="panel" id="agenda-listado-section">
         <div className="panel-header">
           <div>
-            <h2>Agenda del dia</h2>
-            <p>{agendaDelDia.length} tareas pendientes para la fecha seleccionada.</p>
+            <h2>Agenda de tareas</h2>
+            <p>{hasFilters ? `${filteredTasks.length} tareas encontradas.` : `${filteredTasks.length} tareas abiertas.`}</p>
           </div>
-          <button type="button" className="icon-button" onClick={() => void loadAgenda()} aria-label="Actualizar agenda del dia">
+          <button type="button" className="icon-button" onClick={() => void loadAgenda()} aria-label="Actualizar agenda de tareas">
             <RefreshCcw size={18} />
           </button>
         </div>
-        {agendaDelDia.length === 0 ? <p className="table-empty">Sin tareas para el dia seleccionado.</p> : (
+        {filteredTasks.length === 0 ? <p className="table-empty">Sin tareas para los filtros seleccionados.</p> : (
           <div className="table-wrap">
             <table className="users-table">
               <thead>
                 <tr>
                   <th>Fecha</th>
-                  <th>Tarea</th>
-                  <th>Animal</th>
+                  <th>Tipo de tarea</th>
+                  <th>Animal / Caravana</th>
+                  <th>Categoría</th>
                   <th>Lote</th>
                   <th>Estado</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {agendaDelDia.map((task) => (
+                {filteredTasks.map((task) => (
                   <tr key={task.id}>
-                    <td>{formatDate(task.fechaObjetivo ?? task.fechaProgramada)}</td>
-                    <td>{task.tipo}</td>
-                    <td><strong>#{task.animal.caravana}</strong><span>{task.animal.categoriaAnimal}</span></td>
-                    <td>{task.animal.lote.nombre}</td>
-                    <td><span className={`status-pill ${statusClass(task.estadoCalculado)}`}>{task.estadoCalculado}</span></td>
+                    <td>{formatDate(taskDate(task))}</td>
+                    <td>{taskLabels[task.tipo]}</td>
+                    <td>{task.animal?.caravana ? `#${task.animal.caravana}` : '-'}</td>
+                    <td>{friendlyValue(task.animal?.categoriaAnimal)}</td>
+                    <td>{task.animal?.lote?.nombre ?? '-'}</td>
+                    <td><span className={`status-pill ${statusClass(task.estadoCalculado)}`}>{statusLabels[task.estadoCalculado] ?? task.estadoCalculado}</span></td>
                     <td>
                       <AgendaTaskActions
                         authToken={authToken}
@@ -293,60 +270,6 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
           </div>
         )}
       </section>
-
-      {!isLoading && groupedAgenda.length === 0 && (
-        <section className="placeholder-page">
-          <h2>Sin tareas pendientes</h2>
-          <p>No hay tareas pendientes para mostrar.</p>
-        </section>
-      )}
-
-      <div className="agenda-groups" id="agenda-listado-section">
-        {groupedAgenda.map((group) => (
-          <section className="panel" key={group.tipo}>
-            <div className="panel-header">
-              <div>
-                <h2>{group.tipo}</h2>
-                <p>{group.tasks.length} tareas pendientes.</p>
-              </div>
-            </div>
-            <div className="table-wrap">
-              <table className="users-table">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Animal</th>
-                    <th>Lote</th>
-                    <th>Estado</th>
-                    <th>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.tasks.map((task) => (
-                    <tr key={task.id}>
-                      <td>{formatDate(task.fechaObjetivo ?? task.fechaProgramada)}</td>
-                      <td><strong>#{task.animal.caravana}</strong><span>{task.animal.categoriaAnimal}</span></td>
-                      <td>{task.animal.lote.nombre}</td>
-                      <td><span className={`status-pill ${statusClass(task.estadoCalculado)}`}>{task.estadoCalculado}</span></td>
-                      <td>
-                        <AgendaTaskActions
-                          authToken={authToken}
-                          currentUser={currentUser}
-                          task={task}
-                          onChanged={() => void loadAgenda()}
-                          onUnauthorized={onUnauthorized}
-                          showEventAction={false}
-                          fichaLinkState={{ from: '/agenda', label: 'Volver a Agenda' }}
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        ))}
-      </div>
     </div>
   );
 }
