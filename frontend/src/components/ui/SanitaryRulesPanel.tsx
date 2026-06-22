@@ -21,6 +21,7 @@ const emptyReglaForm: ReglaSanitariaFormValues = {
   mesFijo: '',
   frecuenciaMeses: '12',
   anticipacionMeses: '1',
+  fechaMaximaInicial: '',
   tiposFuncionales: [],
   activo: true,
   observaciones: '',
@@ -67,7 +68,7 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
   const [reglaFormValues, setReglaFormValues] = useState<ReglaSanitariaFormValues>(emptyReglaForm);
   const [editingRegla, setEditingRegla] = useState<ReglaSanitaria | null>(null);
   const [showReglaModal, setShowReglaModal] = useState(false);
-  const [reglaFilters, setReglaFilters] = useState({ buscar: '', estado: '' as EstadoFilter, tipo: '', frecuencia: '' });
+  const [reglaFilters, setReglaFilters] = useState({ buscar: '', estado: '' as EstadoFilter, tipo: '' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -77,22 +78,16 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
     const query = reglaFilters.buscar.trim().toLowerCase();
     return reglas.filter((regla) => {
       const searchMatch = !query || textIncludes(regla.nombre, query) || textIncludes(regla.codigo, query);
-      const frequencyMatch = !reglaFilters.frecuencia || String(regla.frecuenciaMeses) === reglaFilters.frecuencia;
-      return searchMatch && matchesEstado(regla.activo, reglaFilters.estado) && (!reglaFilters.tipo || regla.tipo === reglaFilters.tipo) && frequencyMatch;
+      return searchMatch && matchesEstado(regla.activo, reglaFilters.estado) && (!reglaFilters.tipo || regla.tipo === reglaFilters.tipo);
     });
   }, [reglas, reglaFilters]);
-
-  const availableFrequencies = useMemo(
-    () => [...new Set(reglas.map((regla) => regla.frecuenciaMeses))].sort((a, b) => a - b),
-    [reglas],
-  );
 
   function handleRequestError(requestError: unknown) {
     if (requestError instanceof ApiError && requestError.statusCode === 401) {
       onUnauthorized();
       return;
     }
-    setError(requestError instanceof Error ? requestError.message : 'No se pudo completar la operación.');
+    setError(requestError instanceof Error ? requestError.message : 'No se pudo actualizar la regla sanitaria. Verificá los datos ingresados.');
   }
 
   async function loadReglas() {
@@ -116,7 +111,7 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
   useDataChangedRefresh(() => loadReglas(), [authToken]);
 
   function clearReglaFilters() {
-    setReglaFilters({ buscar: '', estado: '', tipo: '', frecuencia: '' });
+    setReglaFilters({ buscar: '', estado: '', tipo: '' });
   }
 
   function clearMessages() {
@@ -148,6 +143,7 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
       mesFijo: regla.mesFijo ? String(regla.mesFijo) : '',
       frecuenciaMeses: String(regla.frecuenciaMeses),
       anticipacionMeses: String(regla.anticipacionMeses),
+      fechaMaximaInicial: '',
       tiposFuncionales: regla.tiposFuncionales.map((tipo) => tipo.tipoFuncional),
       activo: regla.activo,
       observaciones: regla.observaciones ?? '',
@@ -167,6 +163,9 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
     setIsSaving(true);
     clearMessages();
     try {
+      if (reglaFormValues.tiposFuncionales.length === 0) {
+        throw new Error('Debe seleccionar al menos un tipo funcional.');
+      }
       if (editingRegla) {
         await updateReglaSanitaria(authToken, editingRegla.id, reglaFormValues);
         resetReglaForm();
@@ -197,6 +196,7 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
         mesFijo: regla.mesFijo ? String(regla.mesFijo) : '',
         frecuenciaMeses: String(regla.frecuenciaMeses),
         anticipacionMeses: String(regla.anticipacionMeses),
+        fechaMaximaInicial: '',
         tiposFuncionales: regla.tiposFuncionales.map((tipo) => tipo.tipoFuncional),
         activo,
         observaciones: regla.observaciones ?? '',
@@ -224,7 +224,6 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
           <label className="filter-field"><span>Buscar</span><input value={reglaFilters.buscar} onChange={(event) => setReglaFilters({ ...reglaFilters, buscar: event.target.value })} placeholder="Nombre o código" /></label>
           <label className="filter-field"><span>Estado</span><select value={reglaFilters.estado} onChange={(event) => setReglaFilters({ ...reglaFilters, estado: event.target.value as EstadoFilter })}><option value="">Todas</option><option value="true">Activa</option><option value="false">Inactiva</option></select></label>
           <label className="filter-field"><span>Tipo</span><select value={reglaFilters.tipo} onChange={(event) => setReglaFilters({ ...reglaFilters, tipo: event.target.value })}><option value="">Todos</option><option value="VACUNA">VACUNA</option><option value="ANALISIS">ANALISIS</option></select></label>
-          <label className="filter-field"><span>Frecuencia</span><select value={reglaFilters.frecuencia} onChange={(event) => setReglaFilters({ ...reglaFilters, frecuencia: event.target.value })}><option value="">Todas</option>{availableFrequencies.map((frecuencia) => <option key={frecuencia} value={frecuencia}>{frecuencia} meses</option>)}</select></label>
           <button type="button" className="secondary-button" onClick={clearReglaFilters}>Limpiar</button>
         </form>
         {isLoading ? <p className="table-empty">Cargando reglas...</p> : (
@@ -249,8 +248,11 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
               <label><span>Código</span><input value={reglaFormValues.codigo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, codigo: event.target.value })} required /></label>
               <label><span>Tipo sanitario</span><select value={reglaFormValues.tipo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, tipo: event.target.value as TipoReglaSanitaria })}><option value="VACUNA">Vacuna</option><option value="ANALISIS">Análisis</option></select></label>
               <label><span>Periodicidad</span><select value={reglaFormValues.periodicidad} onChange={(event) => setReglaFormValues({ ...reglaFormValues, periodicidad: event.target.value as ReglaSanitariaFormValues['periodicidad'] })}><option value="FIJA_MARZO">Fija en marzo</option><option value="DINAMICA_ANUAL">Dinámica anual</option></select></label>
-              <label><span>Frecuencia meses</span><input type="number" min="1" value={reglaFormValues.frecuenciaMeses} onChange={(event) => setReglaFormValues({ ...reglaFormValues, frecuenciaMeses: event.target.value })} required disabled={reglaFormValues.periodicidad === 'FIJA_MARZO'} /></label>
-              <label><span>Anticipación meses</span><input type="number" min="1" value={reglaFormValues.anticipacionMeses} onChange={(event) => setReglaFormValues({ ...reglaFormValues, anticipacionMeses: event.target.value })} required /></label>
+              {reglaFormValues.periodicidad === 'FIJA_MARZO' ? (
+                <p className="field-help animal-form-message">La fecha máxima se genera automáticamente para el 31 de marzo de cada año.</p>
+              ) : (
+                <label><span>Fecha máxima inicial</span><input type="date" value={reglaFormValues.fechaMaximaInicial} onChange={(event) => setReglaFormValues({ ...reglaFormValues, fechaMaximaInicial: event.target.value })} /><small>Después de marcarla como realizada, la próxima fecha se calculará automáticamente un año después de la fecha de realización.</small></label>
+              )}
               <div className="animal-form-message">
                 <span>Tipos funcionales aplicables</span>
                 <div className="checkbox-grid">
@@ -273,6 +275,7 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
               </div>
               {editingRegla && <label><span>Estado</span><select value={reglaFormValues.activo ? 'true' : 'false'} onChange={(event) => setReglaFormValues({ ...reglaFormValues, activo: event.target.value === 'true' })}><option value="true">ACTIVA</option><option value="false">INACTIVA</option></select></label>}
               <label className="animal-form-message"><span>Observaciones</span><textarea rows={3} value={reglaFormValues.observaciones} onChange={(event) => setReglaFormValues({ ...reglaFormValues, observaciones: event.target.value })} /></label>
+              {error && <div className="form-error animal-form-message">{error}</div>}
               <div className="modal-actions animal-form-actions"><button type="button" className="secondary-button" onClick={resetReglaForm}>Cancelar</button><button type="submit" className="primary-button" disabled={isSaving}><Plus size={18} />{isSaving ? 'Guardando...' : 'Guardar'}</button></div>
             </form>
           </section>

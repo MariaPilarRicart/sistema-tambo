@@ -27,6 +27,7 @@ export interface ReglaSanitariaFormValues {
   mesFijo: string;
   frecuenciaMeses: string;
   anticipacionMeses: string;
+  fechaMaximaInicial: string;
   tiposFuncionales: string[];
   activo: boolean;
   observaciones: string;
@@ -49,6 +50,7 @@ function buildPayload(values: ReglaSanitariaFormValues) {
     mesFijo: values.periodicidad === 'FIJA_MARZO' ? 3 : values.mesFijo ? Number(values.mesFijo) : null,
     frecuenciaMeses: Number(values.frecuenciaMeses),
     anticipacionMeses: Number(values.anticipacionMeses),
+    fechaMaximaInicial: values.fechaMaximaInicial || undefined,
     tiposFuncionales: values.tiposFuncionales,
     activo: values.activo,
     observaciones: values.observaciones.trim() || null,

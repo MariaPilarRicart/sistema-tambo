@@ -18,7 +18,7 @@ import {
 import type { AgendaTarea, EstadoTareaCalculado, TipoTarea } from '../types/agenda';
 import type { AuthUser } from '../types/auth';
 
-const taskOrder: TipoTarea[] = ['TACTO', 'SECADO', 'PARTO', 'ALTA_POST_PARTO', 'VACUNACION', 'CONTROL_CLINICO'];
+const taskOrder: TipoTarea[] = ['TACTO', 'SECADO', 'PARTO', 'ALTA_POST_PARTO', 'CONTROL_CLINICO'];
 const taskLabels: Record<TipoTarea, string> = {
   TACTO: 'Tacto',
   SECADO: 'Secado',

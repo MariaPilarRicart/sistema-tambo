@@ -36,8 +36,6 @@ const estadoOptions: Array<[EstadoSanitarioOperativo, string]> = [
   ['PROGRAMADA', 'Programada'],
   ['PENDIENTE', 'Pendiente'],
   ['VENCIDA', 'Vencida'],
-  ['REALIZADA', 'Realizada'],
-  ['CANCELADA', 'Cancelada'],
 ];
 
 const tipoLabels: Record<TipoReglaSanitaria, string> = {
@@ -57,12 +55,12 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function typeLabel(tipoFuncional: string) {
-  return tipoFuncionalOptions.find(([value]) => value === tipoFuncional)?.[1] ?? tipoFuncional;
-}
-
 function fileSlug(value: string) {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+function isOpenSanitaryStatus(status: EstadoSanitarioOperativo) {
+  return status === 'PROGRAMADA' || status === 'PENDIENTE' || status === 'VENCIDA';
 }
 
 function drawPdfHeader(doc: jsPDF, title: string, subtitle: string) {
@@ -172,6 +170,16 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
     }
   }
 
+  async function exportPendingFromRow(pending: SanitaryPending) {
+    if (!authToken) return onUnauthorized();
+    try {
+      const detail = pending.lotes ? pending : await getSanitaryPendingDetail(authToken, pending.id);
+      exportPendingPdf(detail);
+    } catch (detailError) {
+      handleRequestError(detailError, 'No se pudo exportar el pendiente sanitario.');
+    }
+  }
+
   function exportPendingPdf(pending: SanitaryPending) {
     if (!pending.lotes) return;
     const doc = new jsPDF();
@@ -182,7 +190,8 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
     doc.text(`Tipo: ${tipoLabels[pending.tipo]}`, 18, 43);
     doc.text(`Fecha máxima: ${formatDate(pending.fechaMaxima)}`, 18, 51);
     doc.text(`Tipo funcional: ${pending.tipoFuncionalLabel}`, 92, 43);
-    doc.text(`Generado el: ${formatDate(new Date())}`, 92, 51);
+    doc.text(`Estado: ${estadoLabels[pending.estado]}`, 92, 51);
+    doc.text(`Generado el: ${formatDate(new Date())}`, 18, 59);
     autoTable(doc, {
       startY: 74,
       head: [['Lote', 'Animal / Caravana']],
@@ -238,6 +247,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
       const result = await markSanitaryPendingDone(authToken, performTarget.id, performValues);
       setSuccess(`Aplicación registrada. Próxima fecha máxima: ${formatDate(result.proximaFechaMaxima)}.`);
       setPerformTarget(null);
+      setSelectedPending(null);
       await loadData();
     } catch (saveError) {
       handleRequestError(saveError, 'No se pudo marcar el pendiente como realizado.');
@@ -291,7 +301,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
                     <td><span className={`status-pill ${statusClass(pending.estado)}`}>{estadoLabels[pending.estado]}</span></td>
                     <td>{pending.cantidadLotes}</td>
                     <td>{pending.cantidadAnimales}</td>
-                    <td><div className="table-actions"><button type="button" onClick={() => void openPendingDetail(pending)} aria-label="Ver detalle"><Eye size={16} /></button>{canMarkDone && pending.estado !== 'REALIZADA' && pending.estado !== 'CANCELADA' && <button type="button" onClick={() => openPerformModal(pending)} aria-label="Marcar realizado"><Syringe size={16} /></button>}</div></td>
+                    <td><div className="table-actions"><button type="button" onClick={() => void openPendingDetail(pending)} aria-label="Ver detalle"><Eye size={16} /></button><button type="button" onClick={() => void exportPendingFromRow(pending)} aria-label="Exportar PDF"><Download size={16} /></button>{canMarkDone && isOpenSanitaryStatus(pending.estado) && <button type="button" onClick={() => openPerformModal(pending)} aria-label="Marcar realizado"><Syringe size={16} /></button>}</div></td>
                   </tr>
                 ))}
                 {pendientes.length === 0 && <tr><td colSpan={8}>Sin pendientes sanitarios para los filtros seleccionados.</td></tr>}
@@ -344,10 +354,27 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
       {selectedPending && (
         <div className="modal-backdrop">
           <section className="modal-panel">
-            <div className="panel-header"><div><h2>{selectedPending.reglaNombre}</h2><p>Fecha máxima: {formatDate(selectedPending.fechaMaxima)} · {selectedPending.tipoFuncionalLabel}</p></div><button type="button" className="icon-button" onClick={() => setSelectedPending(null)} aria-label="Cerrar"><X size={18} /></button></div>
+            <div className="panel-header"><div><h2>{selectedPending.reglaNombre}</h2><p>{tipoLabels[selectedPending.tipo]} · Fecha máxima: {formatDate(selectedPending.fechaMaxima)}</p></div><button type="button" className="icon-button" onClick={() => setSelectedPending(null)} aria-label="Cerrar"><X size={18} /></button></div>
             <div className="user-form">
-              {selectedPending.lotes?.map((lote) => <div key={lote.id} className="form-subsection"><h3>Lote: {lote.nombre}</h3>{lote.animales.length === 0 ? <p className="table-empty">Sin animales activos.</p> : lote.animales.map((animal) => <span key={animal.id}>#{animal.caravana}</span>)}</div>)}
-              <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => exportPendingPdf(selectedPending)}><Download size={16} />Exportar PDF</button>{canMarkDone && <button type="button" className="primary-button" onClick={() => openPerformModal(selectedPending)}><Syringe size={16} />Marcar como realizada</button>}</div>
+              <div className="info-grid">
+                <div className="info-item"><span>Tipo</span><strong>{tipoLabels[selectedPending.tipo]}</strong></div>
+                <div className="info-item"><span>Tipo funcional</span><strong>{selectedPending.tipoFuncionalLabel}</strong></div>
+                <div className="info-item"><span>Estado</span><strong>{estadoLabels[selectedPending.estado]}</strong></div>
+                <div className="info-item"><span>Lotes</span><strong>{selectedPending.cantidadLotes}</strong></div>
+                <div className="info-item"><span>Animales</span><strong>{selectedPending.cantidadAnimales}</strong></div>
+              </div>
+              {selectedPending.lotes?.map((lote) => (
+                <div key={lote.id} className="form-subsection sanitary-lote-detail">
+                  <h3>Lote: {lote.nombre}</h3>
+                  <p className="field-help">Animales: {lote.animales.length}</p>
+                  {lote.animales.length === 0 ? <p className="table-empty">Sin animales activos.</p> : (
+                    <div className="sanitary-animal-grid">
+                      {lote.animales.map((animal) => <span key={animal.id}>#{animal.caravana}</span>)}
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div className="modal-actions"><button type="button" className="secondary-button" onClick={() => exportPendingPdf(selectedPending)}><Download size={16} />Exportar PDF</button>{canMarkDone && isOpenSanitaryStatus(selectedPending.estado) && <button type="button" className="primary-button" onClick={() => openPerformModal(selectedPending)}><Syringe size={16} />Marcar como realizada</button>}</div>
             </div>
           </section>
         </div>

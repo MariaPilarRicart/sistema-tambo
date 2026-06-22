@@ -192,7 +192,8 @@ function endOfMarch(year: number) {
   return new Date(year, 2, 31, 9, 0, 0, 0);
 }
 
-function calculateInitialPendingDate(rule: ReglaSanitaria) {
+function calculateInitialPendingDate(rule: ReglaSanitaria, fechaMaximaInicial?: Date) {
+  if (fechaMaximaInicial) return fechaMaximaInicial;
   if (rule.periodicidad === 'FIJA_MARZO') {
     return endOfMarch(new Date().getFullYear());
   }
@@ -561,6 +562,7 @@ export async function createNewSanitaryRule(input: Record<string, unknown>) {
   const codigo = input.codigo ? normalizeRuleCode(parseRequiredString(input.codigo, 'Código')) : normalizeRuleCode(nombre);
   const periodicidad = parsePeriodicidadRegla(input.periodicidad ?? (input.mesFijo ? 'FIJA_MARZO' : 'DINAMICA_ANUAL'));
   const tiposFuncionales = parseTiposFuncionales(input.tiposFuncionales);
+  const fechaMaximaInicial = parseOptionalDate(input.fechaMaximaInicial, 'Fecha máxima inicial');
   const [existingRule, activeNameDuplicate] = await Promise.all([
     findSanitaryRuleByCode(codigo),
     prisma.reglaSanitaria.findFirst({
@@ -595,7 +597,7 @@ export async function createNewSanitaryRule(input: Record<string, unknown>) {
           data: {
             reglaSanitariaId: regla.id,
             tipoFuncional,
-            fechaMaxima: calculateInitialPendingDate(regla),
+            fechaMaxima: calculateInitialPendingDate(regla, fechaMaximaInicial),
           },
         }).catch((error) => {
           if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
@@ -641,6 +643,7 @@ export async function updateExistingSanitaryRule(idParam: string, input: Record<
   if (input.activo !== undefined) data.activo = Boolean(input.activo);
   if (input.observaciones !== undefined) data.observaciones = parseOptionalString(input.observaciones, 'Observaciones');
   const tiposFuncionales = input.tiposFuncionales !== undefined ? parseTiposFuncionales(input.tiposFuncionales) : undefined;
+  const fechaMaximaInicial = parseOptionalDate(input.fechaMaximaInicial, 'Fecha máxima inicial');
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -661,7 +664,7 @@ export async function updateExistingSanitaryRule(idParam: string, input: Record<
             data: {
               reglaSanitariaId: id,
               tipoFuncional,
-              fechaMaxima: calculateInitialPendingDate(regla),
+              fechaMaxima: calculateInitialPendingDate(regla, fechaMaximaInicial),
             },
           }).catch((error) => {
             if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
@@ -802,7 +805,7 @@ export async function listPendientesSanitarios(query: Record<string, unknown>) {
     where: {
       reglaSanitariaId,
       tipoFuncional,
-      estado: { not: EstadoPendienteSanitario.CANCELADA },
+      estado: EstadoPendienteSanitario.PENDIENTE,
       fechaMaxima: fechaDesde || fechaHasta ? { gte: fechaDesde, lte: fechaHasta } : undefined,
       reglaSanitaria: {
         tipo,
