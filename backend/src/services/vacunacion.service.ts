@@ -194,6 +194,9 @@ function endOfMarch(year: number) {
 
 function calculateInitialPendingDate(rule: ReglaSanitaria, fechaMaximaInicial?: Date) {
   if (fechaMaximaInicial) return fechaMaximaInicial;
+  if (rule.periodicidad === 'DINAMICA_ANUAL') {
+    throw new AppError('Ingresá una fecha máxima inicial para reglas de periodicidad anual dinámica.', 400);
+  }
   if (rule.periodicidad === 'FIJA_MARZO') {
     return endOfMarch(new Date().getFullYear());
   }
@@ -205,6 +208,32 @@ function calculateNextPendingDate(rule: ReglaSanitaria, fechaRealizada: Date) {
     return endOfMarch(fechaRealizada.getFullYear() + 1);
   }
   return addYears(fechaRealizada, 1);
+}
+
+async function ensureInitialPendingForRule(
+  tx: Prisma.TransactionClient,
+  rule: ReglaSanitaria,
+  tipoFuncional: TipoFuncionalLote,
+  fechaMaximaInicial?: Date,
+) {
+  const existingOpen = await tx.pendienteSanitario.findFirst({
+    where: {
+      reglaSanitariaId: rule.id,
+      tipoFuncional,
+      estado: EstadoPendienteSanitario.PENDIENTE,
+      aplicacionId: null,
+    },
+  });
+
+  if (existingOpen) return;
+
+  await tx.pendienteSanitario.create({
+    data: {
+      reglaSanitariaId: rule.id,
+      tipoFuncional,
+      fechaMaxima: calculateInitialPendingDate(rule, fechaMaximaInicial),
+    },
+  });
 }
 
 function calculateEstadoPendienteSanitario(pending: Pick<PendienteSanitario, 'estado' | 'fechaMaxima'>): EstadoSanitario | 'CANCELADA' {
@@ -593,16 +622,7 @@ export async function createNewSanitaryRule(input: Record<string, unknown>) {
       });
 
       for (const tipoFuncional of tiposFuncionales) {
-        await tx.pendienteSanitario.create({
-          data: {
-            reglaSanitariaId: regla.id,
-            tipoFuncional,
-            fechaMaxima: calculateInitialPendingDate(regla, fechaMaximaInicial),
-          },
-        }).catch((error) => {
-          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
-          throw error;
-        });
+        await ensureInitialPendingForRule(tx, regla, tipoFuncional, fechaMaximaInicial);
       }
 
       return regla;
@@ -629,7 +649,14 @@ export async function updateExistingSanitaryRule(idParam: string, input: Record<
     if (duplicate) throw new AppError('Ya existe una regla sanitaria activa con ese nombre.', 409);
     data.nombre = nextNombre;
   }
-  if (input.codigo !== undefined) data.codigo = normalizeRuleCode(parseRequiredString(input.codigo, 'Código'));
+  if (input.codigo !== undefined) {
+    const nextCodigo = normalizeRuleCode(parseRequiredString(input.codigo, 'Código'));
+    const duplicate = await prisma.reglaSanitaria.findFirst({
+      where: { id: { not: id }, codigo: nextCodigo },
+    });
+    if (duplicate) throw new AppError('Ya existe una regla sanitaria con ese código.', 409);
+    data.codigo = nextCodigo;
+  }
   if (input.tipo !== undefined) data.tipo = parseTipoRegla(input.tipo);
   const nextPeriodicidad = input.periodicidad !== undefined ? parsePeriodicidadRegla(input.periodicidad) : undefined;
   if (nextPeriodicidad !== undefined) {
@@ -660,16 +687,7 @@ export async function updateExistingSanitaryRule(idParam: string, input: Record<
           skipDuplicates: true,
         });
         for (const tipoFuncional of tiposFuncionales) {
-          await tx.pendienteSanitario.create({
-            data: {
-              reglaSanitariaId: id,
-              tipoFuncional,
-              fechaMaxima: calculateInitialPendingDate(regla, fechaMaximaInicial),
-            },
-          }).catch((error) => {
-            if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
-            throw error;
-          });
+          await ensureInitialPendingForRule(tx, regla, tipoFuncional, fechaMaximaInicial);
         }
       }
 

@@ -166,6 +166,13 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
       if (reglaFormValues.tiposFuncionales.length === 0) {
         throw new Error('Debe seleccionar al menos un tipo funcional.');
       }
+      const currentTipos = new Set(editingRegla?.tiposFuncionales.map((tipo) => tipo.tipoFuncional) ?? []);
+      const addsTiposFuncionales = reglaFormValues.tiposFuncionales.some((tipo) => !currentTipos.has(tipo));
+      const needsInitialDate = reglaFormValues.periodicidad === 'DINAMICA_ANUAL'
+        && (!editingRegla || editingRegla.periodicidad !== 'DINAMICA_ANUAL' || addsTiposFuncionales);
+      if (needsInitialDate && !reglaFormValues.fechaMaximaInicial) {
+        throw new Error('Ingresá una fecha máxima inicial para reglas de periodicidad anual dinámica.');
+      }
       if (editingRegla) {
         await updateReglaSanitaria(authToken, editingRegla.id, reglaFormValues);
         resetReglaForm();
@@ -251,7 +258,7 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
               {reglaFormValues.periodicidad === 'FIJA_MARZO' ? (
                 <p className="field-help animal-form-message">La fecha máxima se genera automáticamente para el 31 de marzo de cada año.</p>
               ) : (
-                <label><span>Fecha máxima inicial</span><input type="date" value={reglaFormValues.fechaMaximaInicial} onChange={(event) => setReglaFormValues({ ...reglaFormValues, fechaMaximaInicial: event.target.value })} /><small>Después de marcarla como realizada, la próxima fecha se calculará automáticamente un año después de la fecha de realización.</small></label>
+                <label><span>Fecha máxima inicial</span><input type="date" value={reglaFormValues.fechaMaximaInicial} onChange={(event) => setReglaFormValues({ ...reglaFormValues, fechaMaximaInicial: event.target.value })} required={!editingRegla || editingRegla.periodicidad !== 'DINAMICA_ANUAL'} /><small>Después de marcarla como realizada, la próxima fecha se calculará automáticamente un año después de la fecha de realización.</small></label>
               )}
               <div className="animal-form-message">
                 <span>Tipos funcionales aplicables</span>
