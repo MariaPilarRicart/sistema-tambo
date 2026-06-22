@@ -85,6 +85,10 @@ function animalsByLoteRows(lotes: SanitaryPendingLote[]) {
   ));
 }
 
+function filterValue(value: string, fallback = 'Todos') {
+  return value || fallback;
+}
+
 interface VaccinationPageProps {
   authToken: string | null;
   currentUser: AuthUser | null;
@@ -203,6 +207,56 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
     doc.save(`pendiente-sanitario-${fileSlug(pending.reglaNombre)}-${fileSlug(pending.tipoFuncionalLabel)}.pdf`);
   }
 
+  function exportPendingListPdf() {
+    if (pendientes.length === 0) {
+      setError('No hay pendientes sanitarios para exportar con los filtros seleccionados.');
+      return;
+    }
+    setError('');
+    const selectedRule = reglas.find((regla) => String(regla.id) === pendingFilters.reglaSanitariaId);
+    const selectedTipoFuncional = tipoFuncionalOptions.find(([value]) => value === pendingFilters.tipoFuncional)?.[1];
+    const selectedEstado = estadoOptions.find(([value]) => value === pendingFilters.estado)?.[1];
+    const doc = new jsPDF({ orientation: 'landscape' });
+    drawPdfHeader(doc, 'Pendientes sanitarios', 'Listado de tareas sanitarias abiertas');
+
+    doc.setFontSize(9);
+    doc.setTextColor(31, 41, 55);
+    doc.text(`Generado el: ${formatDate(new Date())}`, 14, 34);
+    doc.setFillColor(243, 244, 246);
+    doc.roundedRect(14, 40, 269, 30, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.text('Filtros aplicados', 18, 48);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Regla sanitaria: ${selectedRule?.nombre ?? 'Todas'}`, 18, 56);
+    doc.text(`Tipo sanitario: ${pendingFilters.tipo ? tipoLabels[pendingFilters.tipo as TipoReglaSanitaria] : 'Todos'}`, 18, 64);
+    doc.text(`Tipo funcional: ${selectedTipoFuncional ?? 'Todos'}`, 104, 56);
+    doc.text(`Estado: ${selectedEstado ?? 'Todos'}`, 104, 64);
+    doc.text(`Fecha máxima desde: ${filterValue(formatDate(pendingFilters.fechaMaximaDesde), '-')}`, 190, 56);
+    doc.text(`Fecha máxima hasta: ${filterValue(formatDate(pendingFilters.fechaMaximaHasta), '-')}`, 190, 64);
+
+    autoTable(doc, {
+      startY: 80,
+      head: [['Regla sanitaria', 'Tipo', 'Tipo funcional', 'Fecha máxima', 'Estado', 'Lotes', 'Animales']],
+      body: pendientes.map((pending) => [
+        pending.reglaNombre,
+        tipoLabels[pending.tipo],
+        pending.tipoFuncionalLabel,
+        formatDate(pending.fechaMaxima),
+        estadoLabels[pending.estado],
+        String(pending.cantidadLotes),
+        String(pending.cantidadAnimales),
+      ]),
+      styles: { fontSize: 8.5, cellPadding: 2.8 },
+      headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      columnStyles: {
+        5: { halign: 'right' },
+        6: { halign: 'right' },
+      },
+    });
+    doc.save('pendientes-sanitarios.pdf');
+  }
+
   function exportHistoryPdf() {
     if (aplicaciones.length === 0) {
       setError('No hay registros sanitarios para exportar con los filtros seleccionados.');
@@ -276,7 +330,10 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
       <section className="panel vaccination-pending-section">
         <div className="panel-header">
           <div><h2>Pendientes sanitarios</h2><p>{pendientes.length} pendientes por regla y tipo funcional.</p></div>
-          <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar pendientes"><RefreshCcw size={18} /></button>
+          <div className="header-actions">
+            <button type="button" className="secondary-button" onClick={exportPendingListPdf}><Download size={16} />Exportar PDF</button>
+            <button type="button" className="icon-button" onClick={() => void loadData()} aria-label="Actualizar pendientes"><RefreshCcw size={18} /></button>
+          </div>
         </div>
         <form className="filters-form events-filters production-filters">
           <label className="filter-field"><span>Regla sanitaria</span><select value={pendingFilters.reglaSanitariaId} onChange={(event) => setPendingFilters({ ...pendingFilters, reglaSanitariaId: event.target.value })}><option value="">Todas</option>{activeRules.map((regla) => <option key={regla.id} value={regla.id}>{regla.nombre}</option>)}</select></label>
