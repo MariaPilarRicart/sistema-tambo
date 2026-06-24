@@ -195,7 +195,7 @@ function endOfMarch(year: number) {
 function calculateInitialPendingDate(rule: ReglaSanitaria, fechaMaximaInicial?: Date) {
   if (fechaMaximaInicial) return fechaMaximaInicial;
   if (rule.periodicidad === 'DINAMICA_ANUAL') {
-    throw new AppError('Ingresá una fecha máxima inicial para reglas de periodicidad anual dinámica.', 400);
+    throw new AppError('Ingresá una fecha máxima inicial para reglas anuales dinámicas.', 400);
   }
   if (rule.periodicidad === 'FIJA_MARZO') {
     return endOfMarch(new Date().getFullYear());

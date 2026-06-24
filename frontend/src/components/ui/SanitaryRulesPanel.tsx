@@ -171,7 +171,7 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
       const needsInitialDate = reglaFormValues.periodicidad === 'DINAMICA_ANUAL'
         && (!editingRegla || editingRegla.periodicidad !== 'DINAMICA_ANUAL' || addsTiposFuncionales);
       if (needsInitialDate && !reglaFormValues.fechaMaximaInicial) {
-        throw new Error('Ingresá una fecha máxima inicial para reglas de periodicidad anual dinámica.');
+        throw new Error('Ingresá una fecha máxima inicial para reglas anuales dinámicas.');
       }
       if (editingRegla) {
         await updateReglaSanitaria(authToken, editingRegla.id, reglaFormValues);
@@ -230,14 +230,14 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
         <form className="filters-form events-filters production-filters">
           <label className="filter-field"><span>Buscar</span><input value={reglaFilters.buscar} onChange={(event) => setReglaFilters({ ...reglaFilters, buscar: event.target.value })} placeholder="Nombre o código" /></label>
           <label className="filter-field"><span>Estado</span><select value={reglaFilters.estado} onChange={(event) => setReglaFilters({ ...reglaFilters, estado: event.target.value as EstadoFilter })}><option value="">Todas</option><option value="true">Activa</option><option value="false">Inactiva</option></select></label>
-          <label className="filter-field"><span>Tipo</span><select value={reglaFilters.tipo} onChange={(event) => setReglaFilters({ ...reglaFilters, tipo: event.target.value })}><option value="">Todos</option><option value="VACUNA">VACUNA</option><option value="ANALISIS">ANALISIS</option></select></label>
+          <label className="filter-field"><span>Tipo</span><select value={reglaFilters.tipo} onChange={(event) => setReglaFilters({ ...reglaFilters, tipo: event.target.value })}><option value="">Todos</option><option value="VACUNA">Vacuna</option><option value="ANALISIS">Análisis</option></select></label>
           <button type="button" className="secondary-button" onClick={clearReglaFilters}>Limpiar</button>
         </form>
         {isLoading ? <p className="table-empty">Cargando reglas...</p> : (
           <div className="table-wrap">
             <table className="users-table">
               <thead><tr><th>Regla</th><th>Tipo</th><th>Periodicidad</th><th>Tipos funcionales</th><th>Estado</th>{isAdmin && <th>Acciones</th>}</tr></thead>
-              <tbody>{visibleReglas.map((regla) => <tr key={regla.id}><td><strong>{regla.nombre}</strong><span>{regla.codigo}</span></td><td>{regla.tipo === 'VACUNA' ? 'Vacuna' : 'Análisis'}</td><td>{regla.periodicidad === 'FIJA_MARZO' ? 'Fija en marzo' : 'Dinámica anual'}</td><td>{regla.tiposFuncionales.map((tipo) => tipoFuncionalOptions.find(([value]) => value === tipo.tipoFuncional)?.[1] ?? tipo.tipoFuncional).join(', ')}</td><td>{renderStatus(regla.activo)}</td>{isAdmin && <td><div className="table-actions"><button type="button" onClick={() => startEditingRegla(regla)} aria-label={`Editar ${regla.codigo}`}><Edit2 size={16} /></button>{regla.activo ? <button type="button" onClick={() => void setReglaActive(regla, false)} aria-label={`Dar de baja ${regla.codigo}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setReglaActive(regla, true)} aria-label={`Reactivar ${regla.codigo}`}><RotateCcw size={16} /></button>}</div></td>}</tr>)}</tbody>
+              <tbody>{visibleReglas.map((regla) => <tr key={regla.id}><td><strong>{regla.nombre}</strong><span>{regla.codigo}</span></td><td>{regla.tipo === 'VACUNA' ? 'Vacuna' : 'Análisis'}</td><td>{regla.periodicidad === 'FIJA_MARZO' ? 'Fija en marzo' : 'Anual desde última realización'}</td><td>{regla.tiposFuncionales.map((tipo) => tipoFuncionalOptions.find(([value]) => value === tipo.tipoFuncional)?.[1] ?? tipo.tipoFuncional).join(', ')}</td><td>{renderStatus(regla.activo)}</td>{isAdmin && <td><div className="table-actions"><button type="button" onClick={() => startEditingRegla(regla)} aria-label={`Editar ${regla.codigo}`}><Edit2 size={16} /></button>{regla.activo ? <button type="button" onClick={() => void setReglaActive(regla, false)} aria-label={`Dar de baja ${regla.codigo}`}><Trash2 size={16} /></button> : <button type="button" onClick={() => void setReglaActive(regla, true)} aria-label={`Reactivar ${regla.codigo}`}><RotateCcw size={16} /></button>}</div></td>}</tr>)}</tbody>
             </table>
           </div>
         )}
@@ -254,7 +254,7 @@ export function SanitaryRulesPanel({ authToken, onUnauthorized, onRulesChanged, 
               <label><span>Nombre</span><input value={reglaFormValues.nombre} onChange={(event) => setReglaFormValues({ ...reglaFormValues, nombre: event.target.value })} required /></label>
               <label><span>Código</span><input value={reglaFormValues.codigo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, codigo: event.target.value })} required /></label>
               <label><span>Tipo sanitario</span><select value={reglaFormValues.tipo} onChange={(event) => setReglaFormValues({ ...reglaFormValues, tipo: event.target.value as TipoReglaSanitaria })}><option value="VACUNA">Vacuna</option><option value="ANALISIS">Análisis</option></select></label>
-              <label><span>Periodicidad</span><select value={reglaFormValues.periodicidad} onChange={(event) => setReglaFormValues({ ...reglaFormValues, periodicidad: event.target.value as ReglaSanitariaFormValues['periodicidad'] })}><option value="FIJA_MARZO">Fija en marzo</option><option value="DINAMICA_ANUAL">Dinámica anual</option></select></label>
+              <label><span>Periodicidad</span><select value={reglaFormValues.periodicidad} onChange={(event) => setReglaFormValues({ ...reglaFormValues, periodicidad: event.target.value as ReglaSanitariaFormValues['periodicidad'] })}><option value="FIJA_MARZO">Fija en marzo</option><option value="DINAMICA_ANUAL">Anual desde última realización</option></select></label>
               {reglaFormValues.periodicidad === 'FIJA_MARZO' ? (
                 <p className="field-help animal-form-message">La fecha máxima se genera automáticamente para el 31 de marzo de cada año.</p>
               ) : (
