@@ -89,6 +89,21 @@ function filterValue(value: string, fallback = 'Todos') {
   return value || fallback;
 }
 
+function applicationLoteRows(application: SanitaryApplication) {
+  const lotes = new Map<string, string[]>();
+  application.animales.forEach((animal) => {
+    const lote = animal.loteSnapshot || '-';
+    const caravanas = lotes.get(lote) ?? [];
+    caravanas.push(animal.caravanaSnapshot);
+    lotes.set(lote, caravanas);
+  });
+
+  return Array.from(lotes.entries()).map(([lote, caravanas]) => ({
+    lote,
+    caravanas: caravanas.sort((left, right) => left.localeCompare(right, 'es-AR', { numeric: true })),
+  }));
+}
+
 interface VaccinationPageProps {
   authToken: string | null;
   currentUser: AuthUser | null;
@@ -439,12 +454,45 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
 
       {selectedApplication && (
         <div className="modal-backdrop">
-          <section className="modal-panel">
-            <div className="panel-header"><div><h2>{selectedApplication.reglaNombre}</h2><p>Realizada el {formatDate(selectedApplication.fechaRealizacion)} · {selectedApplication.tipoFuncionalLabel}</p></div><button type="button" className="icon-button" onClick={() => setSelectedApplication(null)} aria-label="Cerrar"><X size={18} /></button></div>
-            <div className="user-form">
-              {Array.from(new Set(selectedApplication.animales.map((animal) => animal.loteSnapshot))).map((lote) => (
-                <div key={lote} className="form-subsection"><h3>Lote: {lote}</h3>{selectedApplication.animales.filter((animal) => animal.loteSnapshot === lote).map((animal) => <span key={animal.id}>#{animal.caravanaSnapshot}</span>)}</div>
-              ))}
+          <section className="modal-panel sanitary-history-modal">
+            <div className="panel-header">
+              <div>
+                <h2>Detalle de aplicación sanitaria</h2>
+                <strong className="modal-title-value">{selectedApplication.reglaNombre}</strong>
+                <p>{tipoLabels[selectedApplication.tipo]} · Realizada el {formatDate(selectedApplication.fechaRealizacion)} · Tipo funcional: {selectedApplication.tipoFuncionalLabel}</p>
+              </div>
+              <button type="button" className="icon-button" onClick={() => setSelectedApplication(null)} aria-label="Cerrar"><X size={18} /></button>
+            </div>
+            <div className="user-form sanitary-history-content">
+              <div className="info-grid sanitary-history-summary">
+                <div className="info-item"><span>Regla sanitaria</span><strong>{selectedApplication.reglaNombre}</strong></div>
+                <div className="info-item"><span>Tipo sanitario</span><strong>{tipoLabels[selectedApplication.tipo]}</strong></div>
+                <div className="info-item"><span>Fecha realizada</span><strong>{formatDate(selectedApplication.fechaRealizacion)}</strong></div>
+                <div className="info-item"><span>Tipo funcional</span><strong>{selectedApplication.tipoFuncionalLabel}</strong></div>
+                <div className="info-item"><span>Lotes procesados</span><strong>{applicationLoteRows(selectedApplication).length}</strong></div>
+                <div className="info-item"><span>Animales procesados</span><strong>{selectedApplication.cantidadAnimales}</strong></div>
+                <div className="info-item"><span>Usuario</span><strong>{selectedApplication.usuario?.nombre ?? '-'}</strong></div>
+                {selectedApplication.observaciones && <div className="info-item sanitary-history-observations"><span>Observaciones</span><strong>{selectedApplication.observaciones}</strong></div>}
+              </div>
+              <div className="table-wrap sanitary-history-table-wrap">
+                <table className="users-table sanitary-history-table">
+                  <thead><tr><th>Lote</th><th>Animales</th><th>Caravanas</th></tr></thead>
+                  <tbody>
+                    {applicationLoteRows(selectedApplication).map(({ lote, caravanas }) => (
+                      <tr key={lote}>
+                        <td>{lote}</td>
+                        <td>{caravanas.length}</td>
+                        <td>
+                          <div className="sanitary-caravana-list">
+                            {caravanas.map((caravana) => <span key={`${lote}-${caravana}`}>#{caravana}</span>)}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {selectedApplication.animales.length === 0 && <tr><td colSpan={3}>Sin animales registrados para esta aplicación.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </section>
         </div>

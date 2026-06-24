@@ -3245,6 +3245,69 @@ a {
   padding: 8px 10px;
 }
 
+.sanitary-history-modal {
+  max-height: calc(100vh - 48px);
+  max-width: 860px;
+  overflow-y: auto;
+}
+
+.sanitary-history-modal > .panel-header {
+  background: #ffffff;
+  border-bottom: 1px solid var(--slate-200);
+  margin: -24px -24px 18px;
+  padding: 24px;
+  position: sticky;
+  top: -24px;
+  z-index: 2;
+}
+
+.modal-title-value {
+  color: var(--slate-900);
+  display: block;
+  font-size: 18px;
+  line-height: 1.25;
+  margin-top: 4px;
+}
+
+.sanitary-history-content {
+  display: grid;
+  gap: 18px;
+}
+
+.sanitary-history-summary {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.sanitary-history-observations {
+  grid-column: 1 / -1;
+}
+
+.sanitary-history-table-wrap {
+  max-height: 320px;
+  overflow: auto;
+}
+
+.sanitary-history-table td {
+  vertical-align: top;
+}
+
+.sanitary-caravana-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sanitary-caravana-list span {
+  background: var(--slate-50);
+  border: 1px solid var(--slate-100);
+  border-radius: 999px;
+  color: var(--slate-700);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 8px;
+}
+
 .form-success {
   background: #ecfdf5;
   border-radius: 12px;
