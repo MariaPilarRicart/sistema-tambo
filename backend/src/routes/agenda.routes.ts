@@ -4,7 +4,7 @@ import {
   cancelAgendaTaskController,
   getAgendaTaskController,
   listAgendaController,
-  listPendingAgendaController,
+  listOpenAgendaController,
 } from '../controllers/agenda.controller';
 import { asyncHandler } from '../middlewares/async-handler.middleware';
 import { authenticate } from '../middlewares/auth.middleware';
@@ -13,7 +13,7 @@ import { authorizeRoles } from '../middlewares/authorize.middleware';
 export const agendaRouter = Router();
 
 agendaRouter.get('/agenda', authenticate, asyncHandler(listAgendaController));
-agendaRouter.get('/agenda/pendientes', authenticate, asyncHandler(listPendingAgendaController));
+agendaRouter.get('/agenda/abiertas', authenticate, asyncHandler(listOpenAgendaController));
 agendaRouter.get('/agenda/:id', authenticate, asyncHandler(getAgendaTaskController));
 agendaRouter.patch(
   '/agenda/:id/cancelar',

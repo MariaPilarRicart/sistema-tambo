@@ -72,7 +72,7 @@ export function AgendaTaskActions({
 
   const isAdmin = currentUser?.role === 'ADMIN';
   const estadoOperativo = getEstadoOperativoAgenda(task);
-  const canRegisterEvent = estadoOperativo === 'PENDIENTE';
+  const canRegisterEvent = isOpenAgendaStatus(estadoOperativo);
   const canCancelTask = isOpenAgendaStatus(estadoOperativo);
 
   function handleRequestError(requestError: unknown, fallback: string) {

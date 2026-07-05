@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Download, RefreshCcw } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -15,7 +16,7 @@ import {
   getEstadoOperativoAgenda,
   isOpenAgendaStatus,
 } from '../utils/agendaStatus';
-import type { AgendaTarea, EstadoTareaCalculado, TipoTarea } from '../types/agenda';
+import type { AgendaTarea, EstadoAgendaFiltro, EstadoTareaCalculado, TipoTarea } from '../types/agenda';
 import type { AuthUser } from '../types/auth';
 
 const taskOrder: TipoTarea[] = ['TACTO', 'SECADO', 'PARTO', 'ALTA_POST_PARTO', 'CONTROL_CLINICO'];
@@ -31,14 +32,36 @@ const taskTypeOptions: Array<{ value: '' | TipoTarea; label: string }> = [
   { value: '', label: 'Todos' },
   ...taskOrder.map((tipo) => ({ value: tipo, label: taskLabels[tipo] })),
 ];
-const statusOptions: Array<{ value: '' | EstadoTareaCalculado; label: string }> = [
+const statusOptions: Array<{ value: '' | EstadoAgendaFiltro; label: string }> = [
   { value: '', label: 'Todos' },
-  { value: 'PENDIENTE', label: 'Pendiente' },
-  { value: 'PROGRAMADA', label: 'Programada' },
+  { value: 'ABIERTAS', label: 'Abiertas' },
   { value: 'VENCIDA', label: 'Vencida' },
+  { value: 'PROGRAMADA', label: 'Programada' },
   { value: 'REALIZADA', label: 'Realizada' },
   { value: 'CANCELADA', label: 'Cancelada' },
 ];
+
+function parseStatusParam(value: string | null): '' | EstadoAgendaFiltro {
+  if (
+    value === 'ABIERTAS' ||
+    value === 'VENCIDA' ||
+    value === 'PROGRAMADA' ||
+    value === 'REALIZADA' ||
+    value === 'CANCELADA'
+  ) {
+    return value;
+  }
+
+  return '';
+}
+
+function parseTypeParam(value: string | null): '' | TipoTarea {
+  return taskOrder.includes(value as TipoTarea) ? value as TipoTarea : '';
+}
+
+function parseDateParam(value: string | null) {
+  return value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
+}
 function taskMatchesRange(task: AgendaTarea, fechaDesde?: string | null, fechaHasta?: string | null) {
   if (!fechaDesde && !fechaHasta) return true;
   const estadoOperativo = getEstadoOperativoAgenda(task);
@@ -76,24 +99,43 @@ interface AgendaPageProps {
 }
 
 export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPageProps) {
+  const [searchParams] = useSearchParams();
   const [agenda, setAgenda] = useState<AgendaTarea[]>([]);
   const [selectedDate, setSelectedDate] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState<'' | EstadoTareaCalculado>('');
-  const [selectedType, setSelectedType] = useState<'' | TipoTarea>('');
+  const [selectedRange, setSelectedRange] = useState(() => ({
+    fechaDesde: parseDateParam(searchParams.get('fechaDesde')),
+    fechaHasta: parseDateParam(searchParams.get('fechaHasta')),
+  }));
+  const [selectedStatus, setSelectedStatus] = useState<'' | EstadoAgendaFiltro>(() => parseStatusParam(searchParams.get('estado')));
+  const [selectedType, setSelectedType] = useState<'' | TipoTarea>(() => parseTypeParam(searchParams.get('tipo')));
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    setSelectedStatus(parseStatusParam(searchParams.get('estado')));
+    setSelectedType(parseTypeParam(searchParams.get('tipo')));
+    setSelectedRange({
+      fechaDesde: parseDateParam(searchParams.get('fechaDesde')),
+      fechaHasta: parseDateParam(searchParams.get('fechaHasta')),
+    });
+  }, [searchParams]);
 
   const filteredTasks = useMemo(() => {
     return agenda
       .filter((task) => {
         const estadoOperativo = getEstadoOperativoAgenda(task);
         if (selectedType && task.tipo !== selectedType) return false;
-        if (selectedStatus) {
+        if (selectedStatus === 'ABIERTAS') {
+          if (!isOpenAgendaStatus(estadoOperativo)) return false;
+        } else if (selectedStatus) {
           if (estadoOperativo !== selectedStatus) return false;
         } else if (!isOpenAgendaStatus(estadoOperativo)) {
           return false;
         }
         if (selectedDate && !taskMatchesRange(task, selectedDate, selectedDate)) return false;
+        if (!selectedDate && (selectedRange.fechaDesde || selectedRange.fechaHasta)) {
+          if (!taskMatchesRange(task, selectedRange.fechaDesde, selectedRange.fechaHasta)) return false;
+        }
         return true;
       })
       .sort((left, right) => {
@@ -105,9 +147,9 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
         if (dateDiff !== 0) return dateDiff;
         return `${left.tipo} ${left.animal?.caravana ?? ''}`.localeCompare(`${right.tipo} ${right.animal?.caravana ?? ''}`);
       });
-  }, [agenda, selectedDate, selectedStatus, selectedType]);
+  }, [agenda, selectedDate, selectedRange, selectedStatus, selectedType]);
 
-  const hasFilters = Boolean(selectedDate || selectedStatus || selectedType);
+  const hasFilters = Boolean(selectedDate || selectedRange.fechaDesde || selectedRange.fechaHasta || selectedStatus || selectedType);
 
   async function loadAgenda() {
     if (!authToken) return;
@@ -115,7 +157,12 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     setError('');
 
     try {
-      setAgenda(await getAgenda(authToken, { tipo: selectedType }));
+      setAgenda(await getAgenda(authToken, {
+        estado: selectedStatus && selectedStatus !== 'ABIERTAS' ? selectedStatus : '',
+        fechaDesde: selectedDate || selectedRange.fechaDesde,
+        fechaHasta: selectedDate || selectedRange.fechaHasta,
+        tipo: selectedType,
+      }));
     } catch (loadError) {
       if (loadError instanceof ApiError && loadError.statusCode === 401) {
         onUnauthorized();
@@ -130,9 +177,9 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
   useEffect(() => {
     void loadAgenda();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authToken, selectedType]);
+  }, [authToken, selectedDate, selectedRange, selectedStatus, selectedType]);
 
-  useDataChangedRefresh(() => loadAgenda(), [authToken, selectedType]);
+  useDataChangedRefresh(() => loadAgenda(), [authToken, selectedDate, selectedRange, selectedStatus, selectedType]);
 
   function exportAgendaPdf() {
     if (filteredTasks.length === 0) {
@@ -143,7 +190,11 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
     setError('');
     const doc = new jsPDF();
     const generatedDate = new Date().toLocaleDateString('es-AR');
-    const selectedStatusLabel = selectedStatus ? agendaStatusLabels[selectedStatus] : 'Todos';
+    const selectedStatusLabel = selectedStatus === 'ABIERTAS'
+      ? 'Abiertas'
+      : selectedStatus
+        ? agendaStatusLabels[selectedStatus]
+        : 'Todos';
     const selectedTypeLabel = selectedType ? taskLabels[selectedType] : 'Todos';
     const selectedDateLabel = selectedDate ? formatDate(selectedDate) : 'Todas';
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -238,7 +289,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
           </label>
           <label className="filter-field">
             <span>Estado</span>
-            <select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value as '' | EstadoTareaCalculado)}>
+            <select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value as '' | EstadoAgendaFiltro)}>
               {statusOptions.map((option) => <option key={option.value || 'todos'} value={option.value}>{option.label}</option>)}
             </select>
           </label>
@@ -248,7 +299,7 @@ export function AgendaPage({ authToken, currentUser, onUnauthorized }: AgendaPag
               {taskTypeOptions.map((option) => <option key={option.value || 'todos'} value={option.value}>{option.label}</option>)}
             </select>
           </label>
-          <button type="button" className="secondary-button" onClick={() => { setSelectedDate(''); setSelectedStatus(''); setSelectedType(''); }}>Limpiar</button>
+          <button type="button" className="secondary-button" onClick={() => { setSelectedDate(''); setSelectedRange({ fechaDesde: '', fechaHasta: '' }); setSelectedStatus(''); setSelectedType(''); }}>Limpiar</button>
           <button type="button" className="secondary-button" onClick={exportAgendaPdf}><Download size={16} />Exportar PDF</button>
         </form>
       </section>

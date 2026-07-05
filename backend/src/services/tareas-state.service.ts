@@ -1,6 +1,6 @@
 import { EstadoTarea } from '@prisma/client';
 
-export type EstadoTareaCalculado = EstadoTarea | 'VENCIDA' | 'PROGRAMADA';
+export type EstadoTareaCalculado = 'VENCIDA' | 'PROGRAMADA' | 'REALIZADA' | 'CANCELADA';
 
 export interface TareaConFechas {
   estado: EstadoTarea;
@@ -20,16 +20,14 @@ export function getFechaReferenciaTarea(task: Pick<TareaConFechas, 'fechaProgram
 }
 
 export function calculateEstadoTarea(task: TareaConFechas, today = new Date()): EstadoTareaCalculado {
-  if (task.fechaRealizacion || task.estado === EstadoTarea.REALIZADA) return EstadoTarea.REALIZADA;
-  if (task.estado === EstadoTarea.CANCELADA) return EstadoTarea.CANCELADA;
+  const estado = String(task.estado);
+  if (task.fechaRealizacion || estado === 'REALIZADA') return 'REALIZADA';
+  if (estado === 'CANCELADA') return 'CANCELADA';
 
-  const fechaProgramada = startOfDay(task.fechaProgramada);
   const fechaObjetivo = startOfDay(getFechaReferenciaTarea(task));
   const todayStart = startOfDay(today);
 
-  if (todayStart < fechaProgramada) return 'PROGRAMADA';
-  if (todayStart > fechaObjetivo) return 'VENCIDA';
-  return 'PENDIENTE';
+  return fechaObjetivo <= todayStart ? 'VENCIDA' : 'PROGRAMADA';
 }
 
 export function withEstadoCalculado<T extends TareaConFechas>(task: T, today = new Date()) {

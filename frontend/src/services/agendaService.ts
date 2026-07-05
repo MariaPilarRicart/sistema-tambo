@@ -9,15 +9,25 @@ interface AgendaTaskResponse {
   tarea: AgendaTarea;
 }
 
-export async function getAgendaPendiente(token: string) {
-  const response = await apiRequest<AgendaResponse>('/agenda/pendientes', { token });
+export async function getAgendaAbierta(token: string) {
+  const response = await apiRequest<AgendaResponse>('/agenda/abiertas', { token });
   return response.agenda;
 }
 
-export async function getAgenda(token: string, filters: { estado?: EstadoTareaCalculado | ''; tipo?: TipoTarea | '' } = {}) {
+export async function getAgenda(
+  token: string,
+  filters: {
+    estado?: EstadoTareaCalculado | '';
+    tipo?: TipoTarea | '';
+    fechaDesde?: string;
+    fechaHasta?: string;
+  } = {},
+) {
   const params = new URLSearchParams();
   if (filters.estado) params.set('estado', filters.estado);
   if (filters.tipo) params.set('tipo', filters.tipo);
+  if (filters.fechaDesde) params.set('fechaDesde', filters.fechaDesde);
+  if (filters.fechaHasta) params.set('fechaHasta', filters.fechaHasta);
   const query = params.toString();
   const response = await apiRequest<AgendaResponse>(`/agenda${query ? `?${query}` : ''}`, { token });
   return response.agenda;

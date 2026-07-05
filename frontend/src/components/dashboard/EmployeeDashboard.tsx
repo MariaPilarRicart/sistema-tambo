@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   Baby,
   ClipboardCheck,
-  Droplets,
   HeartPulse,
   ShieldCheck,
   Stethoscope,
@@ -183,7 +182,7 @@ export function EmployeeDashboard({
       subtitle: 'Partos pendientes actuales.',
       tone: 'indigo' as MetricTone,
       icon: Baby,
-      url: buildUrl(paths.agenda, { tipo: 'PARTO', estado: 'PENDIENTE' }),
+      url: buildUrl(paths.agenda, { tipo: 'PARTO' }),
     },
     {
       title: 'Tactos pendientes',
@@ -191,7 +190,7 @@ export function EmployeeDashboard({
       subtitle: 'Tactos pendientes actuales.',
       tone: 'emerald' as MetricTone,
       icon: Stethoscope,
-      url: buildUrl(paths.agenda, { tipo: 'TACTO', estado: 'PENDIENTE' }),
+      url: buildUrl(paths.agenda, { tipo: 'TACTO' }),
     },
     {
       title: 'Secados pendientes',
@@ -199,7 +198,7 @@ export function EmployeeDashboard({
       subtitle: 'Secados pendientes actuales.',
       tone: 'blue' as MetricTone,
       icon: ClipboardCheck,
-      url: buildUrl(paths.agenda, { tipo: 'SECADO', estado: 'PENDIENTE' }),
+      url: buildUrl(paths.agenda, { tipo: 'SECADO' }),
     },
     {
       title: 'Vacunas pendientes',
@@ -207,7 +206,7 @@ export function EmployeeDashboard({
       subtitle: 'Vacunas pendientes actuales.',
       tone: 'pink' as MetricTone,
       icon: Syringe,
-      url: buildUrl(paths.vaccination, { section: 'pendientes', estado: 'PENDIENTE' }),
+      url: buildUrl(paths.vaccination, { section: 'pendientes' }),
     },
     {
       title: 'Vacunas vencidas',
@@ -224,14 +223,6 @@ export function EmployeeDashboard({
       tone: 'emerald' as MetricTone,
       icon: Utensils,
       url: buildUrl(paths.feed, { section: 'historial', ...periodParams }),
-    },
-    {
-      title: 'Alertas de producción',
-      value: formatNumber(resumen.lotesVencidos),
-      subtitle: 'Registros vencidos del período.',
-      tone: 'amber' as MetricTone,
-      icon: Droplets,
-      url: buildUrl(paths.production, { section: 'lotesLeche', estado: 'VENCIDO', ...periodParams }),
     },
   ];
 

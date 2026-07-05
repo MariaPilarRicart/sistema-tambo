@@ -4,7 +4,7 @@ import {
   EstadoReproductivo,
   Prisma,
   TipoEvento,
-  TipoFuncionalLote,
+  type TipoFuncionalLote,
   TipoTarea,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
@@ -17,6 +17,7 @@ import {
   validarEventoCompatibleConAnimal,
 } from './rodeo-rules.service';
 import { getNextSanitaryDate, parseTipoSanitario, type TipoSanitario } from './vacunacion.service';
+import { TipoFuncionalLoteValue } from '../utils/tipo-funcional-lote';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -352,7 +353,7 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
 
       if (partoPayload.guacheraLoteId) {
         const guachera = await findActiveLoteByIdOrThrow(tx, partoPayload.guacheraLoteId);
-        if (guachera.tipoFuncional !== TipoFuncionalLote.GUACHERA) {
+        if (guachera.tipoFuncional !== TipoFuncionalLoteValue.GUACHERA) {
           throw new AppError('El lote de crias vivas debe ser de tipo funcional GUACHERA.', 400);
         }
       }
@@ -360,7 +361,7 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
       const loteIdsVivos = Array.from(new Set(vivas.map((cria) => cria.loteId!)));
       for (const loteId of loteIdsVivos) {
         const guachera = await findActiveLoteByIdOrThrow(tx, loteId);
-        if (guachera.tipoFuncional !== TipoFuncionalLote.GUACHERA) {
+        if (guachera.tipoFuncional !== TipoFuncionalLoteValue.GUACHERA) {
           throw new AppError('El lote destino de cada cria viva debe ser de tipo funcional GUACHERA.', 400);
         }
       }

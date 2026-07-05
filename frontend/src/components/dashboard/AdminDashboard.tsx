@@ -290,7 +290,7 @@ export function AdminDashboard({
       subtitle: 'Retiros aún no incluidos en liquidación.',
       tone: resumen.resumenVentas.pendientesDeLiquidar > 0 ? 'amber' as MetricTone : 'emerald' as MetricTone,
       icon: Truck,
-      url: buildUrl(paths.sales, { section: 'retiros', estado: 'PENDIENTE', ...periodParams }),
+      url: buildUrl(paths.sales, { section: 'retiros', ...periodParams }),
     },
     {
       title: 'Litros producidos',
@@ -335,18 +335,18 @@ export function AdminDashboard({
     {
       title: 'Tareas vencidas',
       value: formatNumber(resumen.tareasVencidas),
-      subtitle: 'Tareas vencidas del período.',
+      subtitle: 'Tareas vencidas hasta hoy.',
       tone: resumen.tareasVencidas > 0 ? 'rose' as MetricTone : 'emerald' as MetricTone,
       icon: AlertTriangle,
-      url: buildUrl(paths.agenda, { estado: 'VENCIDA', ...periodParams }),
+      url: buildUrl(paths.agenda, { estado: 'VENCIDA' }),
     },
     {
-      title: 'Tareas pendientes',
+      title: 'Tareas programadas',
       value: formatNumber(resumen.tareasPendientes),
-      subtitle: 'Tareas pendientes del período.',
+      subtitle: 'Tareas programadas del período.',
       tone: 'indigo' as MetricTone,
       icon: ClipboardList,
-      url: buildUrl(paths.agenda, { estado: 'PENDIENTE', ...periodParams }),
+      url: buildUrl(paths.agenda, { estado: 'PROGRAMADA', ...periodParams }),
     },
   ];
 

@@ -1,8 +1,9 @@
 import type { CategoriaAnimal, EstadoAnimal, EstadoReproductivo } from './animales';
 
 export type TipoTarea = 'TACTO' | 'SECADO' | 'PARTO' | 'ALTA_POST_PARTO' | 'VACUNACION' | 'CONTROL_CLINICO';
-export type EstadoTarea = 'PENDIENTE' | 'REALIZADA' | 'CANCELADA';
-export type EstadoTareaCalculado = EstadoTarea | 'VENCIDA' | 'PROGRAMADA';
+export type EstadoTarea = 'VENCIDA' | 'PROGRAMADA' | 'REALIZADA' | 'CANCELADA';
+export type EstadoTareaCalculado = EstadoTarea;
+export type EstadoAgendaFiltro = EstadoTareaCalculado | 'ABIERTAS';
 export type TipoSanitario = string;
 
 export interface AgendaTarea {

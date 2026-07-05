@@ -1,18 +1,16 @@
 import type { AgendaTarea, EstadoTareaCalculado } from '../types/agenda';
 
-export const openAgendaStatuses: EstadoTareaCalculado[] = ['PENDIENTE', 'PROGRAMADA', 'VENCIDA'];
+export const openAgendaStatuses: EstadoTareaCalculado[] = ['VENCIDA', 'PROGRAMADA'];
 
 export const agendaStatusLabels: Record<EstadoTareaCalculado, string> = {
-  PENDIENTE: 'Pendiente',
+  VENCIDA: 'Vencida',
   PROGRAMADA: 'Programada',
   REALIZADA: 'Realizada',
-  VENCIDA: 'Vencida',
   CANCELADA: 'Cancelada',
 };
 
 export const agendaStatusSortOrder: Record<EstadoTareaCalculado, number> = {
   VENCIDA: 0,
-  PENDIENTE: 1,
   PROGRAMADA: 1,
   REALIZADA: 2,
   CANCELADA: 3,
@@ -42,9 +40,7 @@ export function getEstadoOperativoAgenda(task: AgendaTarea): EstadoTareaCalculad
   const taskDate = agendaDateOnly(getAgendaTaskDate(task));
   const today = todayDateOnly();
 
-  if (taskDate > today) return 'PROGRAMADA';
-  if (taskDate < today) return 'VENCIDA';
-  return 'PENDIENTE';
+  return taskDate <= today ? 'VENCIDA' : 'PROGRAMADA';
 }
 
 export function isOpenAgendaStatus(status: EstadoTareaCalculado) {

@@ -1,5 +1,6 @@
-import { CategoriaAnimal, EstadoReproductivo, TipoEvento, TipoFuncionalLote } from '@prisma/client';
+import { CategoriaAnimal, EstadoReproductivo, TipoEvento, type TipoFuncionalLote } from '@prisma/client';
 import { AppError } from '../errors/AppError';
+import { TipoFuncionalLoteValue } from '../utils/tipo-funcional-lote';
 
 const categoriasMacho: CategoriaAnimal[] = [
   CategoriaAnimal.TERNERO,
@@ -30,17 +31,17 @@ const eventosReproductivos: TipoEvento[] = [
 ];
 
 const lotesVaca: TipoFuncionalLote[] = [
-  TipoFuncionalLote.PRODUCCION,
-  TipoFuncionalLote.SECAS,
-  TipoFuncionalLote.PREPARTO,
-  TipoFuncionalLote.RECUPERACION,
+  TipoFuncionalLoteValue.PRODUCCION,
+  TipoFuncionalLoteValue.SECAS,
+  TipoFuncionalLoteValue.PREPARTO,
+  TipoFuncionalLoteValue.RECUPERACION,
 ];
 
 // Compatibilidad: categorias viejas de vaca se convierten a VACA + lote canonico.
 const lotesCompatibilidadVacaLegacy: Partial<Record<CategoriaAnimal, TipoFuncionalLote>> = {
-  [CategoriaAnimal.VACA_PRODUCCION]: TipoFuncionalLote.PRODUCCION,
-  [CategoriaAnimal.VACA_SECA]: TipoFuncionalLote.SECAS,
-  [CategoriaAnimal.PREPARTO]: TipoFuncionalLote.PREPARTO,
+  [CategoriaAnimal.VACA_PRODUCCION]: TipoFuncionalLoteValue.PRODUCCION,
+  [CategoriaAnimal.VACA_SECA]: TipoFuncionalLoteValue.SECAS,
+  [CategoriaAnimal.PREPARTO]: TipoFuncionalLoteValue.PREPARTO,
 };
 
 function getLoteCompatibilidadVacaLegacy(categoriaAnimal: CategoriaAnimal) {
@@ -114,7 +115,7 @@ export function normalizarCategoriaLoteEstado(input: {
       return {
         categoriaAnimal: CategoriaAnimal.TERNERO,
         estadoReproductivo: EstadoReproductivo.NO_APLICA,
-        loteTipoFuncional: TipoFuncionalLote.GUACHERA,
+        loteTipoFuncional: TipoFuncionalLoteValue.GUACHERA,
       };
     }
 
@@ -122,14 +123,14 @@ export function normalizarCategoriaLoteEstado(input: {
       return {
         categoriaAnimal: CategoriaAnimal.TORITO,
         estadoReproductivo: EstadoReproductivo.NO_APLICA,
-        loteTipoFuncional: TipoFuncionalLote.TORITOS,
+        loteTipoFuncional: TipoFuncionalLoteValue.TORITOS,
       };
     }
 
     return {
       categoriaAnimal: CategoriaAnimal.TORO,
       estadoReproductivo: EstadoReproductivo.NO_APLICA,
-      loteTipoFuncional: TipoFuncionalLote.TOROS,
+      loteTipoFuncional: TipoFuncionalLoteValue.TOROS,
     };
   }
 
@@ -138,14 +139,14 @@ export function normalizarCategoriaLoteEstado(input: {
   }
 
   if (edadMeses < 4) {
-    if (input.loteTipoFuncional && input.loteTipoFuncional !== TipoFuncionalLote.GUACHERA) {
+    if (input.loteTipoFuncional && input.loteTipoFuncional !== TipoFuncionalLoteValue.GUACHERA) {
       throw new AppError('La Guachera solo admite terneros y terneras menores de 4 meses.', 400);
     }
 
     return {
       categoriaAnimal: CategoriaAnimal.TERNERA,
       estadoReproductivo: EstadoReproductivo.NO_APLICA,
-      loteTipoFuncional: TipoFuncionalLote.GUACHERA,
+      loteTipoFuncional: TipoFuncionalLoteValue.GUACHERA,
     };
   }
 
@@ -153,7 +154,7 @@ export function normalizarCategoriaLoteEstado(input: {
     return {
       categoriaAnimal: CategoriaAnimal.TERNERA,
       estadoReproductivo: EstadoReproductivo.NO_APLICA,
-      loteTipoFuncional: TipoFuncionalLote.ESCUELITA,
+      loteTipoFuncional: TipoFuncionalLoteValue.ESCUELITA,
     };
   }
 
@@ -161,7 +162,7 @@ export function normalizarCategoriaLoteEstado(input: {
     return {
       categoriaAnimal: CategoriaAnimal.TERNERA,
       estadoReproductivo: EstadoReproductivo.NO_APLICA,
-      loteTipoFuncional: TipoFuncionalLote.TERNERA_1,
+      loteTipoFuncional: TipoFuncionalLoteValue.TERNERA_1,
     };
   }
 
@@ -171,7 +172,7 @@ export function normalizarCategoriaLoteEstado(input: {
       estadoReproductivo: input.estadoReproductivo === EstadoReproductivo.NO_APLICA
         ? EstadoReproductivo.VACIA
         : input.estadoReproductivo,
-      loteTipoFuncional: TipoFuncionalLote.TERNERA_2,
+      loteTipoFuncional: TipoFuncionalLoteValue.TERNERA_2,
     };
   }
 
@@ -196,7 +197,7 @@ export function normalizarCategoriaLoteEstado(input: {
     return {
       categoriaAnimal: CategoriaAnimal.VACA,
       estadoReproductivo: input.estadoReproductivo,
-      loteTipoFuncional: input.loteTipoFuncional ?? TipoFuncionalLote.PRODUCCION,
+      loteTipoFuncional: input.loteTipoFuncional ?? TipoFuncionalLoteValue.PRODUCCION,
     };
   }
 
@@ -207,7 +208,7 @@ export function normalizarCategoriaLoteEstado(input: {
   return {
     categoriaAnimal: CategoriaAnimal.VAQUILLONA,
     estadoReproductivo: input.estadoReproductivo,
-    loteTipoFuncional: TipoFuncionalLote.TERNERA_2,
+    loteTipoFuncional: TipoFuncionalLoteValue.TERNERA_2,
   };
 }
 
@@ -278,7 +279,7 @@ export function validarEventoCompatibleConAnimal(animal: {
 }
 
 export function getLotePostEvento(tipo: TipoEvento) {
-  if (tipo === TipoEvento.SECADO) return TipoFuncionalLote.SECAS;
-  if (tipo === TipoEvento.PARTO) return TipoFuncionalLote.RECUPERACION;
+  if (tipo === TipoEvento.SECADO) return TipoFuncionalLoteValue.SECAS;
+  if (tipo === TipoEvento.PARTO) return TipoFuncionalLoteValue.RECUPERACION;
   return null;
 }

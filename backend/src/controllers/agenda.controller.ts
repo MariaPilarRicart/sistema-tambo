@@ -3,7 +3,7 @@ import {
   cancelExistingAgendaTask,
   getAgendaTask,
   listAgenda,
-  listPendingAgenda,
+  listOpenAgenda,
 } from '../services/agenda.service';
 
 export async function listAgendaController(request: Request, response: Response) {
@@ -12,8 +12,8 @@ export async function listAgendaController(request: Request, response: Response)
   response.status(200).json({ agenda });
 }
 
-export async function listPendingAgendaController(_request: Request, response: Response) {
-  const agenda = await listPendingAgenda();
+export async function listOpenAgendaController(_request: Request, response: Response) {
+  const agenda = await listOpenAgenda();
 
   response.status(200).json({ agenda });
 }

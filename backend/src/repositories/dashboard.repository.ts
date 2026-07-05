@@ -351,7 +351,7 @@ export function findUltimosRegistrosAlimentacionForDashboard() {
 export function findSanitaryTasksForDashboard(todayStart: Date, nextLimit: Date) {
   return prisma.agendaTarea.findMany({
     where: {
-      estado: EstadoTarea.PENDIENTE,
+      estado: { notIn: [EstadoTarea.REALIZADA, EstadoTarea.CANCELADA] },
       tipoSanitario: { not: null },
       fechaObjetivo: { lte: nextLimit },
     },

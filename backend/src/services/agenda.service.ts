@@ -4,7 +4,7 @@ import {
   cancelAgendaTask,
   findAgenda,
   findAgendaTaskById,
-  findPendingAgenda,
+  findOpenAgenda,
 } from '../repositories/agenda.repository';
 import { calculateEstadoTarea, matchesEstadoCalculado, withEstadoCalculado, type EstadoTareaCalculado, type TareaConFechas } from './tareas-state.service';
 
@@ -19,9 +19,8 @@ function parseId(value: unknown, fieldName: string) {
 }
 
 function parseEstadoTarea(value: unknown): EstadoTareaCalculado {
-  if (value === 'VENCIDA' || value === 'PROGRAMADA') return value;
-  if (Object.values(EstadoTarea).includes(value as EstadoTarea)) {
-    return value as EstadoTarea;
+  if (value === 'VENCIDA' || value === 'PROGRAMADA' || value === 'REALIZADA' || value === 'CANCELADA') {
+    return value;
   }
 
   throw new AppError('Estado de tarea invalido.', 400);
@@ -67,12 +66,6 @@ function taskMatchesDateRange(task: TareaConFechas, fechaDesde?: Date, fechaHast
   const fechaObjetivo = startOfDay(task.fechaObjetivo ?? task.fechaProgramada);
   const fechaRealizacion = task.fechaRealizacion ? startOfDay(task.fechaRealizacion) : null;
 
-  if (estadoCalculado === 'PENDIENTE') {
-    if (from && fechaObjetivo < from) return false;
-    if (to && fechaProgramada > to) return false;
-    return true;
-  }
-
   const referenceDate = estadoCalculado === 'REALIZADA' && fechaRealizacion ? fechaRealizacion : fechaObjetivo;
   if (from && referenceDate < from) return false;
   if (to && referenceDate > to) return false;
@@ -84,7 +77,7 @@ export function listAgenda(query: Record<string, unknown>) {
   const fechaDesde = parseOptionalDate(query.fechaDesde, 'fechaDesde');
   const fechaHasta = parseOptionalDate(query.fechaHasta, 'fechaHasta');
   const tareas = findAgenda({
-    estado: estado === 'VENCIDA' || estado === 'PROGRAMADA' ? undefined : estado,
+    estado: estado === 'VENCIDA' || estado === 'PROGRAMADA' ? undefined : estado as EstadoTarea | undefined,
     tipo: query.tipo ? parseTipoTarea(query.tipo) : undefined,
     animalId: query.animalId ? parseId(query.animalId, 'animalId') : undefined,
   });
@@ -94,8 +87,8 @@ export function listAgenda(query: Record<string, unknown>) {
     .filter((item) => taskMatchesDateRange(item, fechaDesde, fechaHasta)));
 }
 
-export function listPendingAgenda() {
-  return findPendingAgenda().then((items) => items.map((item) => withEstadoCalculado(item)));
+export function listOpenAgenda() {
+  return findOpenAgenda().then((items) => items.map((item) => withEstadoCalculado(item)));
 }
 
 export async function getAgendaTask(idParam: string) {
@@ -123,8 +116,8 @@ export async function cancelExistingAgendaTask(idParam: string, input: Record<st
     throw new AppError('Tarea de agenda no encontrada.', 404);
   }
 
-  if (withEstadoCalculado(task).estadoCalculado !== EstadoTarea.PENDIENTE) {
-    throw new AppError('Solo se pueden cancelar tareas pendientes.', 400);
+  if (!['VENCIDA', 'PROGRAMADA'].includes(withEstadoCalculado(task).estadoCalculado)) {
+    throw new AppError('Solo se pueden cancelar tareas abiertas.', 400);
   }
 
   return cancelAgendaTask(id, normalizeOptionalString(input.observacion, 'Observacion de cancelacion'));

@@ -3,14 +3,15 @@ import {
   EstadoPendienteSanitario,
   PeriodicidadReglaSanitaria,
   Prisma,
-  TipoFuncionalLote,
   TipoReglaSanitaria,
   type PendienteSanitario,
   type ReglaSanitaria,
+  type TipoFuncionalLote,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { prisma } from '../config/prisma';
 import { AppError } from '../errors/AppError';
+import { isTipoFuncionalLote } from '../utils/tipo-funcional-lote';
 import {
   countAnimalsByIds,
   createAutomaticVaccinationTasks,
@@ -135,7 +136,7 @@ function parsePeriodicidadRegla(value: unknown) {
 }
 
 function parseTipoFuncional(value: unknown) {
-  if (Object.values(TipoFuncionalLote).includes(value as TipoFuncionalLote)) return value as TipoFuncionalLote;
+  if (isTipoFuncionalLote(value)) return value;
   throw new AppError('Tipo funcional inválido.', 400);
 }
 

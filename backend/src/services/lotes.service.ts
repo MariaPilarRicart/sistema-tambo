@@ -1,5 +1,6 @@
-import { Prisma, TipoFuncionalLote } from '@prisma/client';
+import { Prisma, type TipoFuncionalLote } from '@prisma/client';
 import { AppError } from '../errors/AppError';
+import { isTipoFuncionalLote } from '../utils/tipo-funcional-lote';
 import {
   createLote,
   deactivateLote,
@@ -34,9 +35,7 @@ function normalizeDescripcion(descripcion: unknown) {
 }
 
 function parseTipoFuncional(value: unknown) {
-  if (Object.values(TipoFuncionalLote).includes(value as TipoFuncionalLote)) {
-    return value as TipoFuncionalLote;
-  }
+  if (isTipoFuncionalLote(value)) return value;
 
   throw new AppError('Tipo funcional del lote invalido.', 400);
 }

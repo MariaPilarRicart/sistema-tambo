@@ -57,9 +57,9 @@ export function findAgenda(filters: {
   });
 }
 
-export function findPendingAgenda() {
+export function findOpenAgenda() {
   return prisma.agendaTarea.findMany({
-    where: { estado: 'PENDIENTE', NOT: { tipo: 'VACUNACION' } },
+    where: { estado: { notIn: ['REALIZADA', 'CANCELADA'] }, NOT: { tipo: 'VACUNACION' } },
     orderBy: { fechaProgramada: 'asc' },
     include: agendaInclude,
   });
@@ -83,9 +83,9 @@ export function cancelAgendaTask(id: number, observacion?: string | null) {
   });
 }
 
-export function findOperativePendingAgenda() {
+export function findOperativeOpenAgenda() {
   return prisma.agendaTarea.findMany({
-    where: { estado: 'PENDIENTE' },
+    where: { estado: { notIn: ['REALIZADA', 'CANCELADA'] } },
     orderBy: { fechaProgramada: 'asc' },
     include: agendaInclude,
   });
