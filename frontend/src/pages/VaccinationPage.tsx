@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Download, Eye, RefreshCcw, Syringe, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -63,6 +64,33 @@ function isOpenSanitaryStatus(status: EstadoSanitarioOperativo) {
   return status === 'PROGRAMADA' || status === 'PENDIENTE' || status === 'VENCIDA';
 }
 
+function parseEstadoParam(value: string | null): '' | EstadoSanitarioOperativo {
+  if (value === 'PROGRAMADA' || value === 'PENDIENTE' || value === 'VENCIDA' || value === 'REALIZADA' || value === 'CANCELADA') return value;
+  return '';
+}
+
+function initialPendingFilters(searchParams: URLSearchParams) {
+  return {
+    reglaSanitariaId: searchParams.get('reglaSanitariaId') ?? '',
+    tipo: searchParams.get('tipo') ?? '',
+    tipoFuncional: searchParams.get('tipoFuncional') ?? '',
+    estado: parseEstadoParam(searchParams.get('estado')),
+    fechaMaximaDesde: searchParams.get('fechaMaximaDesde') ?? searchParams.get('fechaDesde') ?? '',
+    fechaMaximaHasta: searchParams.get('fechaMaximaHasta') ?? searchParams.get('fechaHasta') ?? '',
+  };
+}
+
+function samePendingFilters(left: ReturnType<typeof initialPendingFilters>, right: ReturnType<typeof initialPendingFilters>) {
+  return (
+    left.reglaSanitariaId === right.reglaSanitariaId &&
+    left.tipo === right.tipo &&
+    left.tipoFuncional === right.tipoFuncional &&
+    left.estado === right.estado &&
+    left.fechaMaximaDesde === right.fechaMaximaDesde &&
+    left.fechaMaximaHasta === right.fechaMaximaHasta
+  );
+}
+
 function drawPdfHeader(doc: jsPDF, title: string, subtitle: string) {
   const pageWidth = doc.internal.pageSize.getWidth();
   doc.setFillColor(5, 150, 105);
@@ -111,17 +139,11 @@ interface VaccinationPageProps {
 }
 
 export function VaccinationPage({ authToken, currentUser, onUnauthorized }: VaccinationPageProps) {
+  const [searchParams] = useSearchParams();
   const [reglas, setReglas] = useState<ReglaSanitaria[]>([]);
   const [pendientes, setPendientes] = useState<SanitaryPending[]>([]);
   const [aplicaciones, setAplicaciones] = useState<SanitaryApplication[]>([]);
-  const [pendingFilters, setPendingFilters] = useState({
-    reglaSanitariaId: '',
-    tipo: '',
-    tipoFuncional: '',
-    estado: '',
-    fechaMaximaDesde: '',
-    fechaMaximaHasta: '',
-  });
+  const [pendingFilters, setPendingFilters] = useState(() => initialPendingFilters(searchParams));
   const [historyFilters, setHistoryFilters] = useState({
     reglaSanitariaId: '',
     tipo: '',
@@ -142,6 +164,13 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
   const canMarkDone = currentUser?.role === 'ADMIN' || currentUser?.role === 'EMPLEADO';
 
   const activeRules = useMemo(() => reglas.filter((regla) => regla.activo), [reglas]);
+
+  useEffect(() => {
+    const nextFilters = initialPendingFilters(searchParams);
+    setPendingFilters((currentFilters) => (
+      samePendingFilters(currentFilters, nextFilters) ? currentFilters : nextFilters
+    ));
+  }, [searchParams]);
 
   function handleRequestError(requestError: unknown, fallback = 'No se pudo completar la operación.') {
     if (requestError instanceof ApiError && requestError.statusCode === 401) {
@@ -354,7 +383,7 @@ export function VaccinationPage({ authToken, currentUser, onUnauthorized }: Vacc
           <label className="filter-field"><span>Regla sanitaria</span><select value={pendingFilters.reglaSanitariaId} onChange={(event) => setPendingFilters({ ...pendingFilters, reglaSanitariaId: event.target.value })}><option value="">Todas</option>{activeRules.map((regla) => <option key={regla.id} value={regla.id}>{regla.nombre}</option>)}</select></label>
           <label className="filter-field"><span>Tipo sanitario</span><select value={pendingFilters.tipo} onChange={(event) => setPendingFilters({ ...pendingFilters, tipo: event.target.value })}><option value="">Todos</option><option value="VACUNA">Vacuna</option><option value="ANALISIS">Análisis</option></select></label>
           <label className="filter-field"><span>Tipo funcional</span><select value={pendingFilters.tipoFuncional} onChange={(event) => setPendingFilters({ ...pendingFilters, tipoFuncional: event.target.value })}><option value="">Todos</option>{tipoFuncionalOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label className="filter-field"><span>Estado</span><select value={pendingFilters.estado} onChange={(event) => setPendingFilters({ ...pendingFilters, estado: event.target.value })}><option value="">Todos</option>{estadoOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label className="filter-field"><span>Estado</span><select value={pendingFilters.estado} onChange={(event) => setPendingFilters({ ...pendingFilters, estado: parseEstadoParam(event.target.value) })}><option value="">Todos</option>{estadoOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label className="filter-field"><span>Fecha máxima desde</span><input type="date" value={pendingFilters.fechaMaximaDesde} onChange={(event) => setPendingFilters({ ...pendingFilters, fechaMaximaDesde: event.target.value })} /></label>
           <label className="filter-field"><span>Fecha máxima hasta</span><input type="date" value={pendingFilters.fechaMaximaHasta} onChange={(event) => setPendingFilters({ ...pendingFilters, fechaMaximaHasta: event.target.value })} /></label>
           <button type="button" className="secondary-button" onClick={() => setPendingFilters({ reglaSanitariaId: '', tipo: '', tipoFuncional: '', estado: '', fechaMaximaDesde: '', fechaMaximaHasta: '' })}>Limpiar</button>

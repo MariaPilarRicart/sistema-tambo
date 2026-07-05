@@ -28,7 +28,7 @@ import {
   groupAnimalesByEstadoReproductivo,
   groupAnimalesByLote,
 } from '../repositories/dashboard.repository';
-import { listVaccinationHistory } from './vacunacion.service';
+import { listPendientesSanitarios } from './vacunacion.service';
 
 export type DashboardPeriodo = 'hoy' | 'semana' | 'mes' | 'anio';
 export type DashboardPeriodoInput = DashboardPeriodo | 'personalizado';
@@ -231,7 +231,6 @@ function buildProductionSummary(
 
 export async function getDashboardEmpleadoResumen(periodo: DashboardPeriodoInput = 'hoy', customRange: CustomDateRange = {}): Promise<DashboardEmpleadoResumen> {
   const { fechaDesde, fechaHasta } = resolvePeriodRange(periodo, customRange);
-  const todayStart = startOfToday();
   const todayEnd = endOfToday();
   const taskDateRange = {
     gte: fechaDesde,
@@ -246,7 +245,7 @@ export async function getDashboardEmpleadoResumen(periodo: DashboardPeriodoInput
     tactosPendientes,
     secadosPendientes,
     partosPendientes,
-    vacunacionesPeriodo,
+    pendientesSanitarios,
     nacimientos,
     alimentacionesRegistradas,
     lotesVencidos,
@@ -263,16 +262,10 @@ export async function getDashboardEmpleadoResumen(periodo: DashboardPeriodoInput
     prisma.animal.count({
       where: { activo: true, estadoAnimal: EstadoAnimal.ACTIVO, categoriaAnimal: CategoriaAnimal.VACA_SECA },
     }),
-    prisma.agendaTarea.count({
-      where: openTaskWhere({ tipo: TipoTarea.TACTO, tipoSanitario: null }, effectiveTaskDateBetween(fechaDesde, fechaHasta)),
-    }),
-    prisma.agendaTarea.count({
-      where: openTaskWhere({ tipo: TipoTarea.SECADO, tipoSanitario: null }, effectiveTaskDateBetween(fechaDesde, fechaHasta)),
-    }),
-    prisma.agendaTarea.count({
-      where: openTaskWhere({ tipo: TipoTarea.PARTO, tipoSanitario: null }, effectiveTaskDateBetween(fechaDesde, fechaHasta)),
-    }),
-    listVaccinationHistory({}),
+    countEmployeeProgrammedAgendaTasksByTipo(TipoTarea.TACTO, todayEnd),
+    countEmployeeProgrammedAgendaTasksByTipo(TipoTarea.SECADO, todayEnd),
+    countEmployeeProgrammedAgendaTasksByTipo(TipoTarea.PARTO, todayEnd),
+    listPendientesSanitarios({}),
     prisma.evento.count({
       where: { tipo: TipoEvento.PARTO, fecha: taskDateRange },
     }),
@@ -283,8 +276,8 @@ export async function getDashboardEmpleadoResumen(periodo: DashboardPeriodoInput
       where: { estado: EstadoLoteLeche.VENCIDO, fechaVencimiento: taskDateRange },
     }),
   ]);
-  const vacunacionPendiente = vacunacionesPeriodo.registros.filter((task) => task.estado === 'PENDIENTE').length;
-  const vacunasVencidas = vacunacionesPeriodo.registros.filter((task) => task.estado === 'VENCIDA').length;
+  const vacunacionPendiente = pendientesSanitarios.pendientes.filter((task) => task.estado === 'PENDIENTE').length;
+  const vacunasVencidas = pendientesSanitarios.pendientes.filter((task) => task.estado === 'VENCIDA').length;
 
   return {
     periodo,
@@ -826,6 +819,19 @@ async function countAdminAgendaTasksByEstadoOperativo(estado: 'VENCIDA' | 'PROGR
     WHERE ${statusCondition}
       AND estado::text NOT IN ('REALIZADA', 'CANCELADA')
       AND tipo::text <> 'VACUNACION'
+  `;
+
+  return result[0]?.total ?? 0;
+}
+
+async function countEmployeeProgrammedAgendaTasksByTipo(tipo: TipoTarea, todayEnd: Date) {
+  const result = await prisma.$queryRaw<Array<{ total: number }>>`
+    SELECT COUNT(*)::int AS total
+    FROM agenda_tareas
+    WHERE tipo::text = ${tipo}
+      AND "tipoSanitario" IS NULL
+      AND estado::text NOT IN ('REALIZADA', 'CANCELADA')
+      AND COALESCE("fechaObjetivo", "fechaProgramada") > ${todayEnd}
   `;
 
   return result[0]?.total ?? 0;
