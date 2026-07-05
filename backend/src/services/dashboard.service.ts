@@ -815,43 +815,17 @@ function effectiveTaskDateBefore(fecha: Date): Prisma.AgendaTareaWhereInput {
   };
 }
 
-function effectiveTaskDateOnOrAfter(fecha: Date): Prisma.AgendaTareaWhereInput {
-  return {
-    OR: [
-      { fechaObjetivo: { gte: fecha } },
-      { fechaObjetivo: null, fechaProgramada: { gte: fecha } },
-    ],
-  };
-}
-
-async function countAgendaTasksByEstadoProyectado(
-  estado: 'VENCIDA' | 'PROGRAMADA',
-  todayEnd: Date,
-  range?: { fechaDesde?: Date; fechaHasta?: Date },
-) {
-  const conditions = [
-    Prisma.sql`estado::text NOT IN ('REALIZADA', 'CANCELADA')`,
-    Prisma.sql`tipo::text <> 'VACUNACION'`,
-  ];
-
-  if (estado === 'VENCIDA') {
-    conditions.push(Prisma.sql`COALESCE("fechaObjetivo", "fechaProgramada") <= ${todayEnd}`);
-  } else {
-    conditions.push(Prisma.sql`COALESCE("fechaObjetivo", "fechaProgramada") > ${todayEnd}`);
-
-    if (range?.fechaDesde) {
-      conditions.push(Prisma.sql`COALESCE("fechaObjetivo", "fechaProgramada") >= ${range.fechaDesde}`);
-    }
-
-    if (range?.fechaHasta) {
-      conditions.push(Prisma.sql`COALESCE("fechaObjetivo", "fechaProgramada") <= ${range.fechaHasta}`);
-    }
-  }
+async function countAdminAgendaTasksByEstadoOperativo(estado: 'VENCIDA' | 'PROGRAMADA', todayEnd: Date) {
+  const statusCondition = estado === 'VENCIDA'
+    ? Prisma.sql`(estado::text = 'VENCIDA' OR COALESCE("fechaObjetivo", "fechaProgramada") <= ${todayEnd})`
+    : Prisma.sql`(estado::text = 'PROGRAMADA' OR COALESCE("fechaObjetivo", "fechaProgramada") > ${todayEnd})`;
 
   const result = await prisma.$queryRaw<Array<{ total: number }>>`
     SELECT COUNT(*)::int AS total
     FROM agenda_tareas
-    WHERE ${Prisma.join(conditions, ' AND ')}
+    WHERE ${statusCondition}
+      AND estado::text NOT IN ('REALIZADA', 'CANCELADA')
+      AND tipo::text <> 'VACUNACION'
   `;
 
   return result[0]?.total ?? 0;
@@ -958,8 +932,8 @@ export async function getDashboardResumen(periodo: DashboardPeriodoInput = 'hoy'
     countEventosForDashboard(todayStart, todayEnd),
     countClientesForDashboard(fechaDesde, fechaHasta),
     countLotesLecheVencidosForDashboard(fechaDesde, fechaHasta),
-    countAgendaTasksByEstadoProyectado('PROGRAMADA', todayEnd, { fechaDesde, fechaHasta }),
-    countAgendaTasksByEstadoProyectado('VENCIDA', todayEnd),
+    countAdminAgendaTasksByEstadoOperativo('PROGRAMADA', todayEnd),
+    countAdminAgendaTasksByEstadoOperativo('VENCIDA', todayEnd),
   ]);
   const resumenProduccion = buildProductionSummary(ordenesPeriodo, lotesPeriodo, periodo);
   const resumenVentas = buildSalesSummary(entregasLechePeriodo, liquidacionesLechePeriodo, resumenProduccion.litrosProducidos, periodo);

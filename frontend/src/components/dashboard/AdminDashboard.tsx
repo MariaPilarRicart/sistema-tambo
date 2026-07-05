@@ -343,10 +343,10 @@ export function AdminDashboard({
     {
       title: 'Tareas programadas',
       value: formatNumber(resumen.tareasPendientes),
-      subtitle: 'Tareas programadas del período.',
+      subtitle: 'Tareas con estado programada.',
       tone: 'indigo' as MetricTone,
       icon: ClipboardList,
-      url: buildUrl(paths.agenda, { estado: 'PROGRAMADA', ...periodParams }),
+      url: buildUrl(paths.agenda, { estado: 'PROGRAMADA' }),
     },
   ];
 
