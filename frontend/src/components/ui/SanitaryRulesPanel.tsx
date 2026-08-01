@@ -28,8 +28,6 @@ const emptyReglaForm: ReglaSanitariaFormValues = {
 };
 
 const tipoFuncionalOptions = [
-  ['GUACHERA', 'Guachera'],
-  ['ESCUELITA', 'Escuelita'],
   ['TERNERA_1', 'Ternera 1'],
   ['TERNERA_2', 'Ternera 2'],
   ['TORITOS', 'Toritos'],

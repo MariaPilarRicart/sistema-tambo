@@ -39,6 +39,7 @@ export type TipoSanitario = (typeof tiposSanitarios)[number];
 export type EstadoSanitario = 'PROGRAMADA' | 'PENDIENTE' | 'REALIZADA' | 'VENCIDA';
 type AlcanceTipo = 'ANIMAL' | 'LOTE' | 'CATEGORIA';
 type ReglaSanitariaConTipos = ReglaSanitaria & { tiposFuncionales: Array<{ tipoFuncional: TipoFuncionalLote }> };
+const TIPOS_FUNCIONALES_NO_VACUNABLES: TipoFuncionalLote[] = ['GUACHERA', 'ESCUELITA'];
 type AnimalElegibleVacunacion = {
   activo: boolean;
   estadoAnimal: EstadoAnimal;
@@ -154,7 +155,11 @@ function parseTiposFuncionales(value: unknown) {
   if (!Array.isArray(value) || value.length === 0) {
     throw new AppError('Debe seleccionar al menos un tipo funcional.', 400);
   }
-  return Array.from(new Set(value.map(parseTipoFuncional)));
+  const tiposFuncionales = Array.from(new Set(value.map(parseTipoFuncional)));
+  if (tiposFuncionales.some((tipoFuncional) => TIPOS_FUNCIONALES_NO_VACUNABLES.includes(tipoFuncional))) {
+    throw new AppError('Guachera y Escuelita no son elegibles para vacunacion.', 400);
+  }
+  return tiposFuncionales;
 }
 
 function parseEstadoSanitario(value: unknown) {
@@ -222,6 +227,7 @@ function calculateNextPendingDate(rule: ReglaSanitaria, fechaRealizada: Date) {
 }
 
 function ruleIncludesTipoFuncional(rule: ReglaSanitariaConTipos, tipoFuncional: TipoFuncionalLote) {
+  if (TIPOS_FUNCIONALES_NO_VACUNABLES.includes(tipoFuncional)) return false;
   return rule.tiposFuncionales.some((scope) => scope.tipoFuncional === tipoFuncional);
 }
 

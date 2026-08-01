@@ -21,8 +21,6 @@ import { formatDate, statusClass } from '../utils/display';
 import type { AuthUser } from '../types/auth';
 
 const tipoFuncionalOptions = [
-  ['GUACHERA', 'Guachera'],
-  ['ESCUELITA', 'Escuelita'],
   ['TERNERA_1', 'Ternera 1'],
   ['TERNERA_2', 'Ternera 2'],
   ['TORITOS', 'Toritos'],

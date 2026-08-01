@@ -88,10 +88,11 @@ export function findVaccinationTasks(filters: {
         gte: filters.fechaRealizadaDesde,
         lte: filters.fechaRealizadaHasta,
       } : undefined,
-      animal: filters.loteId || filters.categoriaAnimal ? {
+      animal: {
         loteId: filters.loteId,
         categoriaAnimal: filters.categoriaAnimal,
-      } : undefined,
+        lote: { tipoFuncional: { notIn: ['GUACHERA', 'ESCUELITA'] } },
+      },
     },
     orderBy: [{ fechaProgramada: 'desc' }, { id: 'desc' }],
     include: vaccinationTaskInclude,
@@ -104,6 +105,9 @@ export function findOpenVaccinationTasks() {
       tipo: 'VACUNACION',
       estado: 'PENDIENTE',
       tipoSanitario: { not: null },
+      animal: {
+        lote: { tipoFuncional: { notIn: ['GUACHERA', 'ESCUELITA'] } },
+      },
     },
     include: vaccinationTaskInclude,
   });
@@ -116,6 +120,9 @@ export function findLatestPerformedVaccinations() {
       estado: 'REALIZADA',
       fechaRealizacion: { not: null },
       tipoSanitario: { not: null },
+      animal: {
+        lote: { tipoFuncional: { notIn: ['GUACHERA', 'ESCUELITA'] } },
+      },
     },
     orderBy: [{ fechaRealizacion: 'desc' }, { id: 'desc' }],
     include: vaccinationTaskInclude,
@@ -319,6 +326,9 @@ export function findPendingVaccinationTasks() {
     where: {
       tipo: 'VACUNACION',
       estado: 'PENDIENTE',
+      animal: {
+        lote: { tipoFuncional: { notIn: ['GUACHERA', 'ESCUELITA'] } },
+      },
     },
     orderBy: { fechaProgramada: 'asc' },
     include: vaccinationTaskInclude,
@@ -337,6 +347,7 @@ export function findActiveAnimalsForVaccination(filters: {
       id: filters.animalIds ? { in: filters.animalIds } : undefined,
       loteId: filters.loteId,
       categoriaAnimal: filters.categoriaAnimal,
+      lote: { tipoFuncional: { notIn: ['GUACHERA', 'ESCUELITA'] } },
     },
     select: { id: true },
   });

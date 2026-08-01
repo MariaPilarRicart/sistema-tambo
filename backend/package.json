@@ -10,6 +10,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:diagnose": "tsx scripts/diagnose-db.ts",
+    "db:renew-local-test": "tsx scripts/renew-local-test-db.ts",
     "prisma:seed": "tsx prisma/seed.ts",
     "seed": "tsx prisma/seed.ts"
   },

@@ -3,6 +3,7 @@ import {
   Prisma,
   TipoAlimento,
   TipoCalculoAlimentacion,
+  TipoFuncionalLote,
   TipoMovimientoStockAlimentacion,
   UnidadAlimento,
 } from '@prisma/client';
@@ -146,6 +147,23 @@ function getPredominantCategoria(animales: Array<{ categoriaAnimal: CategoriaAni
   const counts = new Map<CategoriaAnimal, number>();
   for (const animal of animales) counts.set(animal.categoriaAnimal, (counts.get(animal.categoriaAnimal) ?? 0) + 1);
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+}
+
+function getDietCategoriaByTipoFuncional(tipoFuncional: TipoFuncionalLote) {
+  const categoriasByTipo: Partial<Record<TipoFuncionalLote, CategoriaAnimal>> = {
+    GUACHERA: CategoriaAnimal.TERNERA,
+    ESCUELITA: CategoriaAnimal.TERNERA,
+    TERNERA_1: CategoriaAnimal.TERNERA,
+    TERNERA_2: CategoriaAnimal.VAQUILLONA,
+    TORITOS: CategoriaAnimal.TORITO,
+    TOROS: CategoriaAnimal.TORO,
+    PRODUCCION: CategoriaAnimal.VACA,
+    SECAS: CategoriaAnimal.VACA,
+    PREPARTO: CategoriaAnimal.VACA,
+    RECUPERACION: CategoriaAnimal.VACA,
+  };
+
+  return categoriasByTipo[tipoFuncional] ?? null;
 }
 
 function calculateSuggested(
@@ -330,18 +348,7 @@ export async function getSugerenciaAlimentacion(query: Query) {
   if (!lote || !lote.activo) throw new AppError('Lote no encontrado o inactivo.', 404);
 
   const cantidadAnimales = lote.animales.length;
-  if (cantidadAnimales === 0) {
-    return {
-      lote: { id: lote.id, nombre: lote.nombre },
-      cantidadAnimales,
-      categoriaPredominante: null,
-      categorias: [],
-      advertencia: 'El lote no tiene animales activos.',
-      detalles: [],
-    };
-  }
-
-  const categoriaPredominante = getPredominantCategoria(lote.animales);
+  const categoriaPredominante = getPredominantCategoria(lote.animales) ?? getDietCategoriaByTipoFuncional(lote.tipoFuncional);
   if (!categoriaPredominante) throw new AppError('No se pudo detectar categoria del lote.', 400);
   const categorias = [...new Set(lote.animales.map((animal) => animal.categoriaAnimal))];
   const reglas = await findActiveRulesByCategoria(categoriaPredominante);
@@ -369,7 +376,11 @@ export async function getSugerenciaAlimentacion(query: Query) {
     cantidadAnimales,
     categoriaPredominante,
     categorias,
-    advertencia: categorias.length > 1 ? 'El lote tiene animales de distintas categorias. Se usa la categoria predominante.' : null,
+    advertencia: cantidadAnimales === 0
+      ? 'El lote no tiene animales activos. Se muestra la dieta configurada para su tipo funcional.'
+      : categorias.length > 1
+        ? 'El lote tiene animales de distintas categorias. Se usa la categoria predominante.'
+        : null,
     detalles,
   };
 }

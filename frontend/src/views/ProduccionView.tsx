@@ -30,8 +30,8 @@ const emptyForm: ProduccionFormValues = {
 };
 
 const emptyFilters: ProduccionFilters = {
-  fechaDesde: localDateValue(),
-  fechaHasta: localDateValue(),
+  fechaDesde: '',
+  fechaHasta: '',
   turno: '',
 };
 

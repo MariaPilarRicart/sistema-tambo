@@ -79,6 +79,7 @@ export function findLoteWithAnimales(loteId: number) {
       id: true,
       nombre: true,
       activo: true,
+      tipoFuncional: true,
       animales: {
         where: { activo: true, estadoAnimal: 'ACTIVO' },
         select: {
