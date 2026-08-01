@@ -68,7 +68,7 @@ export async function createAnimal(token: string, values: AnimalFormValues) {
   const response = await apiRequest<AnimalResponse>('/animales', {
     method: 'POST',
     token,
-    body: JSON.stringify(buildAnimalPayload(values, true)),
+    body: JSON.stringify(buildAnimalPayload(values, false)),
   });
 
   return response.animal;

@@ -597,19 +597,11 @@ export function EventsPage({ authToken, onUnauthorized }: EventsPageProps) {
                           <option value="MUERTA">Muerta</option>
                         </select>
                       </label>
-                      <label>
-                        <span>Caravana</span>
-                        <input
-                          value={cria.caravana}
-                          onChange={(event) => {
-                            const crias = [...eventFormValues.crias];
-                            crias[index] = { ...cria, caravana: event.target.value };
-                            setEventFormValues({ ...eventFormValues, crias });
-                          }}
-                          required={cria.estadoNacimiento === 'VIVA'}
-                          placeholder={cria.estadoNacimiento === 'VIVA' ? 'Ingresar caravana' : 'Opcional'}
-                        />
-                      </label>
+                      {cria.estadoNacimiento === 'VIVA' && (
+                        <p className="field-help animal-form-message">
+                          La caravana se genera automáticamente al guardar.
+                        </p>
+                      )}
                       <label>
                         <span>Lote destino</span>
                         <select

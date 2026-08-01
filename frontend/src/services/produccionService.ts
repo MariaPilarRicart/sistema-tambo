@@ -34,13 +34,6 @@ function buildProduccionPayload(values: ProduccionFormValues) {
     litrosBuenos: Number(values.litrosBuenos || 0),
     litrosDescartados: Number(values.litrosDescartados || 0),
     observaciones: values.observaciones.trim() || null,
-    detalles: values.detalles
-      .filter((detalle) => detalle.animalId && detalle.litros !== '')
-      .map((detalle) => ({
-        animalId: Number(detalle.animalId),
-        litros: Number(detalle.litros || 0),
-        observaciones: detalle.observaciones.trim() || null,
-      })),
   };
 }
 

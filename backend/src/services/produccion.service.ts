@@ -383,8 +383,6 @@ export async function createNewProduccion(input: Record<string, unknown>, usuari
   const turno = parseRequiredTurno(input.turno);
   const litrosBuenos = parseDecimal(input.litrosBuenos ?? input.litrosProducidos, 'Litros buenos', { required: true, min: 0 })!;
   const litrosDescartados = parseDecimal(input.litrosDescartados ?? 0, 'Litros descartados', { min: 0 }) ?? new Prisma.Decimal(0);
-  const detalles = parseOrdeneDetails(input.detalles);
-  await validateOrdeneDetails(detalles);
 
   const existing = await findOrdeneByFechaTurno(fecha, turno);
   if (existing) throw new AppError('Ya existe un ordeñe para esa fecha y turno.', 409);
@@ -397,7 +395,6 @@ export async function createNewProduccion(input: Record<string, unknown>, usuari
       litrosDescartados,
       observaciones: normalizeOptionalString(input.observaciones, 'Observaciones'),
       usuarioId,
-      detalles,
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -417,8 +414,6 @@ export async function updateExistingProduccion(idParam: string, input: Record<st
   const turno = parseRequiredTurno(input.turno);
   const litrosBuenos = parseDecimal(input.litrosBuenos ?? input.litrosProducidos, 'Litros buenos', { required: true, min: 0 })!;
   const litrosDescartados = parseDecimal(input.litrosDescartados ?? 0, 'Litros descartados', { min: 0 }) ?? new Prisma.Decimal(0);
-  const detalles = parseOrdeneDetails(input.detalles);
-  await validateOrdeneDetails(detalles);
 
   const duplicateOrdene = await findOrdeneByFechaTurno(fecha, turno);
   if (duplicateOrdene && duplicateOrdene.id !== id) {
@@ -432,7 +427,6 @@ export async function updateExistingProduccion(idParam: string, input: Record<st
       litrosBuenos,
       litrosDescartados,
       observaciones: normalizeOptionalString(input.observaciones, 'Observaciones'),
-      detalles,
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

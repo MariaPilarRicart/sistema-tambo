@@ -246,6 +246,28 @@ function applyDefaultLoteToLiveCrias(crias: EventoFormValues['crias'], loteId: s
   ));
 }
 
+function isOlderThanTwoYears(fechaNacimiento: string, referenceDate = new Date()) {
+  const birthDate = new Date(fechaNacimiento);
+  if (Number.isNaN(birthDate.getTime())) return false;
+
+  const cutoff = new Date(referenceDate);
+  cutoff.setFullYear(cutoff.getFullYear() - 2);
+  cutoff.setHours(0, 0, 0, 0);
+  birthDate.setHours(0, 0, 0, 0);
+
+  return birthDate < cutoff;
+}
+
+function isEligibleMother(animal: Animal) {
+  const category = toFunctionalCategory(animal.categoriaAnimal);
+  return (
+    animal.activo &&
+    animal.estadoAnimal === 'ACTIVO' &&
+    (category === 'VACA' || category === 'VAQUILLONA') &&
+    isOlderThanTwoYears(animal.fechaNacimiento)
+  );
+}
+
 interface HerdPageProps {
   authToken: string | null;
   currentUser: AuthUser | null;
@@ -280,6 +302,10 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
     const allowedTypes = getAllowedLoteTypes(formValues);
     return activeLotes.filter((lote) => allowedTypes.includes(lote.tipoFuncional));
   }, [activeLotes, formValues]);
+  const eligibleMadres = useMemo(
+    () => allAnimales.filter((animal) => animal.id !== editingAnimal?.id && isEligibleMother(animal)),
+    [allAnimales, editingAnimal],
+  );
   const visibleAnimales = useMemo(() => {
     const fechaNacimientoDesde = searchParams.get('fechaNacimientoDesde');
     const fechaNacimientoHasta = searchParams.get('fechaNacimientoHasta');
@@ -716,7 +742,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
             <div className="panel-header">
               <div>
                 <h2>{editingAnimal ? 'Editar animal' : 'Nuevo animal'}</h2>
-                <p>{editingAnimal ? 'La caravana no se puede modificar.' : 'La caravana debe ser unica.'}</p>
+                <p>{editingAnimal ? 'La caravana no se puede modificar.' : 'La caravana se genera automáticamente al guardar.'}</p>
               </div>
               <button type="button" className="icon-button" onClick={resetForm} aria-label="Cerrar modal">
                 <X size={18} />
@@ -724,10 +750,12 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
             </div>
 
             <form className="user-form animal-modal-form" onSubmit={handleSubmit}>
-              <label>
-                <span>Caravana</span>
-                <input value={formValues.caravana} onChange={(event) => setFormValues({ ...formValues, caravana: event.target.value })} required disabled={Boolean(editingAnimal)} />
-              </label>
+              {editingAnimal && (
+                <label>
+                  <span>Caravana</span>
+                  <input value={formValues.caravana} disabled />
+                </label>
+              )}
               <label>
                 <span>Fecha nacimiento</span>
                 <input type="date" value={formValues.fechaNacimiento} onChange={(event) => setFormValues({ ...formValues, fechaNacimiento: event.target.value })} required />
@@ -761,11 +789,9 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                 <span>Madre</span>
                 <select value={formValues.madreId} onChange={(event) => setFormValues({ ...formValues, madreId: event.target.value })}>
                   <option value="">Sin madre registrada</option>
-                  {allAnimales
-                    .filter((animal) => animal.id !== editingAnimal?.id)
-                    .map((animal) => (
-                      <option key={animal.id} value={animal.id}>#{animal.caravana}</option>
-                    ))}
+                  {eligibleMadres.map((animal) => (
+                    <option key={animal.id} value={animal.id}>#{animal.caravana}</option>
+                  ))}
                 </select>
               </label>
               <label>
@@ -782,7 +808,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                   {!isReproductiveCategory(formValues.categoriaAnimal) ? (
                     <option value="NO_APLICA">No aplica</option>
                   ) : (
-                    estadoReproductivoOptions.map((option) => <option key={option} value={option}>{option}</option>)
+                    estadoReproductivoOptions.map((option) => <option key={option} value={option}>{option === 'PRENADA' ? 'Preñada' : option}</option>)
                   )}
                 </select>
               </label>
@@ -1069,19 +1095,11 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                           <option value="MUERTA">Muerta</option>
                         </select>
                       </label>
-                      <label>
-                        <span>Caravana</span>
-                        <input
-                          value={cria.caravana}
-                          onChange={(event) => {
-                            const crias = [...eventFormValues.crias];
-                            crias[index] = { ...cria, caravana: event.target.value };
-                            setEventFormValues({ ...eventFormValues, crias });
-                          }}
-                          required={cria.estadoNacimiento === 'VIVA'}
-                          placeholder={cria.estadoNacimiento === 'VIVA' ? 'Ingresar caravana' : 'Opcional'}
-                        />
-                      </label>
+                      {cria.estadoNacimiento === 'VIVA' && (
+                        <p className="field-help">
+                          La caravana se genera automáticamente al guardar.
+                        </p>
+                      )}
                       <label>
                         <span>Lote destino</span>
                         <select

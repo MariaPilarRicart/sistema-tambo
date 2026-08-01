@@ -1,11 +1,10 @@
 import { CategoriaAnimal, EstadoAnimal, EstadoReproductivo, Prisma, TipoFuncionalLote } from '@prisma/client';
 import { AppError } from '../errors/AppError';
 import {
-  createAnimal,
+  createAnimalWithGeneratedCaravana,
   deactivateAnimal,
   findActiveLoteById,
   findAnimalFichaById,
-  findAnimalByCaravana,
   findAnimalById,
   findAnimales,
   getRodeoSummaryCounts,
@@ -15,6 +14,13 @@ import { validarConsistenciaAnimal } from './rodeo-rules.service';
 import { withEstadoCalculado } from './tareas-state.service';
 
 const CARAVANA_EXISTS_MESSAGE = 'No puede agregar dos animales con el mismo número de caravana';
+const MOTHER_CATEGORIES: CategoriaAnimal[] = [
+  CategoriaAnimal.VAQUILLONA,
+  CategoriaAnimal.VACA,
+  CategoriaAnimal.VACA_PRODUCCION,
+  CategoriaAnimal.VACA_SECA,
+  CategoriaAnimal.PREPARTO,
+];
 const ESTADOS_BAJA: EstadoAnimal[] = [
   EstadoAnimal.VENDIDO,
   EstadoAnimal.MUERTO,
@@ -27,7 +33,7 @@ function parseId(value: unknown, fieldName: string) {
   const parsed = Number(value);
 
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new AppError(`${fieldName} invalido.`, 400);
+    throw new AppError(`${fieldName} inválido.`, 400);
   }
 
   return parsed;
@@ -37,7 +43,7 @@ function parseBoolean(value: unknown) {
   if (value === undefined) return undefined;
   if (value === true || value === 'true') return true;
   if (value === false || value === 'false') return false;
-  throw new AppError('Filtro activo invalido.', 400);
+  throw new AppError('Filtro activo inválido.', 400);
 }
 
 function parseCategoria(value: unknown) {
@@ -45,7 +51,7 @@ function parseCategoria(value: unknown) {
     return value as CategoriaAnimal;
   }
 
-  throw new AppError('Categoria invalida.', 400);
+  throw new AppError('Categoría inválida.', 400);
 }
 
 function parseEstadoReproductivo(value: unknown) {
@@ -53,7 +59,7 @@ function parseEstadoReproductivo(value: unknown) {
     return value as EstadoReproductivo;
   }
 
-  throw new AppError('Estado reproductivo invalido.', 400);
+  throw new AppError('Estado reproductivo inválido.', 400);
 }
 
 function parseEstadoAnimal(value: unknown) {
@@ -61,7 +67,7 @@ function parseEstadoAnimal(value: unknown) {
     return value as EstadoAnimal;
   }
 
-  throw new AppError('Estado del animal invalido.', 400);
+  throw new AppError('Estado del animal inválido.', 400);
 }
 
 function normalizeOptionalString(value: unknown, fieldName: string) {
@@ -70,7 +76,7 @@ function normalizeOptionalString(value: unknown, fieldName: string) {
   }
 
   if (typeof value !== 'string') {
-    throw new AppError(`${fieldName} invalido.`, 400);
+    throw new AppError(`${fieldName} inválido.`, 400);
   }
 
   return value.trim() || null;
@@ -85,7 +91,7 @@ function parseDate(value: unknown) {
   const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 9, 0, 0, 0) : new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    throw new AppError('Fecha de nacimiento invalida.', 400);
+    throw new AppError('Fecha de nacimiento inválida.', 400);
   }
 
   return date;
@@ -109,7 +115,18 @@ async function ensureActiveLoteExists(loteId: number) {
   return lote;
 }
 
-async function ensureMadreExists(madreId: number, animalId?: number) {
+function isOlderThanTwoYears(fechaNacimiento: Date, referenceDate: Date) {
+  const cutoff = new Date(referenceDate);
+  cutoff.setFullYear(cutoff.getFullYear() - 2);
+  cutoff.setHours(0, 0, 0, 0);
+
+  const birthDate = new Date(fechaNacimiento);
+  birthDate.setHours(0, 0, 0, 0);
+
+  return birthDate < cutoff;
+}
+
+async function ensureEligibleMadre(madreId: number, animalId?: number, referenceDate = new Date()) {
   if (animalId && madreId === animalId) {
     throw new AppError('La madre no puede ser el mismo animal.', 400);
   }
@@ -118,6 +135,18 @@ async function ensureMadreExists(madreId: number, animalId?: number) {
 
   if (!madre) {
     throw new AppError('La madre informada no existe.', 400);
+  }
+
+  if (!madre.activo || madre.estadoAnimal !== EstadoAnimal.ACTIVO) {
+    throw new AppError('La madre seleccionada debe estar activa.', 400);
+  }
+
+  if (!MOTHER_CATEGORIES.includes(madre.categoriaAnimal)) {
+    throw new AppError('La madre seleccionada debe ser una hembra elegible.', 400);
+  }
+
+  if (!isOlderThanTwoYears(madre.fechaNacimiento, referenceDate)) {
+    throw new AppError('La madre seleccionada debe tener más de 2 años.', 400);
   }
 }
 
@@ -181,25 +210,14 @@ export async function getAnimalFicha(idParam: string) {
 }
 
 export async function createNewAnimal(input: Record<string, unknown>) {
-  const caravana = typeof input.caravana === 'string' ? input.caravana.trim() : '';
   const loteId = parseId(input.loteId, 'loteId');
   const madreId = parseOptionalMadreId(input.madreId);
   const fechaNacimiento = parseDate(input.fechaNacimiento);
   const categoriaAnimal = parseCategoria(input.categoriaAnimal ?? input.categoria);
   const estadoReproductivo = parseEstadoReproductivo(input.estadoReproductivo ?? EstadoReproductivo.NO_APLICA);
 
-  if (!caravana) {
-    throw new AppError('Caravana es obligatoria.', 400);
-  }
-
-  const existingAnimal = await findAnimalByCaravana(caravana);
-
-  if (existingAnimal) {
-    throw new AppError(CARAVANA_EXISTS_MESSAGE, 409);
-  }
-
   const lote = await ensureActiveLoteExists(loteId);
-  if (madreId) await ensureMadreExists(madreId);
+  if (madreId) await ensureEligibleMadre(madreId);
   const consistencia = validarConsistenciaAnimal({
     categoriaAnimal,
     fechaNacimiento,
@@ -209,8 +227,7 @@ export async function createNewAnimal(input: Record<string, unknown>) {
   ensureLoteCompatible(lote, consistencia.loteTipoFuncional);
 
   try {
-    return await createAnimal({
-      caravana,
+    return await createAnimalWithGeneratedCaravana({
       nombre: normalizeOptionalString(input.nombre, 'Nombre'),
       fechaNacimiento,
       raza: normalizeOptionalString(input.raza, 'Raza'),
@@ -276,7 +293,7 @@ export async function updateExistingAnimal(idParam: string, input: Record<string
   }
   if (input.madreId !== undefined) {
     const madreId = parseOptionalMadreId(input.madreId);
-    if (madreId) await ensureMadreExists(madreId, id);
+    if (madreId) await ensureEligibleMadre(madreId, id);
     data.madreId = madreId;
   }
   if (input.padreNombre !== undefined) {

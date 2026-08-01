@@ -42,7 +42,6 @@ export async function createEvento(token: string, animalId: number, values: Even
             crias: values.crias.map((cria) => ({
               categoria: cria.categoria,
               estadoNacimiento: cria.estadoNacimiento,
-              caravana: cria.caravana.trim() || null,
               loteId: cria.loteId ? Number(cria.loteId) : null,
               observacion: cria.observacion.trim() || null,
             })),

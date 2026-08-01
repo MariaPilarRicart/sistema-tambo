@@ -377,7 +377,6 @@ export async function createOrdene(data: {
   litrosDescartados: Prisma.Decimal;
   observaciones?: string | null;
   usuarioId: number;
-  detalles: Array<{ animalId: number; litros: Prisma.Decimal; observaciones?: string | null }>;
 }) {
   return prisma.ordene.create({
     data: {
@@ -387,9 +386,6 @@ export async function createOrdene(data: {
       litrosDescartados: data.litrosDescartados,
       observaciones: data.observaciones,
       usuarioId: data.usuarioId,
-      detalles: {
-        create: data.detalles,
-      },
     },
     include: ordeneInclude,
   });
@@ -401,7 +397,6 @@ export async function updateOrdene(id: number, data: {
   litrosBuenos: Prisma.Decimal;
   litrosDescartados: Prisma.Decimal;
   observaciones?: string | null;
-  detalles: Array<{ animalId: number; litros: Prisma.Decimal; observaciones?: string | null }>;
 }) {
   return prisma.$transaction(async (tx) => {
     await tx.ordeneDetalle.deleteMany({ where: { ordeneId: id } });
@@ -414,9 +409,6 @@ export async function updateOrdene(id: number, data: {
         litrosBuenos: data.litrosBuenos,
         litrosDescartados: data.litrosDescartados,
         observaciones: data.observaciones,
-        detalles: {
-          create: data.detalles,
-        },
       },
       include: ordeneInclude,
     });

@@ -79,19 +79,12 @@ export interface ProduccionFilters {
   turno: string;
 }
 
-export interface OrdeneDetalleFormValues {
-  animalId: string;
-  litros: string;
-  observaciones: string;
-}
-
 export interface ProduccionFormValues {
   fecha: string;
   turno: TurnoOrdene;
   litrosBuenos: string;
   litrosDescartados: string;
   observaciones: string;
-  detalles: OrdeneDetalleFormValues[];
 }
 
 export interface ProduccionEvolucionDiaria {

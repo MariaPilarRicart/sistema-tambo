@@ -156,8 +156,7 @@ export function findActiveLoteByNombre(nombre: string) {
   });
 }
 
-export function createAnimal(data: {
-  caravana: string;
+export type AnimalCreateData = {
   nombre?: string | null;
   fechaNacimiento: Date;
   raza?: string | null;
@@ -168,11 +167,39 @@ export function createAnimal(data: {
   loteId: number;
   madreId?: number | null;
   padreNombre?: string | null;
-}) {
+};
+
+export function createAnimal(data: AnimalCreateData & { caravana: string }) {
   return prisma.animal.create({
     data,
     include: animalInclude,
   });
+}
+
+export async function createAnimalWithGeneratedCaravanaInTransaction(
+  tx: Prisma.TransactionClient,
+  data: AnimalCreateData,
+) {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(2026080101)`;
+  const rows = await tx.$queryRaw<Array<{ next: bigint }>>`
+    SELECT COALESCE(MAX(caravana::integer), 0) + 1 AS next
+    FROM animales
+    WHERE caravana ~ '^[0-9]{6}$'
+  `;
+  const next = Number(rows[0]?.next ?? 1);
+  const caravana = String(next).padStart(6, '0');
+
+  return tx.animal.create({
+    data: {
+      ...data,
+      caravana,
+    },
+    include: animalInclude,
+  });
+}
+
+export function createAnimalWithGeneratedCaravana(data: AnimalCreateData) {
+  return prisma.$transaction((tx) => createAnimalWithGeneratedCaravanaInTransaction(tx, data));
 }
 
 export function updateAnimal(

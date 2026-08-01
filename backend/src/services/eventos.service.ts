@@ -10,6 +10,7 @@ import {
 import { randomUUID } from 'crypto';
 import { prisma } from '../config/prisma';
 import { AppError } from '../errors/AppError';
+import { createAnimalWithGeneratedCaravanaInTransaction } from '../repositories/animales.repository';
 import { findEventoById, findEventos } from '../repositories/eventos.repository';
 import {
   getLotePostEvento,
@@ -38,7 +39,7 @@ function parseId(value: unknown, fieldName: string) {
   const parsed = Number(value);
 
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new AppError(`${fieldName} invalido.`, 400);
+    throw new AppError(`${fieldName} inválido.`, 400);
   }
 
   return parsed;
@@ -46,10 +47,10 @@ function parseId(value: unknown, fieldName: string) {
 
 function parseDate(value: unknown) {
   if (!value) return new Date();
-  if (typeof value !== 'string') throw new AppError('Fecha invalida.', 400);
+  if (typeof value !== 'string') throw new AppError('Fecha inválida.', 400);
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new AppError('Fecha invalida.', 400);
+  if (Number.isNaN(date.getTime())) throw new AppError('Fecha inválida.', 400);
 
   return date;
 }
@@ -59,15 +60,15 @@ function parseTipoEvento(value: unknown) {
     return value as TipoEvento;
   }
 
-  throw new AppError('Tipo de evento invalido.', 400);
+  throw new AppError('Tipo de evento inválido.', 400);
 }
 
 function parseOptionalDate(value: unknown, fieldName: string) {
   if (!value) return undefined;
-  if (typeof value !== 'string') throw new AppError(`${fieldName} invalida.`, 400);
+  if (typeof value !== 'string') throw new AppError(`${fieldName} inválida.`, 400);
 
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) throw new AppError(`${fieldName} invalida.`, 400);
+  if (Number.isNaN(date.getTime())) throw new AppError(`${fieldName} inválida.`, 400);
 
   return date;
 }
@@ -89,7 +90,7 @@ function getTactoResultado(datosJson: unknown) {
   const resultado = (datosJson as { resultado?: unknown }).resultado;
 
   if (resultado !== 'POSITIVO' && resultado !== 'NEGATIVO') {
-    throw new AppError('Resultado de TACTO invalido. Debe ser POSITIVO o NEGATIVO.', 400);
+    throw new AppError('Resultado de TACTO inválido. Debe ser POSITIVO o NEGATIVO.', 400);
   }
 
   return resultado;
@@ -109,7 +110,7 @@ function getPartoPayload(datosJson: unknown) {
   const parto = asObject(root?.parto);
 
   if (!parto) {
-    throw new AppError('PARTO debe recibir datosJson.parto con el detalle de crias.', 400);
+    throw new AppError('PARTO debe recibir datosJson.parto con el detalle de crías.', 400);
   }
 
   const cantidadCrias = Number(parto.cantidadCrias);
@@ -119,61 +120,46 @@ function getPartoPayload(datosJson: unknown) {
     : parseId(parto.guacheraLoteId, 'guacheraLoteId');
 
   if (![1, 2, 3].includes(cantidadCrias)) {
-    throw new AppError('La cantidad de crias debe ser 1, 2 o 3.', 400);
+    throw new AppError('La cantidad de crías debe ser 1, 2 o 3.', 400);
   }
 
   if (criasSource.length !== cantidadCrias) {
-    throw new AppError('La cantidad seleccionada debe coincidir con la cantidad de crias cargadas.', 400);
+    throw new AppError('La cantidad seleccionada debe coincidir con la cantidad de crías cargadas.', 400);
   }
 
   const crias = criasSource.map((item, index) => {
     const cria = asObject(item);
     const categoria = cria?.categoria;
     const estadoNacimiento = cria?.estadoNacimiento;
-    const caravana = parseOptionalString(cria?.caravana);
     const observacion = parseOptionalString(cria?.observacion);
 
     if (categoria !== CategoriaAnimal.TERNERO && categoria !== CategoriaAnimal.TERNERA) {
-      throw new AppError('Cada cria debe ser Ternero o Ternera.', 400);
+      throw new AppError('Cada cría debe ser Ternero o Ternera.', 400);
     }
 
     if (estadoNacimiento !== 'VIVA' && estadoNacimiento !== 'MUERTA') {
-      throw new AppError('Cada cria debe tener estado al nacer Viva o Muerta.', 400);
-    }
-
-    if (estadoNacimiento === 'VIVA' && !caravana) {
-      throw new AppError('La caravana es obligatoria para crias nacidas vivas.', 400);
+      throw new AppError('Cada cría debe tener estado al nacer Viva o Muerta.', 400);
     }
 
     const loteId = estadoNacimiento === 'VIVA'
       ? (cria?.loteId === undefined || cria.loteId === null || cria.loteId === ''
         ? guacheraLoteId
-        : parseId(cria.loteId, `loteId de cria ${index + 1}`))
+        : parseId(cria.loteId, `loteId de cría ${index + 1}`))
       : null;
 
     if (estadoNacimiento === 'VIVA' && !loteId) {
-      throw new AppError('Selecciona el lote destino para la cria viva.', 400);
+      throw new AppError('Seleccioná el lote destino para la cría viva.', 400);
     }
 
     return {
       numero: index + 1,
       categoria,
       estadoNacimiento,
-      caravana: caravana || null,
+      caravana: null,
       loteId,
       observacion: observacion || null,
     };
   });
-
-  const caravanasVivas = crias
-    .filter((cria) => cria.estadoNacimiento === 'VIVA')
-    .map((cria) => cria.caravana)
-    .filter((caravana): caravana is string => Boolean(caravana));
-  const caravanasUnicas = new Set(caravanasVivas);
-
-  if (caravanasUnicas.size !== caravanasVivas.length) {
-    throw new AppError('No puede repetir caravanas entre crias nacidas vivas.', 400);
-  }
 
   return { cantidadCrias, crias, guacheraLoteId };
 }
@@ -332,7 +318,7 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
         EstadoReproductivo.RECUPERACION,
       ] as EstadoReproductivo[]).includes(animal.estadoReproductivo)
     ) {
-      throw new AppError('No se puede inseminar un animal preñado, seco o en recuperacion.', 400);
+      throw new AppError('No se puede inseminar un animal preñado, seco o en recuperación.', 400);
     }
 
     if (tipo === TipoEvento.TACTO) {
@@ -354,7 +340,7 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
       if (partoPayload.guacheraLoteId) {
         const guachera = await findActiveLoteByIdOrThrow(tx, partoPayload.guacheraLoteId);
         if (guachera.tipoFuncional !== TipoFuncionalLoteValue.GUACHERA) {
-          throw new AppError('El lote de crias vivas debe ser de tipo funcional GUACHERA.', 400);
+          throw new AppError('El lote de crías vivas debe ser de tipo funcional GUACHERA.', 400);
         }
       }
 
@@ -362,20 +348,10 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
       for (const loteId of loteIdsVivos) {
         const guachera = await findActiveLoteByIdOrThrow(tx, loteId);
         if (guachera.tipoFuncional !== TipoFuncionalLoteValue.GUACHERA) {
-          throw new AppError('El lote destino de cada cria viva debe ser de tipo funcional GUACHERA.', 400);
+          throw new AppError('El lote destino de cada cría viva debe ser de tipo funcional GUACHERA.', 400);
         }
       }
 
-      if (vivas.length > 0) {
-        const existing = await tx.animal.findMany({
-          where: { caravana: { in: vivas.map((cria) => cria.caravana!) } },
-          select: { caravana: true },
-        });
-
-        if (existing.length > 0) {
-          throw new AppError('Ya existe un animal con la caravana de una cria viva.', 409);
-        }
-      }
     }
 
     if (tipo === TipoEvento.CAMBIO_LOTE) {
@@ -614,22 +590,19 @@ export async function createEvento(input: Record<string, unknown>, usuarioId: nu
               continue;
             }
 
-            const nuevaCria = await tx.animal.create({
-              data: {
-                caravana: cria.caravana!,
-                nombre: null,
-                fechaNacimiento: fecha,
-                raza: null,
-                categoriaAnimal: cria.categoria,
-                estadoReproductivo: EstadoReproductivo.NO_APLICA,
-                estadoAnimal: EstadoAnimal.ACTIVO,
-                activo: true,
-                loteId: cria.loteId!,
-                madreId: animalId,
-                padreNombre: null,
-              },
+            const nuevaCria = await createAnimalWithGeneratedCaravanaInTransaction(tx, {
+              nombre: null,
+              fechaNacimiento: fecha,
+              raza: null,
+              categoriaAnimal: cria.categoria,
+              estadoReproductivo: EstadoReproductivo.NO_APLICA,
+              estadoAnimal: EstadoAnimal.ACTIVO,
+              activo: true,
+              loteId: cria.loteId!,
+              madreId: animalId,
+              padreNombre: null,
             });
-            criasConResultado.push({ ...cria, agregadaARodeo: true, animalId: nuevaCria.id });
+            criasConResultado.push({ ...cria, caravana: nuevaCria.caravana, agregadaARodeo: true, animalId: nuevaCria.id });
           }
 
           await tx.evento.update({

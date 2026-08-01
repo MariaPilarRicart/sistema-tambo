@@ -4,3 +4,6 @@ dist/
 backend/.env
 frontend/.env
 *.log
+database/backups/*.dump
+database/backups/*.backup
+!database/backups/README.md
