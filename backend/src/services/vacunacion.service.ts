@@ -1,5 +1,6 @@
 import {
   CategoriaAnimal,
+  EstadoAnimal,
   EstadoPendienteSanitario,
   PeriodicidadReglaSanitaria,
   Prisma,
@@ -37,6 +38,15 @@ export const tiposSanitarios = ['AFTOSA', 'BRUCELOSIS', 'ANALISIS_TUBERCULINA', 
 export type TipoSanitario = (typeof tiposSanitarios)[number];
 export type EstadoSanitario = 'PROGRAMADA' | 'PENDIENTE' | 'REALIZADA' | 'VENCIDA';
 type AlcanceTipo = 'ANIMAL' | 'LOTE' | 'CATEGORIA';
+type ReglaSanitariaConTipos = ReglaSanitaria & { tiposFuncionales: Array<{ tipoFuncional: TipoFuncionalLote }> };
+type AnimalElegibleVacunacion = {
+  activo: boolean;
+  estadoAnimal: EstadoAnimal;
+  lote: {
+    activo: boolean;
+    tipoFuncional: TipoFuncionalLote;
+  } | null;
+};
 
 function parseDate(value: unknown, fieldName = 'Fecha programada') {
   if (typeof value !== 'string' || !value) throw new AppError(`${fieldName} es obligatoria.`, 400);
@@ -211,9 +221,50 @@ function calculateNextPendingDate(rule: ReglaSanitaria, fechaRealizada: Date) {
   return addYears(fechaRealizada, 1);
 }
 
+function ruleIncludesTipoFuncional(rule: ReglaSanitariaConTipos, tipoFuncional: TipoFuncionalLote) {
+  return rule.tiposFuncionales.some((scope) => scope.tipoFuncional === tipoFuncional);
+}
+
+export function shouldGenerateNextVaccinationForAnimal(input: {
+  rule: ReglaSanitariaConTipos | null;
+  animal: AnimalElegibleVacunacion;
+  existingFuturePending: boolean;
+}) {
+  if (!input.rule?.activo) return false;
+  if (!input.animal.activo || input.animal.estadoAnimal !== EstadoAnimal.ACTIVO) return false;
+  if (!input.animal.lote?.activo) return false;
+  if (!ruleIncludesTipoFuncional(input.rule, input.animal.lote.tipoFuncional)) return false;
+  if (input.existingFuturePending) return false;
+  return true;
+}
+
+export function shouldGenerateNextSanitaryPending(input: {
+  rule: ReglaSanitariaConTipos | null;
+  tipoFuncional: TipoFuncionalLote;
+  eligibleAnimalsCount: number;
+  existingFuturePending: boolean;
+}) {
+  if (!input.rule?.activo) return false;
+  if (!ruleIncludesTipoFuncional(input.rule, input.tipoFuncional)) return false;
+  if (input.eligibleAnimalsCount <= 0) return false;
+  if (input.existingFuturePending) return false;
+  return true;
+}
+
+export function shouldEnsureInitialSanitaryPending(input: {
+  rule: ReglaSanitariaConTipos;
+  tipoFuncional: TipoFuncionalLote;
+  existingOpen: boolean;
+}) {
+  if (!input.rule.activo) return false;
+  if (!ruleIncludesTipoFuncional(input.rule, input.tipoFuncional)) return false;
+  if (input.existingOpen) return false;
+  return true;
+}
+
 async function ensureInitialPendingForRule(
   tx: Prisma.TransactionClient,
-  rule: ReglaSanitaria,
+  rule: ReglaSanitariaConTipos,
   tipoFuncional: TipoFuncionalLote,
   fechaMaximaInicial?: Date,
 ) {
@@ -226,7 +277,7 @@ async function ensureInitialPendingForRule(
     },
   });
 
-  if (existingOpen) return;
+  if (!shouldEnsureInitialSanitaryPending({ rule, tipoFuncional, existingOpen: Boolean(existingOpen) })) return;
 
   await tx.pendienteSanitario.create({
     data: {
@@ -265,6 +316,23 @@ function tipoFuncionalLabel(tipoFuncional: TipoFuncionalLote) {
 
 function getTaskTargetDate(task: Pick<VaccinationTaskWithRelations, 'fechaProgramada' | 'fechaObjetivo'>) {
   return task.fechaObjetivo ?? task.fechaProgramada;
+}
+
+function sameDay(left: Date, right: Date) {
+  return startOfDay(left).getTime() === startOfDay(right).getTime();
+}
+
+function hasEquivalentOpenVaccinationTask(
+  tasks: VaccinationTaskWithRelations[],
+  animalId: number,
+  tipoSanitario: string,
+  fechaObjetivo: Date,
+) {
+  return tasks.some((task) => (
+    task.animalId === animalId
+    && task.tipoSanitario === tipoSanitario
+    && sameDay(getTaskTargetDate(task), fechaObjetivo)
+  ));
 }
 
 export function calculateEstadoSanitario(task: Pick<VaccinationTaskWithRelations, 'estado' | 'fechaProgramada' | 'fechaObjetivo'>): EstadoSanitario {
@@ -360,6 +428,13 @@ async function ensureAutomaticSanitaryTasks() {
     const rule = ruleByCode.get(task.tipoSanitario);
     if (!rule) continue;
     const fechaObjetivo = calculateNextTargetDate(rule, task.fechaRealizacion);
+    if (!shouldGenerateNextVaccinationForAnimal({
+      rule,
+      animal: task.animal,
+      existingFuturePending: hasEquivalentOpenVaccinationTask(openTasks, task.animalId, task.tipoSanitario, fechaObjetivo),
+    })) {
+      continue;
+    }
     tasksToCreate.push({
       animalId: task.animalId,
       fechaObjetivo,
@@ -484,7 +559,6 @@ export async function markVaccinationAsPerformed(idParam: string, input: Record<
   if (!task.tipoSanitario) throw new AppError('La tarea no tiene tipo sanitario asociado.', 400);
 
   const rule = await findSanitaryRuleByCode(task.tipoSanitario);
-  if (!rule || !rule.activo) throw new AppError('El tipo sanitario no tiene una regla activa configurada.', 400);
   const fechaRealizada = parseDate(input.fechaRealizada ?? new Date().toISOString().slice(0, 10), 'Fecha realizada');
   const observaciones = parseOptionalString(input.observaciones ?? task.descripcion, 'Observaciones');
   const updatedTask = await markVaccinationTaskAsDone({
@@ -497,9 +571,13 @@ export async function markVaccinationAsPerformed(idParam: string, input: Record<
   });
 
   const openTasks = await findOpenVaccinationTasks();
-  const hasNextOpen = openTasks.some((openTask) => openTask.animalId === task.animalId && openTask.tipoSanitario === task.tipoSanitario);
-  if (!hasNextOpen) {
+  if (rule) {
     const fechaObjetivo = calculateNextTargetDate(rule, fechaRealizada);
+    if (shouldGenerateNextVaccinationForAnimal({
+      rule,
+      animal: task.animal,
+      existingFuturePending: hasEquivalentOpenVaccinationTask(openTasks, task.animalId, task.tipoSanitario, fechaObjetivo),
+    })) {
     await createVaccinationTask({
       animalId: task.animalId,
       fechaObjetivo,
@@ -508,6 +586,7 @@ export async function markVaccinationAsPerformed(idParam: string, input: Record<
       tipoSanitario: rule.codigo,
       usuarioId,
     });
+    }
   }
 
   return updatedTask;
@@ -534,24 +613,24 @@ export async function markVaccinationsAsPerformedBulk(input: Record<string, unkn
   }
 
   const rules = await Promise.all(vaccinationTasks.map((task) => findSanitaryRuleByCode(task.tipoSanitario!)));
-  if (rules.some((rule) => !rule || !rule.activo)) {
-    throw new AppError('Una o más vacunaciones no tienen una regla sanitaria activa configurada.', 400);
-  }
-
   const selectedIds = new Set(ids);
   const openTasks = await findOpenVaccinationTasks();
-  const openKeySet = new Set(
-    openTasks
-      .filter((task) => !selectedIds.has(task.id))
-      .map((task) => `${task.animalId}:${task.tipoSanitario}`),
-  );
+  const openTasksNotSelected = openTasks.filter((task) => !selectedIds.has(task.id));
   const nextTaskKeys = new Set<string>();
   const nextTasks = vaccinationTasks.flatMap((task, index) => {
-    const key = `${task.animalId}:${task.tipoSanitario}`;
-    const rule = rules[index]!;
-    if (openKeySet.has(key) || nextTaskKeys.has(key)) return [];
-    nextTaskKeys.add(key);
+    const rule = rules[index];
+    if (!rule) return [];
     const fechaObjetivo = calculateNextTargetDate(rule, fechaRealizada);
+    const key = `${task.animalId}:${task.tipoSanitario}:${startOfDay(fechaObjetivo).toISOString()}`;
+    if (nextTaskKeys.has(key)) return [];
+    if (!shouldGenerateNextVaccinationForAnimal({
+      rule,
+      animal: task.animal,
+      existingFuturePending: hasEquivalentOpenVaccinationTask(openTasksNotSelected, task.animalId, task.tipoSanitario!, fechaObjetivo),
+    })) {
+      return [];
+    }
+    nextTaskKeys.add(key);
     return [{
       animalId: task.animalId,
       fechaObjetivo,
@@ -687,8 +766,12 @@ export async function updateExistingSanitaryRule(idParam: string, input: Record<
           data: tiposFuncionales.map((tipoFuncional) => ({ reglaSanitariaId: id, tipoFuncional })),
           skipDuplicates: true,
         });
+        const reglaActualizada = {
+          ...regla,
+          tiposFuncionales: tiposFuncionales.map((tipoFuncional) => ({ tipoFuncional })),
+        };
         for (const tipoFuncional of tiposFuncionales) {
-          await ensureInitialPendingForRule(tx, regla, tipoFuncional, fechaMaximaInicial);
+          await ensureInitialPendingForRule(tx, reglaActualizada, tipoFuncional, fechaMaximaInicial);
         }
       }
 
@@ -726,6 +809,9 @@ async function ensurePendientesSanitarios() {
         where: { reglaSanitariaId: rule.id, tipoFuncional: scope.tipoFuncional },
         orderBy: { fechaRealizacion: 'desc' },
       });
+      if (!latestApplication && rule.periodicidad === PeriodicidadReglaSanitaria.DINAMICA_ANUAL) {
+        continue;
+      }
       const fechaMaxima = latestApplication
         ? calculateNextPendingDate(rule, latestApplication.fechaRealizacion)
         : calculateInitialPendingDate(rule);
@@ -863,7 +949,6 @@ export async function marcarPendienteSanitarioRealizado(idParam: string, input: 
   const observaciones = parseOptionalString(input.observaciones, 'Observaciones');
   const animales = await getAnimalsByTipoFuncional(pendiente.tipoFuncional);
   const lotes = groupAnimalsByLote(animales);
-  const proximaFechaMaxima = calculateNextPendingDate(pendiente.reglaSanitaria, fechaRealizacion);
 
   const result = await prisma.$transaction(async (tx) => {
     const aplicacion = await tx.aplicacionSanitaria.create({
@@ -909,21 +994,48 @@ export async function marcarPendienteSanitarioRealizado(idParam: string, input: 
       },
     });
 
-    await tx.pendienteSanitario.create({
-      data: {
-        reglaSanitariaId: pendiente.reglaSanitariaId,
-        tipoFuncional: pendiente.tipoFuncional,
-        fechaMaxima: proximaFechaMaxima,
-      },
-    }).catch((error) => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
-      throw error;
+    const currentRule = await tx.reglaSanitaria.findUnique({
+      where: { id: pendiente.reglaSanitariaId },
+      include: { tiposFuncionales: true },
     });
+    let proximaFechaMaxima: Date | null = null;
 
-    return aplicacion;
+    if (currentRule) {
+      const nextFechaMaxima = calculateNextPendingDate(currentRule, fechaRealizacion);
+      const existingFuturePending = await tx.pendienteSanitario.findFirst({
+        where: {
+          reglaSanitariaId: currentRule.id,
+          tipoFuncional: pendiente.tipoFuncional,
+          estado: EstadoPendienteSanitario.PENDIENTE,
+          fechaMaxima: nextFechaMaxima,
+          aplicacionId: null,
+        },
+      });
+
+      if (shouldGenerateNextSanitaryPending({
+        rule: currentRule,
+        tipoFuncional: pendiente.tipoFuncional,
+        eligibleAnimalsCount: animales.length,
+        existingFuturePending: Boolean(existingFuturePending),
+      })) {
+        await tx.pendienteSanitario.create({
+          data: {
+            reglaSanitariaId: currentRule.id,
+            tipoFuncional: pendiente.tipoFuncional,
+            fechaMaxima: nextFechaMaxima,
+          },
+        }).catch((error) => {
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') return null;
+          throw error;
+        });
+        proximaFechaMaxima = nextFechaMaxima;
+      }
+    }
+
+    return { aplicacion, proximaFechaMaxima };
   });
 
-  return { aplicacion: result, proximaFechaMaxima };
+  return result;
 }
 
 export async function listAplicacionesSanitarias(query: Record<string, unknown>) {

@@ -24,6 +24,8 @@ const vaccinationTaskInclude = {
         select: {
           id: true,
           nombre: true,
+          activo: true,
+          tipoFuncional: true,
         },
       },
     },
@@ -130,16 +132,23 @@ export function findVaccinationTaskById(id: number) {
 export function findSanitaryRules(filters: { onlyActive?: boolean } = {}) {
   return prisma.reglaSanitaria.findMany({
     where: { activo: filters.onlyActive ? true : undefined },
+    include: { tiposFuncionales: true },
     orderBy: [{ activo: 'desc' }, { nombre: 'asc' }],
   });
 }
 
 export function findSanitaryRuleByCode(codigo: string) {
-  return prisma.reglaSanitaria.findUnique({ where: { codigo } });
+  return prisma.reglaSanitaria.findUnique({
+    where: { codigo },
+    include: { tiposFuncionales: true },
+  });
 }
 
 export function findSanitaryRuleById(id: number) {
-  return prisma.reglaSanitaria.findUnique({ where: { id } });
+  return prisma.reglaSanitaria.findUnique({
+    where: { id },
+    include: { tiposFuncionales: true },
+  });
 }
 
 export function createSanitaryRule(data: Prisma.ReglaSanitariaCreateInput) {
