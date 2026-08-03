@@ -7,6 +7,7 @@ import {
   findAnimalFichaById,
   findAnimalById,
   findAnimales,
+  getNextGeneratedCaravana,
   getRodeoSummaryCounts,
   updateAnimal,
 } from '../repositories/animales.repository';
@@ -102,6 +103,10 @@ function handlePrismaUniqueError(error: unknown): never {
     throw new AppError(CARAVANA_EXISTS_MESSAGE, 409);
   }
 
+  if (error instanceof Error && error.message.includes('seis digitos')) {
+    throw new AppError(error.message, 409);
+  }
+
   throw error;
 }
 
@@ -182,6 +187,18 @@ export async function listAnimales(query: Record<string, unknown>) {
 
 export function getRodeoResumen() {
   return getRodeoSummaryCounts();
+}
+
+export async function getProximaCaravana() {
+  try {
+    return await getNextGeneratedCaravana();
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('seis digitos')) {
+      throw new AppError(error.message, 409);
+    }
+
+    throw error;
+  }
 }
 
 export async function getAnimal(idParam: string) {

@@ -76,6 +76,10 @@ export interface RodeoResumen {
   secasRecuperacion: number;
 }
 
+export interface ProximaCaravana {
+  caravana: string;
+}
+
 export interface AnimalDeactivateValues {
   estadoAnimal: MotivoBajaAnimal;
   observacionesBaja: string;

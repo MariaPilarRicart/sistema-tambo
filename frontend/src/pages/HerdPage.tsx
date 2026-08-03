@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Activity, Baby, CircleDot, HeartPulse, RefreshCcw, ShieldCheck, Trash2, Users, X, CalendarPlus, Edit2, Plus } from 'lucide-react';
 import { ApiError } from '../services/apiClient';
-import { createAnimal, deactivateAnimal, getAnimales, getRodeoResumen, updateAnimal } from '../services/animalesService';
+import { createAnimal, deactivateAnimal, getAnimales, getProximaCaravana, getRodeoResumen, updateAnimal } from '../services/animalesService';
 import { createEvento } from '../services/eventosService';
 import { getLotes } from '../services/lotesService';
 import { LotesPanel } from '../components/ui/LotesPanel';
@@ -293,6 +293,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingCaravana, setIsLoadingCaravana] = useState(false);
 
   const isAdmin = currentUser?.role === 'ADMIN';
   const canCreateAnimal = currentUser?.role === 'ADMIN' || currentUser?.role === 'EMPLEADO';
@@ -388,16 +389,28 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
     setEditingAnimal(null);
     setFormValues(emptyAnimalForm);
     setIsAnimalModalOpen(false);
+    setIsLoadingCaravana(false);
     setError('');
     setSuccess('');
   }
 
-  function openCreateAnimalModal() {
+  async function openCreateAnimalModal() {
+    if (!authToken) return onUnauthorized();
     setEditingAnimal(null);
     setFormValues(emptyAnimalForm);
     setIsAnimalModalOpen(true);
+    setIsLoadingCaravana(true);
     setError('');
     setSuccess('');
+
+    try {
+      const caravana = await getProximaCaravana(authToken);
+      setFormValues((currentValues) => ({ ...currentValues, caravana }));
+    } catch (caravanaError) {
+      handleRequestError(caravanaError);
+    } finally {
+      setIsLoadingCaravana(false);
+    }
   }
 
   function startEditing(animal: Animal) {
@@ -635,7 +648,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
             </div>
             <div className="header-actions">
               {canCreateAnimal && (
-                <button type="button" className="secondary-button" onClick={openCreateAnimalModal}>
+                <button type="button" className="secondary-button" onClick={() => void openCreateAnimalModal()}>
                   <Plus size={16} />
                   Nuevo animal
                 </button>
@@ -750,12 +763,10 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
             </div>
 
             <form className="user-form animal-modal-form" onSubmit={handleSubmit}>
-              {editingAnimal && (
-                <label>
-                  <span>Caravana</span>
-                  <input value={formValues.caravana} disabled />
-                </label>
-              )}
+              <label>
+                <span>Caravana</span>
+                <input value={isLoadingCaravana ? 'Calculando...' : formValues.caravana} disabled />
+              </label>
               <label>
                 <span>Fecha nacimiento</span>
                 <input type="date" value={formValues.fechaNacimiento} onChange={(event) => setFormValues({ ...formValues, fechaNacimiento: event.target.value })} required />
@@ -825,7 +836,7 @@ export function HerdPage({ authToken, currentUser, onUnauthorized }: HerdPagePro
                 <button type="button" className="secondary-button" onClick={resetForm} disabled={isSaving}>
                   Cancelar
                 </button>
-                <button type="submit" className="primary-button" disabled={isSaving}>
+                <button type="submit" className="primary-button" disabled={isSaving || (!editingAnimal && (isLoadingCaravana || !formValues.caravana))}>
                   <Plus size={18} />
                   {isSaving ? 'Guardando...' : editingAnimal ? 'Guardar cambios' : 'Crear animal'}
                 </button>

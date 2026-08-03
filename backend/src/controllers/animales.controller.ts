@@ -4,6 +4,7 @@ import {
   deactivateExistingAnimal,
   getAnimal,
   getAnimalFicha,
+  getProximaCaravana,
   getRodeoResumen,
   listAnimales,
   updateExistingAnimal,
@@ -17,6 +18,10 @@ export async function listAnimalesController(request: Request, response: Respons
 
 export async function getRodeoResumenController(_request: Request, response: Response) {
   response.status(200).json({ resumen: await getRodeoResumen() });
+}
+
+export async function getProximaCaravanaController(_request: Request, response: Response) {
+  response.status(200).json({ caravana: await getProximaCaravana() });
 }
 
 export async function getAnimalController(request: Request, response: Response) {

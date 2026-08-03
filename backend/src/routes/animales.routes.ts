@@ -5,6 +5,7 @@ import {
   deleteAnimalController,
   getAnimalController,
   getAnimalFichaController,
+  getProximaCaravanaController,
   getRodeoResumenController,
   listAnimalesController,
   updateAnimalController,
@@ -17,6 +18,7 @@ export const animalesRouter = Router();
 
 animalesRouter.get('/animales', authenticate, asyncHandler(listAnimalesController));
 animalesRouter.get('/animales/resumen', authenticate, asyncHandler(getRodeoResumenController));
+animalesRouter.get('/animales/proxima-caravana', authenticate, asyncHandler(getProximaCaravanaController));
 animalesRouter.get('/animales/:id/ficha', authenticate, asyncHandler(getAnimalFichaController));
 animalesRouter.get('/animales/:id', authenticate, asyncHandler(getAnimalController));
 animalesRouter.post('/animales', authenticate, authorizeRoles(RolUsuario.ADMIN, RolUsuario.EMPLEADO), asyncHandler(createAnimalController));

@@ -1,5 +1,5 @@
 import { apiRequest } from './apiClient';
-import type { Animal, AnimalDeactivateValues, AnimalFicha, AnimalFilters, AnimalFormValues, RodeoResumen } from '../types/animales';
+import type { Animal, AnimalDeactivateValues, AnimalFicha, AnimalFilters, AnimalFormValues, ProximaCaravana, RodeoResumen } from '../types/animales';
 
 interface AnimalesResponse {
   animales: Animal[];
@@ -16,6 +16,8 @@ interface AnimalFichaResponse {
 interface RodeoResumenResponse {
   resumen: RodeoResumen;
 }
+
+type ProximaCaravanaResponse = ProximaCaravana;
 
 function buildQuery(filters: AnimalFilters) {
   const params = new URLSearchParams();
@@ -56,6 +58,12 @@ export async function getRodeoResumen(token: string) {
   const response = await apiRequest<RodeoResumenResponse>('/animales/resumen', { token });
 
   return response.resumen;
+}
+
+export async function getProximaCaravana(token: string) {
+  const response = await apiRequest<ProximaCaravanaResponse>('/animales/proxima-caravana', { token });
+
+  return response.caravana;
 }
 
 export async function getAnimalFicha(token: string, id: number) {

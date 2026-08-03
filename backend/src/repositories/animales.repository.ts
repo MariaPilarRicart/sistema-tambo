@@ -1,6 +1,9 @@
 import type { CategoriaAnimal, EstadoAnimal, EstadoReproductivo, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 
+const CARAVANA_LOCK_KEY = 2026080101;
+const MAX_CARAVANA_NUMBER = 999999;
+
 const animalInclude = {
   lote: {
     select: {
@@ -169,6 +172,29 @@ export type AnimalCreateData = {
   padreNombre?: string | null;
 };
 
+function formatCaravanaNumber(value: number) {
+  return String(value).padStart(6, '0');
+}
+
+async function calculateNextCaravana(tx: Prisma.TransactionClient | typeof prisma) {
+  const rows = await tx.$queryRaw<Array<{ nextValue: string }>>`
+    SELECT (COALESCE(MAX(caravana::bigint), 0) + 1)::text AS "nextValue"
+    FROM animales
+    WHERE caravana ~ '^[0-9]+$'
+  `;
+  const next = Number(rows[0]?.nextValue ?? 1);
+
+  if (!Number.isSafeInteger(next) || next < 1 || next > MAX_CARAVANA_NUMBER) {
+    throw new Error('No hay caravanas automaticas disponibles con seis digitos.');
+  }
+
+  return formatCaravanaNumber(next);
+}
+
+export function getNextGeneratedCaravana() {
+  return calculateNextCaravana(prisma);
+}
+
 export function createAnimal(data: AnimalCreateData & { caravana: string }) {
   return prisma.animal.create({
     data,
@@ -180,14 +206,8 @@ export async function createAnimalWithGeneratedCaravanaInTransaction(
   tx: Prisma.TransactionClient,
   data: AnimalCreateData,
 ) {
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(2026080101)`;
-  const rows = await tx.$queryRaw<Array<{ next: bigint }>>`
-    SELECT COALESCE(MAX(caravana::integer), 0) + 1 AS next
-    FROM animales
-    WHERE caravana ~ '^[0-9]{6}$'
-  `;
-  const next = Number(rows[0]?.next ?? 1);
-  const caravana = String(next).padStart(6, '0');
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CARAVANA_LOCK_KEY})`;
+  const caravana = await calculateNextCaravana(tx);
 
   return tx.animal.create({
     data: {
